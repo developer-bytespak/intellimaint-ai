@@ -6,24 +6,24 @@ interface TopNavigationProps {
 
 export default function TopNavigation({ onTabChange }: TopNavigationProps) {
   return (
-    <div className="fixed top-4 right-4 flex gap-2 z-50">
+    <div className="fixed top-2 right-4 bg-[#2a3441] px-3 py-1 rounded-full flex gap-1 z-50">
       {/* App Info Icon */}
       <button
         onClick={() => onTabChange('info')}
-        className="flex items-center justify-center w-12 h-12 rounded-full bg-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#3a3a3a] transition-all duration-200"
+        className="flex items-center justify-center w-10 h-10 rounded-full bg-transparent text-white hover:text-white hover:bg-[#3a4a5a] transition-all duration-200"
       >
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h8c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </button>
 
       {/* Profile Icon */}
       <button
         onClick={() => onTabChange('profile')}
-        className="flex items-center justify-center w-12 h-12 rounded-full bg-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#3a3a3a] transition-all duration-200"
+        className="flex items-center justify-center w-10 h-10 rounded-full bg-transparent text-white hover:text-white hover:bg-[#3a4a5a] transition-all duration-200"
       >
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       </button>
     </div>
