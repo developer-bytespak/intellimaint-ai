@@ -1,10 +1,8 @@
+'use client';
+
+import { redirect } from 'next/navigation';
+
 export default function BlogsPage() {
-  return (
-    <div>
-      <h1>Blogs</h1>
-      {/* Blog list will go here */}
-    </div>
-  );
+  // Redirect to app-info page since blogs are accessed from there
+  redirect('/app-info');
 }
-
-
