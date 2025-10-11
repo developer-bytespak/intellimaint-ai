@@ -14,6 +14,12 @@ export default function LoginPage() {
     router.push('/verify?flow=signin');
   };
 
+  const handleSignUp = () => {
+    // Navigate to signup page
+    console.log('Navigating to signup page');
+    router.push('/signup');
+  };
+
   return (
     <div className="min-h-screen bg-[#1A1D26] flex flex-col lg:flex-row">
       {/* Mobile/Tablet: Single Column Layout (matches image exactly) */}
@@ -144,9 +150,13 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="text-center pt-4">
             <span className="text-[#6C707B] text-sm">New to Energy Solution? </span>
-            <a href="#" className="text-white text-sm hover:underline">
+            <button 
+              onClick={handleSignUp}
+              className="text-white text-sm hover:underline cursor-pointer transition-colors hover:text-blue-400 focus:outline-none focus:text-blue-400 active:text-blue-400"
+              type="button"
+            >
               Sign Up
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -282,8 +292,10 @@ export default function LoginPage() {
           <div className="text-center pt-4">
             <span className="text-[#6C707B] text-sm">New to Energy Solution? </span>
             <button 
-              onClick={() => router.push('/signup')}
-              className="text-white text-sm hover:underline"
+              onClick={handleSignUp}
+              className="text-white text-sm hover:underline cursor-pointer transition-colors hover:text-blue-400 focus:outline-none focus:text-blue-400 active:text-blue-400 touch-manipulation"
+              type="button"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               Sign Up
             </button>

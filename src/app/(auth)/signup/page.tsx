@@ -159,10 +159,17 @@ export default function SignUpPage() {
           </button>
         </div>
 
+        {/* Vertical OR Divider - Desktop Only */}
+        <div className="hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-4 lg:py-20">
+          <div className="w-px h-20 bg-[#4A4E57]"></div>
+          <span className="px-2 py-2 text-[#6C707B] text-sm bg-[#1A1D26]">OR</span>
+          <div className="w-px h-20 bg-[#4A4E57]"></div>
+        </div>
+
         {/* Social Sign In Section - Right Side (Desktop) */}
-        <div className="max-w-md mx-auto lg:mx-0 w-full lg:flex-1 lg:pl-8">
-          {/* OR Divider */}
-          <div className="flex items-center mb-6 sm:mb-8">
+        <div className="max-w-md mx-auto lg:mx-0 w-full lg:flex-1">
+          {/* Horizontal OR Divider - Mobile Only */}
+          <div className="flex items-center mb-6 sm:mb-8 lg:hidden">
             <div className="flex-1 h-px bg-[#4A4E57]"></div>
             <span className="px-4 text-[#6C707B] text-sm sm:text-base">OR</span>
             <div className="flex-1 h-px bg-[#4A4E57]"></div>
