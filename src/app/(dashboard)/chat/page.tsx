@@ -24,6 +24,8 @@ export default function ChatPage() {
     setActiveTab
   } = useChat();
 
+  console.log(activeChat);
+
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
 
   const handleNavigationChange = (tab: NavigationTab) => {

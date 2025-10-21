@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import { Chat, Message, TabType } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export function useChat() {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [isMobile, setIsMobile] = useState(false);
+  const searchParams = useSearchParams();
+
+  const router = useRouter();
 
   // Check if mobile view
   useEffect(() => {
@@ -19,14 +23,19 @@ export function useChat() {
     checkIsMobile();
     window.addEventListener('resize', checkIsMobile);
     return () => window.removeEventListener('resize', checkIsMobile);
+    
   }, []);
 
-  // Set first chat as active by default
+  // Check URL params and set active chat from URL
   useEffect(() => {
-    if (chats.length > 0 && !activeChat) {
-      setActiveChat(chats[0]);
+    const chatId = searchParams.get('chat');
+    if (chatId) {
+      const chat = chats.find(c => c.id === chatId);
+      if (chat) {
+        setActiveChat(chat);
+      }
     }
-  }, [chats, activeChat]);
+  }, [searchParams, chats]);
 
   const createNewChat = () => {
     const newChat: Chat = {
@@ -40,10 +49,12 @@ export function useChat() {
     setChats(prev => [newChat, ...prev]);
     setActiveChat(newChat);
     setActiveTab('chats');
+    router.push(`/chat?chat=${newChat.id}`);
   };
 
   const selectChat = (chat: Chat) => {
     setActiveChat(chat);
+    router.push(`/chat?chat=${chat.id}`);
     setActiveTab('chats');
   };
 
@@ -95,6 +106,16 @@ export function useChat() {
     }, 1000);
   };
 
+  const searchingofSpecificChat = (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      // console.log(chat);
+      router.push(`/chat?chat=${chat.id}`);
+      setActiveChat(chat);
+      setActiveTab('chats');
+    }
+  };
+
   const photoGroups = getPhotoGroups(mockPhotos);
 
   return {
@@ -107,6 +128,7 @@ export function useChat() {
     createNewChat,
     selectChat,
     sendMessage,
-    setActiveTab
+    setActiveTab,
+    searchingofSpecificChat
   };
 }
