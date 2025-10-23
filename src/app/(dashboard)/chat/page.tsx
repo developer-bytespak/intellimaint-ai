@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { Chat } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import BottomNavigation from '@/components/features/chat/BottomNavigation';
@@ -61,6 +61,30 @@ function ChatPageContent() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  // Close sidebar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isSidebarOpen) {
+        // Check if click is outside the sidebar
+        const sidebar = document.querySelector('.sidebar-container');
+        const sidebarToggle = document.querySelector('.sidebar-toggle');
+        
+        if (sidebar && !sidebar.contains(event.target as Node) && 
+            sidebarToggle && !sidebarToggle.contains(event.target as Node)) {
+          setIsSidebarOpen(false);
+        }
+      }
+    };
+
+    if (isSidebarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSidebarOpen]);
+
   // Responsive Layout - Works for both mobile and desktop
   return (
     <div className="h-screen bg-[#1f2632] flex flex-col overflow-hidden">
@@ -69,7 +93,7 @@ function ChatPageContent() {
         <div className="flex items-center justify-between px-4 py-3">
           <button
             onClick={toggleSidebar}
-            className="flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
+            className="sidebar-toggle flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -92,7 +116,14 @@ function ChatPageContent() {
       {!isMobile && <TopNavigation />}
 
       {/* Center Component - Responsive Content */}
-      <div className="flex-1 overflow-hidden">
+      <div 
+        className="flex-1 overflow-hidden"
+        onClick={() => {
+          if (isSidebarOpen) {
+            setIsSidebarOpen(false);
+          }
+        }}
+      >
         {currentView === 'chat' && (
           <ChatInterface 
             activeChat={activeChat} 
@@ -106,7 +137,7 @@ function ChatPageContent() {
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Sidebar Content */}
-        <div className="absolute left-0 top-0 bottom-0 w-80 bg-[#1f2632] shadow-xl">
+        <div className="sidebar-container absolute left-0 top-0 bottom-0 w-80 bg-[#1f2632] shadow-xl">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3441]">
             <h2 className="text-lg font-bold text-white">Menu</h2>
             <button
