@@ -135,7 +135,7 @@ export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfa
       </div>
 
       {/* Input - Fixed at Bottom */}
-      <div className="flex-shrink-0 px-3 sm:px-4 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
+      <div className="flex-shrink-0 px-3 sm:px-4 md:mb-0 mb-20 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
         <form onSubmit={handleSubmit}
         className=''
         >
