@@ -116,124 +116,104 @@ export const mockChats: Chat[] = [
   },
   {
     id: '6',
-    title: 'Why am I seeing a low oil pressure...',
-    createdAt: new Date('2024-01-10T13:20:00'),
-    updatedAt: new Date('2024-01-10T13:35:00'),
+    title: 'Why is my generator shutting down...',
+    createdAt: new Date('2024-01-11T11:30:00'),
+    updatedAt: new Date('2024-01-11T11:45:00'),
     messages: [
       {
-        id: '6-1',
-        content: 'Why am I seeing a low oil pressure warning on my generator?',
+        id: '5-1',
+        content: 'Why is my generator shutting down after running for only 10 minutes?',
         role: 'user',
-        timestamp: new Date('2024-01-10T13:20:00')
+        timestamp: new Date('2024-01-11T11:30:00')
       },
       {
-        id: '6-2',
-        content: 'A low oil pressure warning is a critical safety feature that should never be ignored. Here\'s what to do:\n\n1. **Stop the Generator**: Immediately shut down the generator\n2. **Check Oil Level**: Verify the oil level is at the proper mark\n3. **Oil Quality**: Check if the oil is clean and not contaminated\n4. **Oil Type**: Ensure you\'re using the correct oil grade for your generator\n5. **Oil Filter**: Replace the oil filter if it\'s due for service\n\n**Never run the generator with low oil pressure** as this can cause severe engine damage. Add oil if needed and restart carefully.',
+        id: '5-2',
+        content: 'A generator shutting down after 10 minutes usually indicates an overheating or fuel delivery issue. Common causes include:\n\n1. **Overheating**: Check if the generator is in a well-ventilated area\n2. **Low Oil Shutdown**: Many generators have low oil shutdown protection\n3. **Fuel Filter**: Clogged fuel filter restricting fuel flow\n4. **Air Filter**: Dirty air filter causing rich fuel mixture\n5. **Overload**: Running too many appliances causing automatic shutdown\n\nCheck the oil level first, then examine the air and fuel filters. Is the generator in an enclosed space?',
         role: 'assistant',
-        timestamp: new Date('2024-01-10T13:21:00')
+        timestamp: new Date('2024-01-11T11:31:00')
       }
     ]
   },
   {
     id: '7',
-    title: 'My generator displays a red warning',
-    createdAt: new Date('2024-01-09T15:10:00'),
-    updatedAt: new Date('2024-01-09T15:25:00'),
+    title: 'Why is my generator shutting down...',
+    createdAt: new Date('2024-01-11T11:30:00'),
+    updatedAt: new Date('2024-01-11T11:45:00'),
     messages: [
       {
-        id: '7-1',
-        content: 'My generator displays a red warning light. What does this mean?',
+        id: '5-1',
+        content: 'Why is my generator shutting down after running for only 10 minutes?',
         role: 'user',
-        timestamp: new Date('2024-01-09T15:10:00')
+        timestamp: new Date('2024-01-11T11:30:00')
       },
       {
-        id: '7-2',
-        content: 'A red warning light on your generator indicates a serious issue that requires immediate attention. The exact meaning depends on your generator model, but common red warning conditions include:\n\n1. **Low Oil**: Most common - check oil level immediately\n2. **High Temperature**: Engine overheating - shut down and allow cooling\n3. **Low Oil Pressure**: Critical engine problem\n4. **Overload**: Too many appliances connected\n5. **Fault Code**: Specific error requiring service\n\n**Action Required**: Stop the generator and consult your owner\'s manual for the specific warning code. What model generator do you have?',
+        id: '5-2',
+        content: 'A generator shutting down after 10 minutes usually indicates an overheating or fuel delivery issue. Common causes include:\n\n1. **Overheating**: Check if the generator is in a well-ventilated area\n2. **Low Oil Shutdown**: Many generators have low oil shutdown protection\n3. **Fuel Filter**: Clogged fuel filter restricting fuel flow\n4. **Air Filter**: Dirty air filter causing rich fuel mixture\n5. **Overload**: Running too many appliances causing automatic shutdown\n\nCheck the oil level first, then examine the air and fuel filters. Is the generator in an enclosed space?',
         role: 'assistant',
-        timestamp: new Date('2024-01-09T15:11:00')
+        timestamp: new Date('2024-01-11T11:31:00')
       }
     ]
   },
   {
     id: '8',
-    title: 'Could it be a battery issue?',
-    createdAt: new Date('2024-01-08T12:00:00'),
-    updatedAt: new Date('2024-01-08T12:15:00'),
+    title: 'Why is my generator shutting down...',
+    createdAt: new Date('2024-01-11T11:30:00'),
+    updatedAt: new Date('2024-01-11T11:45:00'),
     messages: [
       {
-        id: '8-1',
-        content: 'Could it be a battery issue? My generator won\'t start with the electric start button.',
+        id: '5-1',
+        content: 'Why is my generator shutting down after running for only 10 minutes?',
         role: 'user',
-        timestamp: new Date('2024-01-08T12:00:00')
+        timestamp: new Date('2024-01-11T11:30:00')
       },
       {
-        id: '8-2',
-        content: 'Yes, a battery issue is very likely if the electric start isn\'t working. Here\'s how to diagnose and fix it:\n\n1. **Check Battery Voltage**: Use a multimeter to test the battery (should be 12.6V or higher)\n2. **Battery Terminals**: Clean any corrosion on the terminals\n3. **Battery Connections**: Ensure connections are tight and secure\n4. **Battery Age**: Batteries typically last 3-5 years\n5. **Manual Start**: Try pull-starting to confirm the engine itself is fine\n\nIf the battery is below 12V or won\'t hold a charge, it needs replacement. Can you test the battery voltage?',
+        id: '5-2',
+        content: 'A generator shutting down after 10 minutes usually indicates an overheating or fuel delivery issue. Common causes include:\n\n1. **Overheating**: Check if the generator is in a well-ventilated area\n2. **Low Oil Shutdown**: Many generators have low oil shutdown protection\n3. **Fuel Filter**: Clogged fuel filter restricting fuel flow\n4. **Air Filter**: Dirty air filter causing rich fuel mixture\n5. **Overload**: Running too many appliances causing automatic shutdown\n\nCheck the oil level first, then examine the air and fuel filters. Is the generator in an enclosed space?',
         role: 'assistant',
-        timestamp: new Date('2024-01-08T12:01:00')
+        timestamp: new Date('2024-01-11T11:31:00')
       }
     ]
   },
   {
     id: '9',
-    title: 'How do I check if the alternator...',
-    createdAt: new Date('2024-01-07T14:30:00'),
-    updatedAt: new Date('2024-01-07T14:45:00'),
+    title: 'Why is my generator shutting down...',
+    createdAt: new Date('2024-01-11T11:30:00'),
+    updatedAt: new Date('2024-01-11T11:45:00'),
     messages: [
       {
-        id: '9-1',
-        content: 'How do I check if the alternator is working properly on my generator?',
+        id: '5-1',
+        content: 'Why is my generator shutting down after running for only 10 minutes?',
         role: 'user',
-        timestamp: new Date('2024-01-07T14:30:00')
+        timestamp: new Date('2024-01-11T11:30:00')
       },
       {
-        id: '9-2',
-        content: 'To check if your generator\'s alternator is working properly, follow these steps:\n\n1. **Voltage Test**: With the generator running, test the output voltage at the outlets (should be 120V ±5% for standard outlets)\n2. **Frequency Test**: Check the frequency (should be 60Hz for US generators)\n3. **Load Test**: Gradually add loads and monitor voltage stability\n4. **Battery Charging**: If your generator has a battery, check if it\'s charging properly\n5. **Visual Inspection**: Look for burned wires, loose connections, or physical damage\n\nA multimeter is essential for these tests. What voltage readings are you getting at the outlets?',
+        id: '5-2',
+        content: 'A generator shutting down after 10 minutes usually indicates an overheating or fuel delivery issue. Common causes include:\n\n1. **Overheating**: Check if the generator is in a well-ventilated area\n2. **Low Oil Shutdown**: Many generators have low oil shutdown protection\n3. **Fuel Filter**: Clogged fuel filter restricting fuel flow\n4. **Air Filter**: Dirty air filter causing rich fuel mixture\n5. **Overload**: Running too many appliances causing automatic shutdown\n\nCheck the oil level first, then examine the air and fuel filters. Is the generator in an enclosed space?',
         role: 'assistant',
-        timestamp: new Date('2024-01-07T14:31:00')
+        timestamp: new Date('2024-01-11T11:31:00')
       }
     ]
   },
   {
     id: '10',
-    title: 'Could dirty filters be causing this?',
-    createdAt: new Date('2024-01-06T10:15:00'),
-    updatedAt: new Date('2024-01-06T10:30:00'),
+    title: 'Why is my generator shutting down...',
+    createdAt: new Date('2024-01-11T11:30:00'),
+    updatedAt: new Date('2024-01-11T11:45:00'),
     messages: [
       {
-        id: '10-1',
-        content: 'Could dirty filters be causing this? My generator is running rough and producing black smoke.',
+        id: '5-1',
+        content: 'Why is my generator shutting down after running for only 10 minutes?',
         role: 'user',
-        timestamp: new Date('2024-01-06T10:15:00')
+        timestamp: new Date('2024-01-11T11:30:00')
       },
       {
-        id: '10-2',
-        content: 'Yes, dirty filters are very likely causing your issues! Black smoke and rough running are classic signs of filter problems:\n\n1. **Air Filter**: A dirty air filter causes a rich fuel mixture, leading to black smoke\n2. **Fuel Filter**: Clogged fuel filter can cause rough running and poor performance\n3. **Oil Filter**: While not directly related to smoke, a dirty oil filter affects engine performance\n\n**Solution**: Replace all filters according to your maintenance schedule:\n- Air filter: Every 100-200 hours\n- Fuel filter: Every 200-300 hours\n- Oil filter: Every oil change\n\nAfter replacing the filters, run the generator under load to clear any remaining carbon buildup.',
+        id: '5-2',
+        content: 'A generator shutting down after 10 minutes usually indicates an overheating or fuel delivery issue. Common causes include:\n\n1. **Overheating**: Check if the generator is in a well-ventilated area\n2. **Low Oil Shutdown**: Many generators have low oil shutdown protection\n3. **Fuel Filter**: Clogged fuel filter restricting fuel flow\n4. **Air Filter**: Dirty air filter causing rich fuel mixture\n5. **Overload**: Running too many appliances causing automatic shutdown\n\nCheck the oil level first, then examine the air and fuel filters. Is the generator in an enclosed space?',
         role: 'assistant',
-        timestamp: new Date('2024-01-06T10:16:00')
+        timestamp: new Date('2024-01-11T11:31:00')
       }
     ]
   },
-  {
-    id: '11',
-    title: 'Is my generator getting enough airflow?',
-    createdAt: new Date('2024-01-05T16:45:00'),
-    updatedAt: new Date('2024-01-05T17:00:00'),
-    messages: [
-      {
-        id: '11-1',
-        content: 'Is my generator getting enough airflow? It keeps overheating.',
-        role: 'user',
-        timestamp: new Date('2024-01-05T16:45:00')
-      },
-      {
-        id: '11-2',
-        content: 'Insufficient airflow is a common cause of generator overheating. Here\'s what to check:\n\n1. **Clearance Space**: Ensure 3-5 feet of clearance on all sides\n2. **Enclosure**: Never run a generator in an enclosed space (garage, shed, etc.)\n3. **Air Intake**: Check that air intake vents are not blocked\n4. **Exhaust**: Ensure exhaust can flow freely without restriction\n5. **Weather Conditions**: High ambient temperature or humidity affects cooling\n\n**Minimum Clearances**:\n- 3 feet from walls and structures\n- 5 feet from windows and doors\n- 10 feet from air intakes to buildings\n\nIs your generator running in an open area with proper clearances?',
-        role: 'assistant',
-        timestamp: new Date('2024-01-05T16:46:00')
-      }
-    ]
-  }
 ];
 
 // Mock photos data organized by month

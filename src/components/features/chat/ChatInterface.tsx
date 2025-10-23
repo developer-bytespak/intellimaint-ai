@@ -9,6 +9,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfaceProps) {
+  // console.log(activeChat);
   const [inputValue, setInputValue] = useState('');
   const [showPinMenu, setShowPinMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -51,11 +52,11 @@ export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfa
     });
   };
 
-   // If no active chat, show welcome screen
-   if (!activeChat) {
+  // If no active chat, show welcome screen
+  if (!activeChat) {
     return (
-      <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-[calc(100vh-110px)] md:overflow-y-hidden overflow-y-auto items-center justify-center p-4 sm:p-8">
-        <div className="max-w-2xl text-center space-y-4 sm:space-y-6">
+      <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full items-center justify-center p-8">
+        <div className="max-w-2xl text-center space-y-6">
           {/* Logo or Icon */}
           <div className="flex justify-center mb-4">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
@@ -66,25 +67,31 @@ export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfa
           </div>
 
           {/* Welcome Text */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Welcome to IntelliMaint AI</h1>
+          <h1 className="text-3xl font-bold text-white">Welcome to IntelliMaint AI</h1>
+          <p className="text-gray-300 text-lg leading-relaxed">
+            Your intelligent maintenance assistant powered by advanced AI. Get instant answers to your equipment questions, troubleshoot issues, and access expert maintenance guidance 24/7.
+          </p>
+          <p className="text-gray-400 text-base">
+            Select a chat from the sidebar to continue a conversation, or start a new chat to begin.
+          </p>
 
           {/* Feature Highlights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 sm:mt-8">
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+            <div className="bg-[#2a3441] p-4 rounded-xl">
               <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               <h3 className="text-white font-semibold mb-1">Fast Response</h3>
               <p className="text-gray-400 text-sm">Get instant AI-powered answers</p>
             </div>
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+            <div className="bg-[#2a3441] p-4 rounded-xl">
               <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <h3 className="text-white font-semibold mb-1">Expert Knowledge</h3>
               <p className="text-gray-400 text-sm">Access comprehensive maintenance data</p>
             </div>
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+            <div className="bg-[#2a3441] p-4 rounded-xl">
               <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -92,6 +99,22 @@ export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfa
               <p className="text-gray-400 text-sm">Always here when you need help</p>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full" style={{ minHeight: 0 }}>
+      {/* Header */}
+      <div className="px-4 py-3 bg-transparent" style={{ flexShrink: 0 }}>
+        <div className="flex items-center justify-center">
+          <button className="bg-[#2a3441] text-white px-4 py-2 rounded-2xl text-sm font-medium hover:bg-blue-500 hover:text-white transition-colors duration-200 flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M5 16L3 8l5.5 5L12 4l3.5 9L21 8l-2 8H5zm2.7-2h8.6l.9-4.4L12 8.5 6.8 9.6L7.7 14z"/>
+            </svg>
+            Get Subscription
+          </button>
         </div>
       </div>
     );

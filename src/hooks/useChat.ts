@@ -23,10 +23,11 @@ export function useChat() {
     checkIsMobile();
     window.addEventListener('resize', checkIsMobile);
     return () => window.removeEventListener('resize', checkIsMobile);
+    
   }, []);
 
-   // Check URL params and set active chat from URL
-   useEffect(() => {
+  // Check URL params and set active chat from URL
+  useEffect(() => {
     const chatId = searchParams.get('chat');
     if (chatId) {
       const chat = chats.find(c => c.id === chatId);
@@ -35,13 +36,6 @@ export function useChat() {
       }
     }
   }, [searchParams, chats]);
-
-  // Set first chat as active by default
-  // useEffect(() => {
-  //   if (chats.length > 0 && !activeChat) {
-  //     setActiveChat(chats[0]);
-  //   }
-  // }, [chats, activeChat]);
 
   const createNewChat = () => {
     // Remove any existing empty chats (chats with no messages)
@@ -59,6 +53,7 @@ export function useChat() {
     setActiveChat(newChat);
     router.push(`/chat?chat=${newChat.id}`);
     setActiveTab('chats');
+    router.push(`/chat?chat=${newChat.id}`);
   };
 
   const selectChat = (chat: Chat) => {
@@ -120,16 +115,12 @@ export function useChat() {
   const searchingofSpecificChat = (chatId: string) => {
     const chat = chats.find(c => c.id === chatId);
     if (chat) {
+      // console.log(chat);
       router.push(`/chat?chat=${chat.id}`);
       setActiveChat(chat);
       setActiveTab('chats');
     }
   };
-
-  const cleanupEmptyChats = () => {
-    setChats(prev => prev.filter(chat => chat.messages.length > 0));
-  };
-
 
   const photoGroups = getPhotoGroups(mockPhotos);
 
@@ -144,7 +135,6 @@ export function useChat() {
     selectChat,
     sendMessage,
     setActiveTab,
-    searchingofSpecificChat,
-    cleanupEmptyChats
+    searchingofSpecificChat
   };
 }

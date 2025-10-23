@@ -24,6 +24,8 @@ function ChatPageContent() {
     setActiveTab
   } = useChat();
 
+  console.log(activeChat);
+
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
