@@ -1,13 +1,13 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { Chat, TabType } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
 
-export default function DashboardPage() {
+function RecentHistoryContent() {
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -280,5 +280,17 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#1f2632] flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    }>
+      <RecentHistoryContent />
+    </Suspense>
   );
 }

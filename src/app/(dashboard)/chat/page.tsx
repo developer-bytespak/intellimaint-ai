@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Chat } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import BottomNavigation from '@/components/features/chat/BottomNavigation';
@@ -10,7 +10,7 @@ import ChatInterface from '@/components/features/chat/ChatInterface';
 
 type NavigationTab = 'chat' | 'history' | 'info' | 'profile';
 
-export default function ChatPage() {
+function ChatPageContent() {
   const {
     chats,
     activeChat,
@@ -170,5 +170,17 @@ export default function ChatPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen bg-[#1f2632] flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }

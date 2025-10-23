@@ -3,7 +3,7 @@
 import type React from "react"
 import { useRouter } from "next/navigation"
 import { useChat } from "@/hooks/useChat"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -63,7 +63,7 @@ function IconPlay(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-export default function SavedPromptsPage() {
+function SavedPromptsContent() {
   const router = useRouter()
   const { chats } = useChat()
   const [searchQuery, setSearchQuery] = useState("")
@@ -331,6 +331,18 @@ export default function SavedPromptsPage() {
     </div>
     </main>
   )
+}
+
+export default function SavedPromptsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#1A1D26] flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    }>
+      <SavedPromptsContent />
+    </Suspense>
+  );
 }
 
 
