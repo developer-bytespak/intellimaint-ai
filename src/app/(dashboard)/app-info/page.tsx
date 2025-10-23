@@ -33,7 +33,7 @@ export default function AppInfoPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#1f2632] text-white">
+    <div className="h-full bg-[#1f2632] text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
