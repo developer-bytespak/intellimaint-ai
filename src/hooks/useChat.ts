@@ -17,7 +17,7 @@ export function useChat() {
   // Check if mobile view
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+      setIsMobile(window.innerWidth < 768); // lg breakpoint
     };
 
     checkIsMobile();
@@ -38,6 +38,9 @@ export function useChat() {
   }, [searchParams, chats]);
 
   const createNewChat = () => {
+    // Remove any existing empty chats (chats with no messages)
+    setChats(prev => prev.filter(chat => chat.messages.length > 0));
+    
     const newChat: Chat = {
       id: Date.now().toString(),
       title: 'New Chat',
@@ -48,11 +51,14 @@ export function useChat() {
     
     setChats(prev => [newChat, ...prev]);
     setActiveChat(newChat);
+    router.push(`/chat?chat=${newChat.id}`);
     setActiveTab('chats');
     router.push(`/chat?chat=${newChat.id}`);
   };
 
   const selectChat = (chat: Chat) => {
+    // Clean up any empty chats when selecting a new chat
+    setChats(prev => prev.filter(c => c.messages.length > 0 || c.id === chat.id));
     setActiveChat(chat);
     router.push(`/chat?chat=${chat.id}`);
     setActiveTab('chats');
