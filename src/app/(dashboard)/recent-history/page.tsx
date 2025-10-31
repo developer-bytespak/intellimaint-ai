@@ -3,7 +3,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { Chat, TabType } from '@/types/chat';
-import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
+import { mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
 
@@ -11,10 +11,9 @@ function RecentHistoryContent() {
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const { searchingofSpecificChat } = useChat();
+  const { chats, searchingofSpecificChat, deleteChat } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
-  console.log(mockChats);
 
   const addParams = (params: string) => {
     router.push(`/recent-history?recent-history=${params}`);
@@ -28,18 +27,18 @@ function RecentHistoryContent() {
 
   useEffect(() => {
     const param = searchParams.get('recent-history');
-    // if (param === null) {
-    //   router.replace("/recent-history?recent-history=chats");
-    //   return;
-    // }
-    if (param === 'chats') {
-      handleTabChange('chats');
-    } else if (param === 'photos') {
-      handleTabChange('photos');
-    } else if (param === 'documents') {
-      handleTabChange('documents');
+    if (param === null) {
+      router.replace("/recent-history?recent-history=chats");
+      return;
     }
-  }, [searchParams]);
+    if (param === 'chats') {
+      setActiveTab('chats');
+    } else if (param === 'photos') {
+      setActiveTab('photos');
+    } else if (param === 'documents') {
+      setActiveTab('documents');
+    }
+  }, [searchParams, router]);
 
   const handleChatSelect = (chat: Chat) => {
     // setActiveChat(chat);
@@ -47,12 +46,8 @@ function RecentHistoryContent() {
     searchingofSpecificChat(chat.id);
   };
 
-  const filteredChats = mockChats.filter(chat =>
+  const filteredChats = chats.filter(chat =>
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredPhotos = mockPhotos.filter(photo =>
-    photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredDocuments = mockDocuments.filter(doc =>
@@ -68,10 +63,10 @@ function RecentHistoryContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex px-4 py-4 border-b border-[#2a3441] gap-2">
+      <div className="flex justify-center px-4 py-4 border-b border-[#2a3441] gap-2">
         <button
           onClick={() => {
-            // handleTabChange('chats')
+            handleTabChange('chats');
             addParams("chats");
           }}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -84,7 +79,7 @@ function RecentHistoryContent() {
         </button>
         <button
           onClick={() => {
-            // handleTabChange('photos')
+            handleTabChange('photos');
             addParams("photos");
           }}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -97,7 +92,7 @@ function RecentHistoryContent() {
         </button>
         <button
           onClick={() => {
-            // handleTabChange('documents')
+            handleTabChange('documents');
             addParams("documents");
           }}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -127,12 +122,12 @@ function RecentHistoryContent() {
       </div>
 
       {/* Content - Responsive Grid */}
-      <div className="px-4 h-[calc(100vh-200px)] overflow-y-auto pb-20 chat-scrollbar">
+      <div className="px-4 h-[calc(100vh-200px)] overflow-y-auto pb-20 chat-scrollbar ">
         {/* Chats Tab */}
         {activeTab === 'chats' && (
           <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-gray-400 text-sm font-medium">Chats</h2>
+            <div className="flex justify-between items-center mb-4 ">
+              <h2 className="text-gray-400 text-sm font-medium ">Chats</h2>
               <button 
               onClick={() => {
                 router.push("/chat");
@@ -162,14 +157,15 @@ function RecentHistoryContent() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 ml-2">
-                      <button className="p-1 hover:bg-[#3a3a3a] rounded">
-                        <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-                        </svg>
-                      </button>
-                      <button className="p-1 hover:bg-[#3a3a3a] rounded">
-                        <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      <button 
+                        className="p-1 hover:bg-red-500/20 rounded transition-colors duration-200"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteChat(chat.id);
+                        }}
+                      >
+                        <svg className="w-5 h-5 text-red-400 hover:text-red-300" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                         </svg>
                       </button>
                     </div>
@@ -182,34 +178,69 @@ function RecentHistoryContent() {
 
         {/* Photos Tab */}
         {activeTab === 'photos' && (
-          <div>
+          <div className="pb-6 ">
             <h2 className="text-gray-400 text-sm font-medium mb-4">Photos</h2>
             <div className="space-y-6">
-              {photoGroups.map((group) => (
-                <div key={`${group.month}-${group.year}`}>
-                  <h3 className="text-gray-400 text-sm font-medium mb-3">{group.month} {group.year}</h3>
-                  {/* Responsive Grid: 3 columns on mobile, 4 on tablet, 6 on desktop */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {group.photos
-                      .filter(photo => 
-                        photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                      .map((photo) => (
-                      <div key={photo.id} className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden group cursor-pointer">
-                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
-                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                          </svg>
+              {photoGroups.map((group) => {
+                const filteredPhotos = group.photos.filter(photo => 
+                  photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
+                );
+                
+                if (filteredPhotos.length === 0) return null;
+                
+                return (
+                  <div key={`${group.month}-${group.year}`}>
+                    <h3 className="text-gray-400 text-sm font-medium mb-3">{group.month} {group.year}</h3>
+                    {/* Responsive Grid: 2 columns on mobile, 3 on tablet, 4 on desktop */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                      {filteredPhotos.map((photo) => (
+                        <div key={photo.id} className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden group cursor-pointer relative">
+                          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
+                            <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                            </svg>
+                          </div>
+                          
+                          {/* Hover overlay with action buttons */}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // TODO: Implement photo viewing logic
+                                console.log('View photo:', photo.id);
+                              }}
+                              className="p-2 bg-blue-500/80 hover:bg-blue-500 rounded-lg transition-colors duration-200"
+                              title="View photo"
+                            >
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // TODO: Implement photo deletion logic
+                                console.log('Delete photo:', photo.id);
+                              }}
+                              className="p-2 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors duration-200"
+                              title="Delete photo"
+                            >
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          {/* Photo info overlay */}
+                          <div className="absolute inset-0 transition-opacity duration-200 flex items-end p-2 pointer-events-none">
+                            <p className="text-white text-xs truncate">{photo.filename}</p>
+                          </div>
                         </div>
-                        {/* Photo info overlay on hover */}
-                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-2">
-                          <p className="text-white text-xs truncate">{photo.filename}</p>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

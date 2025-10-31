@@ -46,14 +46,13 @@ type AccountDetailsForm = z.infer<typeof accountDetailsSchema>
 export default function AccountPage() {
   const [isEditing, setIsEditing] = useState(false)
   const router = useRouter()
-  const { user, isLoading, error, updateUser } = useUser()
+  const { user, isLoading, updateUser } = useUser()
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
-    watch,
   } = useForm<AccountDetailsForm>({
     resolver: zodResolver(accountDetailsSchema),
     defaultValues: {

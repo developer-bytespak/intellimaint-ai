@@ -171,7 +171,7 @@ export default function ProfilePage() {
           {/* list card */}
           <div className="mt-6 rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg">
             <ul role="list" className="divide-y divide-[color:var(--border)]/10">
-              {items.map(({ label, icon: Icon, href }, idx) => (
+              {items.map(({ label, icon: Icon, href }) => (
                 <li key={label}>
                   <button
                     type="button"

@@ -7,12 +7,12 @@ interface BottomNavigationProps {
 
 export default function BottomNavigation({ activeTab, onTabChange }: BottomNavigationProps) {
   return (
-    <div className="fixed bottom-2 left-4 right-4 bg-[#2a3441] rounded-2xl flex-shrink-0 z-50 shadow-lg mb-2" style={{ height: '60px', boxShadow: '0 -4px 20px rgba(255, 255, 255, 0.15), 0 -2px 10px rgba(255, 255, 255, 0.08)' }}>
+    <div className="fixed bottom-2 left-4 right-4 bg-[#2a3441] rounded-2xl flex-shrink-0 z-30 shadow-lg mb-2" style={{ height: '70px', boxShadow: '0 -4px 20px rgba(255, 255, 255, 0.15), 0 -2px 10px rgba(255, 255, 255, 0.08)' }}>
       <div className="flex justify-around items-center h-full px-1">
         {/* Chat Icon - House/Pentagon Shape */}
         <button
           onClick={() => onTabChange('chat')}
-          className={`flex flex-col items-center justify-center w-8 h-8 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
             activeTab === 'chat' 
               ? 'bg-blue-500 text-white border-blue-500' 
               : 'text-white hover:text-white hover:bg-white/10'
@@ -26,7 +26,7 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* Recent History Icon - Clock */}
         <button
           onClick={() => onTabChange('history')}
-          className={`flex flex-col items-center justify-center w-8 h-8 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
             activeTab === 'history' 
               ? 'bg-blue-500 text-white border-blue-500' 
               : 'text-white hover:text-white hover:bg-white/10'
@@ -40,7 +40,7 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* App Info Icon - Document */}
         <button
           onClick={() => onTabChange('info')}
-          className={`flex flex-col items-center justify-center w-8 h-8 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
             activeTab === 'info' 
               ? 'bg-blue-500 text-white border-blue-500' 
               : 'text-white hover:text-white hover:bg-white/10'
@@ -54,7 +54,7 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* Profile Icon */}
         <button
           onClick={() => onTabChange('profile')}
-          className={`flex flex-col items-center justify-center w-8 h-8 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
             activeTab === 'profile' 
               ? 'bg-blue-500 text-white border-blue-500' 
               : 'text-white hover:text-white hover:bg-white/10'
@@ -68,3 +68,4 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
     </div>
   );
 }
+

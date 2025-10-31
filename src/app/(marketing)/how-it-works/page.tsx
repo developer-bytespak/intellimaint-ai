@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 // Back arrow icon component
 const BackArrow = ({ className }: { className?: string }) => (
   <svg 
@@ -65,10 +67,11 @@ export default function HowItWorksPage() {
                     {/* Image Container */}
                     <div className="w-full h-48 sm:h-64 lg:h-80 bg-white/10 backdrop-blur-md rounded-2xl relative overflow-hidden">
                       {/* Actual Image for All Cards */}
-                      <img 
+                      <Image 
                         src={step.image} 
                         alt={step.title}
-                        className="w-full h-full object-cover rounded-2xl"
+                        fill
+                        className="object-cover rounded-2xl"
                       />
                     </div>
                   </div>

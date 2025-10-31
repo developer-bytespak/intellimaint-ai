@@ -1,8 +1,16 @@
+export interface MessageDocument {
+  file: File;
+  url: string;
+  type: 'PDF' | 'DOC';
+}
+
 export interface Message {
   id: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
+  images?: string[]; // optional list of image URLs/data URLs attached to the message
+  documents?: MessageDocument[]; // optional list of documents (PDF/DOC) attached to the message
 }
 
 export interface Chat {
