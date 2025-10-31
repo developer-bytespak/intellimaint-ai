@@ -188,7 +188,7 @@ export default function LoginPage() {
 
       {/* Desktop: Right Side - Login Form */}
       <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:items-center lg:justify-center lg:p-8">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-md md:space-y-3">
           {/* Email Field */}
           <div>
             <label className="block text-white text-sm font-medium mb-2">
@@ -258,7 +258,7 @@ export default function LoginPage() {
           {/* Sign In Button */}
           <button 
             onClick={handleSignIn}
-            className="w-full bg-[#2196F3] text-white font-semibold py-3 rounded-3xl hover:bg-blue-600 transition-colors"
+            className="w-full bg-[#2196F3] text-white font-semibold md:py-3  rounded-3xl hover:bg-blue-600 transition-colors"
           >
             Sign In
           </button>

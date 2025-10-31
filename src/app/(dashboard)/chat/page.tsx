@@ -3,9 +3,8 @@
 import { useState, Suspense } from 'react';
 import { Chat } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
-import BottomNavigation from '@/components/features/chat/BottomNavigation';
-import TopNavigation from '@/components/features/chat/TopNavigation';
-import RecentHistory from '@/components/features/chat/RecentHistory';
+import { TopNavigation } from '@/components/features/chat/Navigation';
+import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
 
 type NavigationTab = 'chat' | 'history' | 'info' | 'profile';
@@ -21,15 +20,12 @@ function ChatPageContent() {
     createNewChat,
     selectChat,
     sendMessage,
-    setActiveTab
+    setActiveTab,
+    deleteChat
   } = useChat();
 
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const handleNavigationChange = (tab: NavigationTab) => {
-    setCurrentView(tab);
-  };
 
   const handleChatSelect = (chat: Chat) => {
     selectChat(chat);
@@ -53,13 +49,33 @@ function ChatPageContent() {
     // On desktop, keep sidebar open for better UX like ChatGPT
   };
 
+  const handleDeletePhoto = (photoId: string) => {
+    // TODO: Implement photo deletion logic
+    console.log('Delete photo:', photoId);
+  };
+
+  const handleViewPhoto = (photoId: string) => {
+    // TODO: Implement photo viewing logic
+    console.log('View photo:', photoId);
+  };
+
+  const handleDeleteDocument = (documentId: string) => {
+    // TODO: Implement document deletion logic
+    console.log('Delete document:', documentId);
+  };
+
+  const handleViewDocument = (documentId: string) => {
+    // TODO: Implement document viewing logic
+    console.log('View document:', documentId);
+  };
+
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
   // Responsive Layout - Works for both mobile and desktop
   return (
-    <div className="h-screen bg-[#1f2632] flex overflow-hidden">
+    <div className="h-screen bg-[#1f2632] flex overflow-hidden max-w-full">
       {/* Backdrop - Close sidebar when clicking outside */}
       {isSidebarOpen && (
         <div 
@@ -69,42 +85,53 @@ function ChatPageContent() {
       )}
 
       {/* Sidebar - Fixed position, shifts content when open */}
-      <div className={`fixed left-0 top-0 bottom-0 w-80 bg-[#1f2632] border-r border-[#2a3441] z-40 transform transition-transform duration-300 ease-in-out ${
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3441]">
-          <h2 className="text-lg font-bold text-white">Menu</h2>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="flex items-center justify-center w-8 h-8 rounded-full bg-[#2a3441] text-white hover:bg-[#3a4a5a] transition-all duration-200"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+     {
+      !isMobile && (
+        <div className={`fixed left-0 top-0 bottom-0 w-80 bg-[#1f2632] border-r border-[#2a3441] z-40 transform transition-transform duration-300 ease-in-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3441]">
+            <h2 className="text-lg font-bold text-white">Menu</h2>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-[#2a3441] text-white hover:bg-[#3a4a5a] transition-all duration-200"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Recent History Component */}
+          <div className="h-full overflow-hidden">
+            <RecentHistory
+              chats={chats}
+              activeChat={activeChat}
+              photoGroups={photoGroups}
+              documents={documents}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              onChatSelect={handleChatSelect}
+              onCreateNewChat={handleCreateNewChat}
+              onDeleteChat={deleteChat}
+              onDeletePhoto={handleDeletePhoto}
+              onViewPhoto={handleViewPhoto}
+              onDeleteDocument={handleDeleteDocument}
+              onViewDocument={handleViewDocument}
+            />
+          </div>
         </div>
-        
-        {/* Recent History Component */}
-        <div className="h-full overflow-hidden">
-          <RecentHistory
-            chats={chats}
-            activeChat={activeChat}
-            photoGroups={photoGroups}
-            documents={documents}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            onChatSelect={handleChatSelect}
-            onCreateNewChat={handleCreateNewChat}
-          />
-        </div>
-      </div>
+      )
+     }
 
       {/* Main Content Area - Shifts when sidebar opens (desktop only) */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out min-w-0 max-w-full overflow-hidden ${
         !isMobile && isSidebarOpen ? 'ml-80' : 'ml-0'
       }`}>
         {/* Top Component - Fixed Header */}
-        <div className="flex-shrink-0 bg-[#1f2632] border-b border-[#2a3441]">
+        {
+          !isMobile && (
+            <div className="flex-shrink-0 bg-[#1f2632] border-b border-[#2a3441]">
           <div className="flex items-center justify-between px-4 py-3">
             {!isSidebarOpen && (
               <button
@@ -129,12 +156,14 @@ function ChatPageContent() {
             <div className="w-8"></div> {/* Spacer for centering */}
           </div>
         </div>
+          )
+        }
 
         {/* Top Navigation - Only on desktop */}
         {!isMobile && <TopNavigation />}
 
         {/* Center Component - Responsive Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden max-w-full min-w-0">
           {currentView === 'chat' && (
             <ChatInterface 
               activeChat={activeChat} 

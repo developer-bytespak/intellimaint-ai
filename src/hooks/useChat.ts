@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Chat, Message, TabType } from '@/types/chat';
+import { Chat, Message, MessageDocument, TabType } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -69,14 +69,16 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-  const sendMessage = (content: string) => {
+  const sendMessage = (content: string, images?: string[], documents?: MessageDocument[]) => {
     if (!activeChat) return;
 
     const newMessage: Message = {
       id: Date.now().toString(),
       content,
       role: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      images: images && images.length > 0 ? images : undefined,
+      documents: documents && documents.length > 0 ? documents : undefined
     };
 
     const updatedChat = {
@@ -130,6 +132,15 @@ export function useChat() {
     setChats(prev => prev.filter(chat => chat.messages.length > 0));
   };
 
+  const deleteChat = (chatId: string) => {
+    setChats(prev => prev.filter(chat => chat.id !== chatId));
+    
+    // If the deleted chat was active, clear the active chat
+    if (activeChat?.id === chatId) {
+      setActiveChat(null);
+      router.push('/chat');
+    }
+  };
 
   const photoGroups = getPhotoGroups(mockPhotos);
 
@@ -145,6 +156,7 @@ export function useChat() {
     sendMessage,
     setActiveTab,
     searchingofSpecificChat,
-    cleanupEmptyChats
+    cleanupEmptyChats,
+    deleteChat
   };
 }

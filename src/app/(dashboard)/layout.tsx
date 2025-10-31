@@ -1,6 +1,6 @@
 "use client"
 
-import BottomNavigation from '@/components/features/chat/BottomNavigation'
+import { BottomNavigation } from '@/components/features/chat/Navigation'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 

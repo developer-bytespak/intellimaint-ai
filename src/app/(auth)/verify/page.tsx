@@ -60,7 +60,7 @@ function VerifyPageContent() {
         router.push('/form');
       } else if (flow === 'signin') {
         // User is signing in - redirect to home page
-        router.push('/');
+        router.push('/chat');
       } else {
         // Default fallback - redirect to form page
         router.push('/form');
@@ -73,30 +73,30 @@ function VerifyPageContent() {
   const isCodeComplete = code.every(digit => digit !== '');
 
   return (
-    <div className="min-h-screen bg-[#1A1D26] flex flex-col">
+    <div className="h-screen bg-[#1A1D26] flex flex-col overflow-hidden">
       {/* Navigation Header */}
       <div className="px-4 sm:px-6 py-4 pt-6 pb-4 sm:pb-6 lg:pb-4">
         <button
           onClick={() => router.back()}
-          className="bg-[#2C303A] border border-[#4A4E57] rounded-2xl sm:rounded-3xl p-3 sm:p-4 text-[#A0A0A0] hover:text-white hover:bg-[#3A404C] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+          className="bg-[#2C303A] border border-[#4A4E57] rounded-xl p-2 text-[#A0A0A0] hover:text-white hover:bg-[#3A404C] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
         >
-          <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col justify-between lg:justify-center px-4 sm:px-6 lg:px-8">
+      <div className="flex-1 flex flex-col justify-between lg:justify-center items-center px-4 sm:px-6 lg:px-8">
         {/* Top Content - Left aligned on mobile, centered on desktop */}
         <div className="lg:text-center lg:mb-16">
           {/* Page Title */}
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 sm:mb-6 lg:mb-6 text-left lg:text-center">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 sm:mb-6 lg:mb-6 text-center">
             Verify Your Account
           </h1>
           
           {/* Instructional Text */}
-          <p className="text-[#A0A0A0] text-base sm:text-lg lg:text-lg leading-relaxed max-w-xs sm:max-w-sm lg:max-w-md lg:mx-auto text-left lg:text-center mb-6 sm:mb-8 lg:mb-8 font-medium">
+          <p className="text-[#A0A0A0] text-base sm:text-lg lg:text-lg leading-relaxed max-w-xs sm:max-w-sm lg:max-w-md lg:mx-auto text-center mb-6 sm:mb-8 lg:mb-8 font-medium">
             Enter the code we&apos;ve sent by text to{' '}
             <span className="text-white font-semibold">leslimoses@example.com</span>
           </p>
@@ -104,12 +104,12 @@ function VerifyPageContent() {
           {/* Code Input Section */}
           <div className="lg:mb-6">
             {/* Input Label */}
-            <label className="block text-[#A0A0A0] text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-left lg:text-center">
+            <label className="block text-[#A0A0A0] text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center">
               Enter code
             </label>
             
             {/* Code Input Fields */}
-            <div className="flex justify-start lg:justify-center space-x-3 sm:space-x-4 lg:space-x-6 mb-4 sm:mb-6">
+            <div className="flex justify-center space-x-3 sm:space-x-4 lg:space-x-6 mb-4 sm:mb-6">
               {code.map((digit, index) => (
                 <input
                   key={index}
@@ -128,7 +128,7 @@ function VerifyPageContent() {
             </div>
 
             {/* Resend Option */}
-            <div className="text-left lg:text-center px-0">
+            <div className="text-center px-0">
               <span className="text-[#A0A0A0] text-sm sm:text-base lg:text-base font-medium">
                 Didn&apos;t get a code?{' '}
                 <button
@@ -176,7 +176,7 @@ function VerifyPageContent() {
 
 export default function VerifyPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#1A1D26] flex items-center justify-center">
+    <Suspense fallback={<div className="h-screen bg-[#1A1D26] flex items-center justify-center overflow-hidden">
       <div className="text-white">Loading...</div>
     </div>}>
       <VerifyPageContent />
