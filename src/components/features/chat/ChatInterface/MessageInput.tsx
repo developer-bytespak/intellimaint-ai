@@ -15,8 +15,34 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showCamera, setShowCamera] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [currentAudioLevel, setCurrentAudioLevel] = useState(0);
+  const [animationCounter, setAnimationCounter] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioMimeTypeRef = useRef<string>('audio/webm');
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Animation counter for waveform
+  useEffect(() => {
+    if (!isRecording || isPaused) return;
+    
+    const interval = setInterval(() => {
+      setAnimationCounter(prev => prev + 1);
+    }, 50); // Update every 50ms for smooth animation
+    
+    return () => clearInterval(interval);
+  }, [isRecording, isPaused]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -45,6 +71,29 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
           URL.revokeObjectURL(doc.url);
         }
       });
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      // Stop recording if still active
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      // Stop all tracks
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      // Clear timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      // Close audio context
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run cleanup on unmount
@@ -131,6 +180,224 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
     setSelectedDocuments(prev => prev.filter((_, i) => i !== index));
   };
 
+  const analyzeAudio = () => {
+    if (!analyserRef.current || !isRecording || isPaused) return;
+    
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const updateLevel = () => {
+      if (!analyserRef.current || !isRecording || isPaused) return;
+      
+      analyserRef.current.getByteFrequencyData(dataArray);
+      
+      // Calculate average level for pulsing effect
+      const sum = Array.from(dataArray).reduce((a, b) => a + b, 0);
+      const average = sum / bufferLength / 255; // Normalize to 0-1
+      
+      setCurrentAudioLevel(average);
+      
+      animationFrameRef.current = requestAnimationFrame(updateLevel);
+    };
+    
+    updateLevel();
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      // Set up audio context for visualization
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+      
+      source.connect(analyser);
+      
+      // Check for supported mime types
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/mpeg'
+      ];
+      
+      let selectedMimeType = '';
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          break;
+        }
+      }
+      
+      audioMimeTypeRef.current = selectedMimeType || 'audio/webm';
+      
+      const options: MediaRecorderOptions = {};
+      if (selectedMimeType) {
+        options.mimeType = selectedMimeType;
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, options);
+      
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeTypeRef.current });
+        setAudioBlob(audioBlob);
+        const url = URL.createObjectURL(audioBlob);
+        setAudioUrl(url);
+        
+        // Stop audio analysis
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        
+        // Stop all tracks
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        if (!isPaused) {
+          setRecordingTime(prev => prev + 1);
+        }
+      }, 1000);
+      
+      // Start audio analysis for waveform
+      analyzeAudio();
+      
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      alert('Unable to access microphone. Please check your permissions.');
+    }
+  };
+  
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      setAnimationCounter(0);
+      
+      // Stop audio analysis
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // Clear timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      if (isPaused) {
+        mediaRecorderRef.current.resume();
+        analyzeAudio();
+      } else {
+        mediaRecorderRef.current.pause();
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+      }
+      setIsPaused(!isPaused);
+    }
+  };
+  
+  const handleToggleVoice = async () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      // If there's a previous recording, clear it
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+        setAudioBlob(null);
+        setRecordingTime(0);
+      }
+      await startRecording();
+    }
+  };
+  
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const handleSendAudio = () => {
+    if (audioBlob) {
+      // Get file extension based on mime type
+      const mimeType = audioMimeTypeRef.current;
+      let extension = 'webm';
+      if (mimeType.includes('ogg')) extension = 'ogg';
+      else if (mimeType.includes('mp4')) extension = 'm4a';
+      else if (mimeType.includes('mpeg')) extension = 'mp3';
+      
+      // Create a File object from the blob
+      const audioFile = new File([audioBlob], `recording-${Date.now()}.${extension}`, { type: mimeType });
+      const audioUrlForDoc = URL.createObjectURL(audioBlob);
+      
+      // Create a MessageDocument for the audio
+      const audioDocument: MessageDocument = {
+        file: audioFile,
+        url: audioUrlForDoc,
+        type: 'AUDIO'
+      };
+      
+      // Send the audio as a document
+      onSendMessage('', undefined, [audioDocument]);
+      
+      // Cleanup
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      setAudioUrl(null);
+      setAudioBlob(null);
+      setRecordingTime(0);
+      setCurrentAudioLevel(0);
+      setAnimationCounter(0);
+    }
+  };
+  
+  const handleCancelRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    }
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+    }
+    setAudioUrl(null);
+    setAudioBlob(null);
+    setRecordingTime(0);
+    setCurrentAudioLevel(0);
+    setAnimationCounter(0);
+  };
+
   return (
     <>
       <div className="flex-shrink-0 px-3 sm:px-4 md:mb-0 mb-2 py-3 sm:py-4 md:pb-3 pb-[90px] border-t border-[#2a3441] bg-[#1f2632] overflow-visible max-w-full">
@@ -143,6 +410,164 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
               onRemoveImage={removeImageAt}
               onRemoveDocument={removeDocumentAt}
             />
+            
+            {/* Voice Recording Waveform */}
+            {(isRecording || audioUrl) && (
+              <div className="mb-3 flex items-center gap-2 transform transition-all duration-300 ease-out">
+                {/* Mic Icon (shows while recording) */}
+                {isRecording && (
+                  <div className="flex-shrink-0">
+                    <svg className={`w-5 h-5 ${isPaused ? 'text-gray-500' : 'text-red-500'}`} fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                  </div>
+                )}
+                
+                {/* Waveform Container */}
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg">
+                  {isRecording ? (
+                    <>
+                      {/* Waveform bars - pulsing effect */}
+                      <div className="flex-1 flex items-center justify-center gap-0.5 h-8">
+                        {Array.from({ length: 40 }).map((_, i) => {
+                          // Create a pulsing effect based on audio level
+                          const baseHeight = 6;
+                          const maxHeight = 28;
+                          // Use sine wave for smooth animation with audio level
+                          const phase = (i / 40) * Math.PI * 2;
+                          const timeOffset = animationCounter * 0.1;
+                          const sineWave = Math.sin(phase + timeOffset);
+                          // Audio level influences the middle bars more (like WhatsApp)
+                          const centerDistance = Math.abs(i / 40 - 0.5);
+                          const audioInfluence = currentAudioLevel * 18 * (1 - centerDistance * 1.5);
+                          const height = Math.max(
+                            baseHeight + (sineWave * 6) + audioInfluence,
+                            baseHeight
+                          );
+                          
+                          return (
+                            <div
+                              key={i}
+                              className="bg-white rounded-full transition-all duration-100 ease-out"
+                              style={{
+                                width: '2px',
+                                height: `${Math.min(height, maxHeight)}px`,
+                                opacity: isPaused ? 0.3 : 0.85,
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Time Display */}
+                      <div className="flex-shrink-0 text-white text-sm font-mono min-w-[45px] text-right">
+                        {formatTime(recordingTime)}
+                      </div>
+                      
+                      {/* Pause Button */}
+                      <button
+                        type="button"
+                        onClick={pauseRecording}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-white hover:bg-[#3a4a5a] rounded-lg transition-colors"
+                        title={isPaused ? 'Resume' : 'Pause'}
+                      >
+                        {isPaused ? (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                          </svg>
+                        )}
+                      </button>
+                      
+                      {/* Stop Button */}
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        title="Stop"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 6h12v12H6z"/>
+                        </svg>
+                      </button>
+                    </>
+                  ) : audioUrl && (
+                    <>
+                      {/* Playback Controls */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const audio = e.currentTarget.parentElement?.querySelector('audio') as HTMLAudioElement;
+                          if (audio) {
+                            if (audio.paused) {
+                              audio.play();
+                              setIsPaused(false);
+                            } else {
+                              audio.pause();
+                              setIsPaused(true);
+                            }
+                          }
+                        }}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-white hover:bg-[#3a4a5a] rounded-lg transition-colors"
+                        title={isPaused ? 'Play' : 'Pause'}
+                      >
+                        {isPaused ? (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                          </svg>
+                        )}
+                      </button>
+                      
+                      {/* Hidden audio element for playback */}
+                      <audio
+                        src={audioUrl}
+                        onEnded={() => setIsPaused(true)}
+                        onPlay={() => setIsPaused(false)}
+                        onPause={() => setIsPaused(true)}
+                        className="hidden"
+                      />
+                      
+                      {/* Time Display */}
+                      <div className="flex-1 text-white text-sm font-mono text-center">
+                        {formatTime(recordingTime)}
+                      </div>
+                      
+                      {/* Send Button */}
+                      <button
+                        type="button"
+                        onClick={handleSendAudio}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        title="Send"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      
+                      {/* Cancel Button */}
+                      <button
+                        type="button"
+                        onClick={handleCancelRecording}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-white hover:bg-[#3a4a5a] rounded-lg transition-colors"
+                        title="Cancel"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* Input Field */}
             <input
@@ -200,10 +625,11 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
                   {/* Microphone Icon */}
                   <button
                     type="button"
-                    className="p-2 hover:bg-[#3a4a5a] hover:text-white rounded-lg transition-all duration-200"
-                    title="Voice"
+                    className={`p-2 hover:bg-[#3a4a5a] hover:text-white rounded-lg transition-all duration-200 ${isRecording ? 'bg-red-600' : ''}`}
+                    title={isRecording ? 'Stop Recording' : 'Voice'}
+                    onClick={handleToggleVoice}
                   >
-                    <svg className="w-5 h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-5 h-5 transition-colors duration-200 ${isRecording ? 'text-white' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                     </svg>
                   </button>
@@ -227,10 +653,11 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
                 {/* Audio Icon - Always visible */}
                 <button
                   type="button"
-                  className="p-2 hover:bg-[#3a4a5a] hover:text-white rounded-lg transition-all duration-200"
-                  title="Voice"
+                  className={`p-2 hover:bg-[#3a4a5a] hover:text-white rounded-lg transition-all duration-200 ${isRecording ? 'bg-red-600' : ''}`}
+                  title={isRecording ? 'Stop Recording' : 'Voice'}
+                  onClick={handleToggleVoice}
                 >
-                  <svg className="w-5 h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-5 h-5 transition-colors duration-200 ${isRecording ? 'text-white' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                   </svg>
                 </button>
