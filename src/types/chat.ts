@@ -1,7 +1,7 @@
 export interface MessageDocument {
   file: File;
   url: string;
-  type: 'PDF' | 'DOC';
+  type: 'PDF' | 'DOC' | 'AUDIO';
 }
 
 export interface Message {

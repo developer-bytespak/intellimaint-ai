@@ -69,8 +69,12 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-  const sendMessage = (content: string, images?: string[], documents?: MessageDocument[]) => {
+    const sendMessage = (content: string, images?: string[], documents?: MessageDocument[]) => {
     if (!activeChat) return;
+
+    const isFirstMessage = activeChat.messages.length === 0;
+    // Count user messages (excluding assistant messages)
+    const userMessageCount = activeChat.messages.filter(m => m.role === 'user').length;
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -88,7 +92,7 @@ export function useChat() {
     };
 
     // Update chat title if it's the first message
-    if (activeChat.messages.length === 0) {
+    if (isFirstMessage) {
       updatedChat.title = content.length > 50 ? content.substring(0, 50) + '...' : content;
     }
 
@@ -99,12 +103,85 @@ export function useChat() {
 
     // Simulate AI response
     setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'I understand your question about generator troubleshooting. Let me help you with that. Can you provide more details about the specific issue you\'re experiencing?',
-        role: 'assistant',
-        timestamp: new Date()
-      };
+      let aiResponse: Message;
+
+      const hasUserImages = images && images.length > 0;
+      // Check if user sent a voice message (AUDIO document)
+      const hasVoiceMessage = documents && documents.some(doc => doc.type === 'AUDIO');
+      
+      // Voice message response (Technical Troubleshooting Mode)
+      const voiceResponse = `Technical Troubleshooting Mode (Advanced Users / Experts)
+✔ Check these internal systems:
+
+🔧 Fuse Box & Relays → Replace blown fuses
+
+🔧 Fuel Filters & Injectors → Clogged diesel flow causes failure
+
+🔧 Air Filter → Remove dust, improves combustion
+
+🔧 Starter Motor Relay/Wiring → Use multimeter to test
+
+⚙ ECU / Control Panel Error Reset:
+
+Hold the RESET + STOP buttons together for 10 seconds
+
+Release and restart the generator
+✔ If generator shows error again → may indicate sensor failure (oil temp, crankshaft, alternator).`;
+      
+      // First response (for first user message)
+      const firstResponse = `There are several common reasons why a generator won't start after sitting idle. Let me help you troubleshoot this step by step.
+
+1. **Fuel Issues**: Old or contaminated fuel can cause starting problems. Check if the fuel is fresh (less than 6 months old).
+
+2. **Battery Problems**: If your generator has an electric start, the battery might be dead or weak. Check the battery voltage.
+
+3. **Oil Level**: Ensure the oil level is adequate and not contaminated.
+
+Can you tell me what type of generator you have and how long it's been sitting?`;
+
+      // Second response (for second user message)
+      const secondResponse = `For the Honda EU2200i, the most likely culprit is the fuel system. This generator is sensitive to fuel quality. Here's what to check:
+
+1. **Fuel Stabilizer**: Did you add fuel stabilizer before storing it?
+2. **Fuel Valve**: Make sure the fuel valve is in the "ON" position
+3. **Choke**: Set the choke to "CLOSED" for cold starts
+4. **Prime the Carburetor**: Pull the starter cord 3-4 times with the choke closed
+
+Try these steps and let me know what happens when you attempt to start it.`;
+
+      // If user sent voice message, use voice response
+      if (hasVoiceMessage) {
+        aiResponse = {
+          id: (Date.now() + 1).toString(),
+          content: voiceResponse,
+          role: 'assistant',
+          timestamp: new Date()
+        };
+      } else if (userMessageCount < 2) {
+        // Determine which response to use based on user message count
+        // userMessageCount is 0-based before adding this message, so:
+        // - First message: userMessageCount = 0 → use firstResponse
+        // - Second message: userMessageCount = 1 → use secondResponse
+        const responseText = userMessageCount === 0 ? firstResponse : secondResponse;
+        
+        // Use first or second response for first two messages
+        aiResponse = {
+          id: (Date.now() + 1).toString(),
+          content: responseText,
+          role: 'assistant',
+          timestamp: new Date(),
+          // Only include images if user sent images
+          images: hasUserImages ? ['/images/img1.png', '/images/img2.png'] : undefined
+        };
+      } else {
+        // For subsequent messages, use the default response
+        aiResponse = {
+          id: (Date.now() + 1).toString(),
+          content: 'I understand your question about generator troubleshooting. Let me help you with that. Can you provide more details about the specific issue you\'re experiencing?',
+          role: 'assistant',
+          timestamp: new Date()
+        };
+      }
 
       const finalChat = {
         ...updatedChat,
