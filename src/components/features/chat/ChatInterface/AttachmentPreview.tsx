@@ -1,5 +1,8 @@
 'use client';
 
+
+// TODO: User Show Image and Document Preview before sending the message ;
+
 import { MessageDocument } from '@/types/chat';
 
 interface AttachmentPreviewProps {
