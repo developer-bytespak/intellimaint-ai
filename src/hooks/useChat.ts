@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Chat, Message, MessageDocument, TabType } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
+import axios from 'axios';
 
 export function useChat() {
   const [chats, setChats] = useState<Chat[]>(mockChats);
@@ -69,7 +70,7 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-    const sendMessage = (content: string, images?: string[], documents?: MessageDocument[]) => {
+    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[], _audioDocument?: MessageDocument) => {
     if (!activeChat) return;
 
     const isFirstMessage = activeChat.messages.length === 0;
@@ -219,6 +220,37 @@ Try these steps and let me know what happens when you attempt to start it.`;
     }
   };
 
+  const textToSpeech = async (text: string) => {
+    try {
+      const response = await axios.post('http://localhost:8000/api/v1/asr/synthesize', {
+        text: text
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        responseType: 'blob', // Important: Get audio as blob
+      });
+
+      // Create audio URL from blob and play it
+      const audioUrl = URL.createObjectURL(response.data);
+      const audio = new Audio(audioUrl);
+      
+      audio.play().catch(error => {
+        console.error('Error playing audio:', error);
+      });
+
+      // Cleanup URL after audio finishes
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      return response.data;
+    } catch (error) {
+      console.error('Error in text-to-speech:', error);
+      throw error;
+    }
+  };
+
   const photoGroups = getPhotoGroups(mockPhotos);
 
   return {
@@ -234,6 +266,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     setActiveTab,
     searchingofSpecificChat,
     cleanupEmptyChats,
-    deleteChat
+    deleteChat,
+    textToSpeech
   };
 }

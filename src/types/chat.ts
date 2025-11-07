@@ -11,6 +11,7 @@ export interface Message {
   timestamp: Date;
   images?: string[]; // optional list of image URLs/data URLs attached to the message
   documents?: MessageDocument[]; // optional list of documents (PDF/DOC) attached to the message
+  audioDocument?: MessageDocument; // optional audio document attached to the message
 }
 
 export interface Chat {
