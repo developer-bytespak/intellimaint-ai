@@ -143,8 +143,9 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
        sendAudio.mutate(audioDocument,{
         onSuccess: (data) => {
           console.log('data', data);
-          if (data) {
-            setInputValue(data.data.transcription);
+          if (data && data.data) {
+            // Ensure we always set a string value to avoid controlled/uncontrolled input warning
+            setInputValue(String(data.data || ''));
           }
         },
         onError: (error) => {
@@ -286,8 +287,8 @@ function MessageInputContent({
             <div className="relative mb-3">
               <input
                 type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                value={inputValue || ''}
+                onChange={(e) => setInputValue(e.target.value || '')}
                 placeholder={isSending ? "Transcribing audio..." : isAudioActive ? "Recording audio..." : "Ask Intellimaint AI."}
                 disabled={isDisabled}
                 className={`w-full max-w-full bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base py-2 pr-8 overflow-hidden text-ellipsis box-border ${
