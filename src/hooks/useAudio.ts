@@ -4,12 +4,15 @@ import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState } from 'react';
 import { MessageDocument } from '@/types/chat';
+import { CONFIG } from '@/constants/config';
 
 interface TranscribeResponse {
-  data: {
-    transcription: string;
-  };
+  status: number;
+  message: string;
+  data: string; // The transcription text is directly in the data field
 }
+
+const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
 
 export function useAudio() {
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
@@ -20,34 +23,124 @@ export function useAudio() {
       const formData = new FormData();
       formData.append('file', audioDocument.file, audioDocument.file.name);
 
-      const response = await axios.post<TranscribeResponse>(
-        'http://localhost:8000/api/v1/asr/transcribe',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      const endpoint = '/api/v1/asr/transcribe';
+      const fullUrl = `${API_BASE_URL}${endpoint}`;
 
-      return response.data;
+      try {
+        console.log(`[Audio] Sending transcription request to: ${fullUrl}`);
+        const response = await axios.post<TranscribeResponse>(
+          fullUrl,
+          formData
+          // Note: Don't set Content-Type header manually for FormData - axios sets it automatically with boundary
+        );
+
+        console.log('[Audio] Transcription successful:', response.data);
+        return response.data;
+      } catch (error) {
+        // Log the raw error first
+        console.error('[Audio] Raw error object:', error);
+        console.error('[Audio] Error type:', typeof error);
+        console.error('[Audio] Error constructor:', error?.constructor?.name);
+        
+        if (axios.isAxiosError(error)) {
+          const errorResponse = error.response?.data;
+          const status = error.response?.status;
+          const hasResponse = !!error.response;
+          
+          // Log detailed error information with individual logs for better visibility
+          console.error('[Audio] Transcription error details:');
+          console.error('  URL:', fullUrl);
+          console.error('  Has Response:', hasResponse);
+          console.error('  Status:', status || 'N/A (no response)');
+          console.error('  Status Text:', error.response?.statusText || 'N/A');
+          console.error('  Error Code:', error.code || 'N/A');
+          console.error('  Error Message:', error.message || 'N/A');
+          console.error('  Response Data:', errorResponse || 'No response data');
+          console.error('  Request Made:', error.request ? 'Yes' : 'No');
+          
+          // Also log as object for easier inspection
+          const errorDetails = {
+            url: fullUrl,
+            hasResponse,
+            status: status ?? null,
+            statusText: error.response?.statusText ?? null,
+            errorCode: error.code ?? null,
+            errorMessage: error.message ?? null,
+            responseData: errorResponse ?? null,
+            requestMade: !!error.request
+          };
+          console.error('[Audio] Error details object:', errorDetails);
+
+          // Handle network errors (no response from server)
+          if (!hasResponse) {
+            const errorMessage = error.code === 'ECONNREFUSED' 
+              ? `Connection refused. The server at ${API_BASE_URL} is not reachable.\n\nPossible causes:\n1. Backend server is not running\n2. Wrong port number\n3. Firewall blocking the connection`
+              : error.code === 'ERR_NETWORK'
+              ? `Network error. Unable to reach ${API_BASE_URL}\n\nPossible causes:\n1. CORS issue - backend not allowing requests from frontend\n2. Network connectivity problem\n3. Backend server is down`
+              : `Network error: ${error.message}\n\nTried to reach: ${fullUrl}\n\nPossible causes:\n1. Backend server is not running at ${API_BASE_URL}\n2. CORS is not configured on the backend\n3. Network connectivity issue`;
+            
+            throw new Error(errorMessage);
+          }
+
+          // Handle HTTP errors (server responded with error status)
+          if (status === 404) {
+            throw new Error(
+              `API endpoint not found: ${fullUrl}\n\n` +
+              `Possible solutions:\n` +
+              `1. Check if your backend server is running at ${API_BASE_URL}\n` +
+              `2. Verify the endpoint path in your backend code (might be /asr/transcribe, /api/asr/transcribe, etc.)\n` +
+              `3. Check your backend route definitions to confirm the correct path\n` +
+              `4. Ensure CORS is configured to allow requests from your frontend\n\n` +
+              `Server response: ${JSON.stringify(errorResponse || 'No response data')}`
+            );
+          }
+          
+          throw new Error(
+            `Failed to transcribe audio (${status}): ${error.response?.statusText || error.message}\n` +
+            `Response: ${JSON.stringify(errorResponse || 'No response data')}`
+          );
+        } else {
+          // Non-axios error
+          console.error('[Audio] Non-axios error detected');
+          console.error('[Audio] Error:', error);
+          console.error('[Audio] Error type:', typeof error);
+          console.error('[Audio] Is Error instance:', error instanceof Error);
+          
+          if (error instanceof Error) {
+            console.error('[Audio] Error message:', error.message);
+            console.error('[Audio] Error stack:', error.stack);
+          }
+          
+          throw new Error(`Unexpected error during transcription: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
     },
   });
 
   const textToSpeechMutation = useMutation({
     mutationFn: async (text: string): Promise<Blob> => {
-      const response = await axios.post(
-        'http://localhost:8000/api/v1/asr/synthesize',
-        { text },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          responseType: 'blob',
-        }
-      );
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/api/v1/asr/synthesize`,
+          { text },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            responseType: 'blob',
+          }
+        );
 
-      return response.data;
+        return response.data;
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            throw new Error(`API endpoint not found. Please check if the backend server is running at ${API_BASE_URL} and the endpoint /api/v1/asr/synthesize exists.`);
+          }
+          throw new Error(`Failed to synthesize speech: ${error.response?.status} ${error.response?.statusText || error.message}`);
+        }
+        throw error;
+      }
     },
   });
 
@@ -93,7 +186,7 @@ export function useAudio() {
   return {
     sendAudio: sendAudioMutation,
     isSending: sendAudioMutation.isPending,
-    transcription: sendAudioMutation.data?.data?.transcription || null,
+    transcription: sendAudioMutation.data?.data || null,
     textToSpeech: textToSpeechMutation,
     isLoading: textToSpeechMutation.isPending,
     currentPlayingId,

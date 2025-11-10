@@ -5,6 +5,9 @@ import { Chat, Message, MessageDocument, TabType } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
+import { CONFIG } from '@/constants/config';
+
+const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
 
 export function useChat() {
   const [chats, setChats] = useState<Chat[]>(mockChats);
@@ -222,7 +225,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
 
   const textToSpeech = async (text: string) => {
     try {
-      const response = await axios.post('http://localhost:8000/api/v1/asr/synthesize', {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/asr/synthesize`, {
         text: text
       }, {
         headers: {
