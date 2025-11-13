@@ -17,6 +17,7 @@ const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
 export function useAudio() {
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const textToSpeechControllerRef = useRef<AbortController | null>(null);
 
   const sendAudioMutation = useMutation({
     mutationFn: async (audioDocument: MessageDocument): Promise<TranscribeResponse> => {
@@ -119,6 +120,13 @@ export function useAudio() {
 
   const textToSpeechMutation = useMutation({
     mutationFn: async (text: string): Promise<Blob> => {
+      if (textToSpeechControllerRef.current) {
+        textToSpeechControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      textToSpeechControllerRef.current = controller;
+
       try {
         const response = await axios.post(
           `${API_BASE_URL}/api/v1/asr/synthesize`,
@@ -128,18 +136,30 @@ export function useAudio() {
               'Content-Type': 'application/json',
             },
             responseType: 'blob',
+            signal: controller.signal,
           }
         );
 
         return response.data;
       } catch (error) {
         if (axios.isAxiosError(error)) {
+          if (error.code === 'ERR_CANCELED') {
+            throw new Error('SYNTHESIS_CANCELLED');
+          }
+
           if (error.response?.status === 404) {
             throw new Error(`API endpoint not found. Please check if the backend server is running at ${API_BASE_URL} and the endpoint /api/v1/asr/synthesize exists.`);
           }
           throw new Error(`Failed to synthesize speech: ${error.response?.status} ${error.response?.statusText || error.message}`);
         }
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw new Error('SYNTHESIS_CANCELLED');
+        }
         throw error;
+      } finally {
+        if (textToSpeechControllerRef.current === controller) {
+          textToSpeechControllerRef.current = null;
+        }
       }
     },
   });
@@ -183,6 +203,15 @@ export function useAudio() {
     }
   };
 
+  const cancelTextToSpeech = () => {
+    if (textToSpeechControllerRef.current) {
+      textToSpeechControllerRef.current.abort();
+      textToSpeechControllerRef.current = null;
+    }
+    textToSpeechMutation.reset();
+    stopAudio();
+  };
+
   return {
     sendAudio: sendAudioMutation,
     isSending: sendAudioMutation.isPending,
@@ -192,6 +221,7 @@ export function useAudio() {
     currentPlayingId,
     playAudio,
     stopAudio,
+    cancelTextToSpeech,
   };
 }
 

@@ -55,6 +55,10 @@ export default function MessageList({ activeChat }: MessageListProps) {
           setLoadingMessageId(null);
         },
         onError: (error) => {
+          if (error instanceof Error && error.message === 'SYNTHESIS_CANCELLED') {
+            setLoadingMessageId(null);
+            return;
+          }
           console.error('Error playing audio:', error);
           setLoadingMessageId(null);
           alert('Error playing audio');
@@ -164,6 +168,16 @@ export default function MessageList({ activeChat }: MessageListProps) {
                     </p>
                     {loadingMessageId === message.id ? (
                       <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+                    ) : currentPlayingId === message.id ? (
+                      <button
+                        className="opacity-60 hover:opacity-100 transition-opacity"
+                        title="Stop audio"
+                        onClick={stopAudio}
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     ) : loadingMessageId ? null : (
                       <button
                         className="opacity-60 hover:opacity-100 transition-opacity"
@@ -191,6 +205,16 @@ export default function MessageList({ activeChat }: MessageListProps) {
                     </p>
                     {loadingMessageId === message.id ? (
                       <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+                    ) : currentPlayingId === message.id ? (
+                      <button
+                        className="opacity-60 hover:opacity-100 transition-opacity"
+                        title="Stop audio"
+                        onClick={stopAudio}
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     ) : loadingMessageId ? null : (
                       <button
                         className="opacity-60 hover:opacity-100 transition-opacity"
