@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/hooks/useUser';
 
 export default function FormPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    fullName: '',
-    companyName: ''
-  });
+  const [role, setRole] = useState('');
+  const [company, setCompany] = useState('');
   const [progressWidth, setProgressWidth] = useState(0);
-
+  const [showCompanyField, setShowCompanyField] = useState(false);
+  const { googleAuth } = useUser();
   useEffect(() => {
     // Animate progress bar to 50% when component mounts
     const timer = setTimeout(() => {
@@ -20,19 +20,31 @@ export default function FormPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    // Show/hide company field based on role with animation
+    if (role === 'civilian') {
+      setShowCompanyField(true);
+    } else {
+      setShowCompanyField(false);
+      setCompany(''); // Clear company when role changes
+    }
+  }, [role]);
+
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+   setCompany(value);
+  };
+
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRole(e.target.value);
   };
 
   const handleNext = () => {
     // Navigate to representative page
-    router.push('/representative');
+    router.push(`/representative?company=${company}&role=${role}`);
+    googleAuth.mutate({role,company});
   };
 
-  const isFormValid = formData.fullName.trim() && formData.companyName.trim();
+  const isFormValid = role.trim() !== '';
 
   return (
     <div className="min-h-screen bg-[#1A1D26] flex flex-col">
@@ -86,7 +98,7 @@ export default function FormPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col justify-between lg:justify-center px-4 sm:px-6 lg:px-8">
         {/* Top Content - Left aligned on mobile, centered on desktop */}
-        <div className="lg:text-center lg:mb-16">
+        <div className="lg:text-center lg:mb-16 ">
           {/* Desktop Progress Bar - Above heading */}
           <div className="hidden lg:block mb-8">
             <div className="flex justify-center">
@@ -112,24 +124,41 @@ export default function FormPage() {
           </h1>
 
           {/* Form Fields */}
-          <div className="space-y-4 sm:space-y-6 lg:max-w-md lg:mx-auto">
-            {/* Full Name Field */}
+          <div className="space-y-4 sm:space-y-6 lg:max-w-md lg:mx-auto rounded">
+            {/* Role Dropdown */}
             <div>
-              <input
-                type="text"
-                placeholder="Full name"
-                value={formData.fullName}
-                onChange={(e) => handleInputChange('fullName', e.target.value)}
-                className="w-full px-4 py-3 sm:py-4 bg-transparent border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-[#2196F3] focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 text-base sm:text-lg"
-              />
+              <select
+                value={role}
+                onChange={handleRoleChange}
+                className="
+                w-full px-4 py-3 sm:py-4 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white text-sm sm:text-base focus:outline-none focus:border-[#2196F3] focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 appearance-none cursor-pointer hover:border-[#5A5E67] transition-colors duration-200  "
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23A0A0A0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 1rem center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '1.25em 1.25em',
+                  paddingRight: '2.75rem',
+                }}
+              >
+                <option value="" className="bg-[#2C303A] text-white text-sm border-4 border-red-500 ">Select your role</option>
+                <option value="student" className="bg-[#2C303A] text-white text-sm border-4 border-red-500 ">Student</option>
+                <option value="military" className="bg-[#2C303A] text-white text-sm">Military</option>
+                <option value="civilian" className="bg-[#2C303A] text-white text-sm">Civilian</option>
+              </select>
             </div>
 
-            {/* Company Name Field */}
-            <div>
+            {/* Company Name Field - Animated */}
+            <div
+              className={`overflow-hidden transition-all duration-500 ease-out  ${
+                showCompanyField
+                  ? 'max-h-32 opacity-100 translate-y-0'
+                  : 'max-h-0 opacity-0 translate-y-8'
+              }`}
+            >
               <input
                 type="text"
-                placeholder="Company name"
-                value={formData.companyName}
+                placeholder="Company name (optional)"
+                value={company}
                 onChange={(e) => handleInputChange('companyName', e.target.value)}
                 className="w-full px-4 py-3 sm:py-4 bg-transparent border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-[#2196F3] focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 text-base sm:text-lg"
               />
@@ -147,7 +176,7 @@ export default function FormPage() {
             disabled={!isFormValid}
             className="w-full bg-[#2196F3] text-white font-semibold py-3 sm:py-4 text-sm sm:text-base rounded-3xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           >
-            Next
+            Continue
           </button>
         </div>
         
@@ -159,7 +188,7 @@ export default function FormPage() {
             className="bg-[#2196F3] text-white font-semibold py-3 px-8 text-base rounded-3xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
             style={{ width: '448px' }} // Width to match form fields
           >
-            Next
+            Continue
           </button>
         </div>
       </div>

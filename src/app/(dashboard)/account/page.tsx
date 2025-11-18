@@ -77,7 +77,7 @@ export default function AccountPage() {
 
   const onSubmit = async (data: AccountDetailsForm) => {
     try {
-      await updateUser({
+      await updateUser.mutateAsync({
         name: data.name,
         email: data.email,
         accountType: data.accountType,

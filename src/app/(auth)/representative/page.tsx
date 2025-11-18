@@ -8,6 +8,7 @@ export default function RepresentativePage() {
   const [selectedOption, setSelectedOption] = useState('civilian');
   const [progressWidth, setProgressWidth] = useState(50);
 
+
   useEffect(() => {
     // Animate progress bar from 50% to 80% when component mounts
     const timer = setTimeout(() => {

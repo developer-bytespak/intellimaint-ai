@@ -9,7 +9,7 @@ import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
 
 interface MessageInputProps {
-  onSendMessage: (content: string, images?: string[], documents?: MessageDocument[], audioDocument?: MessageDocument) => void;
+  onSendMessage: (content: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
 export default function MessageInput({ onSendMessage }: MessageInputProps) {

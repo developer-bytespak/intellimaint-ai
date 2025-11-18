@@ -73,7 +73,7 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[], _audioDocument?: MessageDocument) => {
+    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[]) => {
     if (!activeChat) return;
 
     const isFirstMessage = activeChat.messages.length === 0;
