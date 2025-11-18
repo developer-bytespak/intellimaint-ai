@@ -1,47 +1,38 @@
 // UserContext.tsx
 import baseURL from "@/lib/api/axios";
-import { useMutation, UseMutationResult, useQuery } from "@tanstack/react-query";
+import { useMutation, UseMutationResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 // import { Session } from "next-auth";
 // import { useSession } from "next-auth/react";
-import React, { useContext, createContext, ReactNode, useMemo } from "react";
+import React, { useContext, createContext, ReactNode } from "react";
+
+export interface IUser {
+  _id?: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  password?: string;
+  accountType?: string;
+  profileImage?: string;
+  isVerified?: boolean;
+}
 
 interface UserContextType {
   googleAuth: UseMutationResult<void, Error, {role:string,company:string}, unknown>;
-};
-
-interface IUser {
-  _id?: string;
-  username?: string;
-  email?: string;
+  user: IUser | null | undefined;
+  isLoading: boolean;
+  updateUser: UseMutationResult<IUser, Error, Partial<IUser>, unknown>;
 }
 
-interface IUserContext {
-  user: IUser | null;
-  loading: boolean;
-}
 
-  //* PROFILE :
-
-export const getUser = ()=>{
-  const user = useQuery(
-    {
-      queryKey:["user"],
-      queryFn:async()=>{
-        const res = await axios.get('/api/profile');
-        return res?.data;
-      }
-    }
-  )
-  return {user};
-}
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   //* GOOGLE AUTH :
 
@@ -53,29 +44,51 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       console.log(res)
     },
   });
+
+  //* GET USER PROFILE :
+
+  const { data: user, isLoading } = useQuery<IUser>({
+    queryKey: ["user"],
+    queryFn: async () => {
+      const res = await axios.get('/api/profile');
+      return res?.data;
+    },
+  });
+
+  //* UPDATE USER PROFILE :
+
+  const updateUser = useMutation({
+    mutationFn: async (data: Partial<IUser>) => {
+      const res = await axios.put('/api/profile', data);
+      return res?.data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch user data
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    },
+  });
  
+    // //* SIGNUP USER :
 
-    //* SIGNUP USER :
+    // const signUpUser = useMutation({
+    //     mutationFn: async (data:void) => {
+    //         console.log(data)
+    //         // your signup logic here
+    //         const res = await axios.post('/api/auth/register',data)
+    //         return res.data;
+    //     },
+    // });
 
-    const signUpUser = useMutation({
-        mutationFn: async (data:void) => {
-            console.log(data)
-            // your signup logic here
-            const res = await axios.post('/api/auth/register',data)
-            return res.data;
-        },
-    });
+    // //* VRIFY OTP :
 
-    //* VRIFY OTP :
-
-    const verifyOtp = useMutation(
-        {
-            mutationFn:async(data:{username:string,code:string})=>{
-             const res = await axios.post('/api/auth/verify-code',data)
-             return res.data;
-            }
-        }
-    )
+    // const verifyOtp = useMutation(
+    //     {
+    //         mutationFn:async(data:{username:string,code:string})=>{
+    //          const res = await axios.post('/api/auth/verify-code',data)
+    //          return res.data;
+    //         }
+    //     }
+    // )
 
     //* Memoize the context value to prevent unnecessary re-renders
 
@@ -86,7 +99,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
     return (
-        <UserContext.Provider value={{ googleAuth}}>
+        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser }}>
             {children}
         </UserContext.Provider>
     );

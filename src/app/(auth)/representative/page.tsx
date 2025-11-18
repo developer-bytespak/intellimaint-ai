@@ -1,15 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function RepresentativePage() {
   const router = useRouter();
   const [selectedOption, setSelectedOption] = useState('civilian');
   const [progressWidth, setProgressWidth] = useState(50);
-  const searchParams = useSearchParams();
 
-  const company = searchParams.get('company');
 
   useEffect(() => {
     // Animate progress bar from 50% to 80% when component mounts
