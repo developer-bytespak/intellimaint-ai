@@ -20,6 +20,10 @@ export default function LoginPage() {
     router.push('/signup');
   };
 
+  const handleGoogleSignIn = () => {
+    router.replace('/form');
+  };
+
   return (
     <div className="min-h-screen bg-[#1A1D26] flex flex-col lg:flex-row">
       {/* Mobile/Tablet: Single Column Layout (matches image exactly) */}
@@ -130,7 +134,9 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          <button 
+          onClick={handleGoogleSignIn}
+          className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center mr-3">
               <span className="text-[#3A404C] font-bold text-sm">G</span>
             </div>
@@ -271,7 +277,9 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          <button 
+          onClick={handleGoogleSignIn}
+          className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center mr-3">
               <span className="text-[#3A404C] font-bold text-sm">G</span>
             </div>
