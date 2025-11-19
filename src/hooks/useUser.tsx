@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 // import { Session } from "next-auth";
 // import { useSession } from "next-auth/react";
 import React, { useContext, createContext, ReactNode } from "react";
+import { RegisterFormData } from "@/lib/validations/register";
 
 export interface IUser {
   _id?: string;
@@ -23,6 +24,10 @@ interface UserContextType {
   user: IUser | null | undefined;
   isLoading: boolean;
   updateUser: UseMutationResult<IUser, Error, Partial<IUser>, unknown>;
+  signUpUser: UseMutationResult<unknown, Error, RegisterFormData, unknown>;
+  verifyOtp: UseMutationResult<unknown, Error, {email:string,otp:string}, unknown>;
+  resendOtp: UseMutationResult<unknown, Error, {email:string}, unknown>;
+  loginUser: UseMutationResult<unknown, Error, {email:string,password:string}, unknown>;
 }
 
 
@@ -68,27 +73,44 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     },
   });
  
-    // //* SIGNUP USER :
+    //* SIGNUP USER :
 
-    // const signUpUser = useMutation({
-    //     mutationFn: async (data:void) => {
-    //         console.log(data)
-    //         // your signup logic here
-    //         const res = await axios.post('/api/auth/register',data)
-    //         return res.data;
-    //     },
-    // });
+    const signUpUser = useMutation({
+        mutationFn: async (data: RegisterFormData) => {
+            console.log(data)
+            // your signup logic here
+            const res = await baseURL.post('/auth/register', data)
+            return res?.data;
+        },
+    });
 
-    // //* VRIFY OTP :
+    //* VERIFY OTP :
 
-    // const verifyOtp = useMutation(
-    //     {
-    //         mutationFn:async(data:{username:string,code:string})=>{
-    //          const res = await axios.post('/api/auth/verify-code',data)
-    //          return res.data;
-    //         }
-    //     }
-    // )
+    const verifyOtp = useMutation({
+        mutationFn: async (data: {email: string, otp: string}) => {
+            const res = await axios.post('/api/auth/verify-code', data);
+            return res.data;
+        },
+    });
+
+    //* RESEND OTP :
+
+    const resendOtp = useMutation({
+        mutationFn: async (data: {email: string}) => {
+            const res = await axios.post('/api/auth/resend-code', data);
+            return res.data;
+        },
+    });
+
+    //* LOGIN USER :
+
+    const loginUser = useMutation({
+        mutationFn: async (data: {email: string, password: string}) => {
+          console.log(data)
+            const res = await axios.post('http://localhost:4000/api/v1/auth/login', data);
+            return res.data;
+        },
+    });
 
     //* Memoize the context value to prevent unnecessary re-renders
 
@@ -99,7 +121,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
     return (
-        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser }}>
+        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser }}>
             {children}
         </UserContext.Provider>
     );
