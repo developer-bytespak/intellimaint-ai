@@ -172,10 +172,12 @@ export default function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
         <div className="max-w-2xl text-center space-y-4 sm:space-y-6 w-full">
           {/* Logo or Icon */}
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
+            <div className="w-20 h-20 flex items-center justify-center">
+              <img 
+                src="/Intelliment LOgo.png" 
+                alt="IntelliMaint AI Logo" 
+                className="w-full h-full object-contain"
+              />
             </div>
           </div>
 
