@@ -171,7 +171,21 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const showWelcomeContent = !activeChat || activeChat.messages.length === 0;
 
   return (
-    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden">
+    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden relative">
+      {/* Header with Logo and Name - Show when chat is active, positioned on left */}
+      {!showWelcomeContent && (
+        <div className="absolute top-4 left-4 sm:left-6 z-10 flex items-center gap-3">
+          <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+            <img 
+              src="/Intelliment LOgo.png" 
+              alt="IntelliMaint AI Logo" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <h1 className="text-lg font-semibold text-white">IntelliMaint AI</h1>
+        </div>
+      )}
+
       {/* Show Welcome Content only when no active chat or chat has no messages */}
       {showWelcomeContent ? (
         <div className="flex-1 overflow-y-auto items-center justify-center p-4 sm:p-8 flex">
@@ -217,8 +231,12 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
           </div>
         </div>
       ) : (
-        /* Show Message List when chat has messages */
-        <MessageList activeChat={activeChat} />
+        /* Show Message List when chat has messages - Constrained to prompt width */
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 chat-scrollbar">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 pb-4">
+            <MessageList activeChat={activeChat} />
+          </div>
+        </div>
       )}
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}

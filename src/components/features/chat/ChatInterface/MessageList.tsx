@@ -11,6 +11,7 @@ interface MessageListProps {
 export default function MessageList({ activeChat }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const { textToSpeech, currentPlayingId, playAudio, stopAudio } = useAudio();
 
   const scrollToBottom = () => {
@@ -36,6 +37,18 @@ export default function MessageList({ activeChat }: MessageListProps) {
       </div>
     );
   }
+
+  const handleCopyText = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
+  };
 
   const handleTextToSpeech = async (text: string, messageId: string) => {
     try {
@@ -71,8 +84,8 @@ export default function MessageList({ activeChat }: MessageListProps) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 sm:py-6 md:py-3 min-h-0 chat-scrollbar">
-      <div className="space-y-4">
+    <div className="w-full">
+      <div className="space-y-4 pb-4">
         {activeChat.messages.map((message) => (
           <div
             key={message.id}
@@ -157,7 +170,7 @@ export default function MessageList({ activeChat }: MessageListProps) {
               {message.content && (
                 <div className="p-3 min-w-0">
                   <p className="text-base whitespace-pre-wrap leading-relaxed break-all" style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{message.content}</p>
-                  {/* Timestamp and Speaker Icon */}
+                  {/* Timestamp, Copy and Speaker Icon */}
                   <div className={`flex items-center justify-between mt-2 gap-2 ${
                     message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                   }`}>
@@ -166,29 +179,50 @@ export default function MessageList({ activeChat }: MessageListProps) {
                     }`}>
                       {formatTime(message.timestamp)}
                     </p>
-                    {loadingMessageId === message.id ? (
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
-                    ) : currentPlayingId === message.id ? (
-                      <button
-                        className="opacity-60 hover:opacity-100 transition-opacity"
-                        title="Stop audio"
-                        onClick={stopAudio}
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    ) : loadingMessageId ? null : (
-                      <button
-                        className="opacity-60 hover:opacity-100 transition-opacity"
-                        title="Play audio"
-                        onClick={() => handleTextToSpeech(message.content, message.id)}
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* Copy Button */}
+                      {message.content && (
+                        <button
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                          title={copiedMessageId === message.id ? "Copied!" : "Copy text"}
+                          onClick={() => handleCopyText(message.content, message.id)}
+                        >
+                          {copiedMessageId === message.id ? (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                      {/* Speaker Icon */}
+                      {loadingMessageId === message.id ? (
+                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+                      ) : currentPlayingId === message.id ? (
+                        <button
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                          title="Stop audio"
+                          onClick={stopAudio}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      ) : loadingMessageId ? null : (
+                        <button
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                          title="Play audio"
+                          onClick={() => handleTextToSpeech(message.content, message.id)}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
