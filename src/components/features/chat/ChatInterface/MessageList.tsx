@@ -188,11 +188,11 @@ export default function MessageList({ activeChat }: MessageListProps) {
                           onClick={() => handleCopyText(message.content, message.id)}
                         >
                           {copiedMessageId === message.id ? (
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                           ) : (
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
                           )}
@@ -200,14 +200,14 @@ export default function MessageList({ activeChat }: MessageListProps) {
                       )}
                       {/* Speaker Icon */}
                       {loadingMessageId === message.id ? (
-                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+                        <div className="w-[15px] h-[15px] border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
                       ) : currentPlayingId === message.id ? (
                         <button
                           className="opacity-60 hover:opacity-100 transition-opacity"
                           title="Stop audio"
                           onClick={stopAudio}
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
@@ -217,7 +217,7 @@ export default function MessageList({ activeChat }: MessageListProps) {
                           title="Play audio"
                           onClick={() => handleTextToSpeech(message.content, message.id)}
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                           </svg>
                         </button>
@@ -238,14 +238,14 @@ export default function MessageList({ activeChat }: MessageListProps) {
                       {formatTime(message.timestamp)}
                     </p>
                     {loadingMessageId === message.id ? (
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+                      <div className="w-[15px] h-[15px] border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
                     ) : currentPlayingId === message.id ? (
                       <button
                         className="opacity-60 hover:opacity-100 transition-opacity"
                         title="Stop audio"
                         onClick={stopAudio}
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
@@ -255,7 +255,7 @@ export default function MessageList({ activeChat }: MessageListProps) {
                         title="Play audio"
                         onClick={() => handleTextToSpeech(message.content || '', message.id)}
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                         </svg>
                       </button>
