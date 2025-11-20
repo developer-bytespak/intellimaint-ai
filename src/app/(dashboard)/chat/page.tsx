@@ -22,7 +22,8 @@ function ChatPageContent() {
     selectChat,
     sendMessage,
     setActiveTab,
-    deleteChat
+    deleteChat,
+    deletePhoto
   } = useChat();
 
   const searchParams = useSearchParams();
@@ -75,7 +76,7 @@ function ChatPageContent() {
   };
 
   const handleDeletePhoto = (photoId: string) => {
-    console.log('Delete photo:', photoId);
+    deletePhoto(photoId);
   };
 
   const handleViewPhoto = (photoId: string) => {

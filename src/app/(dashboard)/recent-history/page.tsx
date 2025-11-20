@@ -3,7 +3,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { Chat, TabType } from '@/types/chat';
-import { mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
+import { mockDocuments } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
 
@@ -11,15 +11,13 @@ function RecentHistoryContent() {
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const { chats, searchingofSpecificChat, deleteChat } = useChat();
+  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const addParams = (params: string) => {
     router.push(`/recent-history?recent-history=${params}`);
   };
-
-  const photoGroups = getPhotoGroups(mockPhotos);
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
@@ -248,8 +246,7 @@ function RecentHistoryContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // TODO: Implement photo deletion logic
-                                console.log('Delete photo:', photo.id);
+                                deletePhoto(photo.id);
                               }}
                               className="p-2 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors duration-200"
                               title="Delete photo"

@@ -73,6 +73,16 @@ export default function RecentHistory({
     onViewPhoto(photoId);
   };
 
+  // Handle delete photo - close overlay if the deleted photo is being viewed
+  const handleDeletePhoto = (photoId: string) => {
+    // If the photo being viewed is deleted, close the overlay
+    if (viewingPhoto?.id === photoId) {
+      setViewingPhoto(null);
+    }
+    // Call the original delete handler
+    onDeletePhoto(photoId);
+  };
+
   // Generate image URL for photo (same logic as PhotosGrid)
   const getPhotoImageUrl = (photo: Photo, index: number) => {
     if (photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/'))) {
@@ -163,7 +173,7 @@ export default function RecentHistory({
           <div className="pb-4">
             <PhotosGrid
               photoGroups={filteredPhotoGroups}
-              onDeletePhoto={onDeletePhoto}
+              onDeletePhoto={handleDeletePhoto}
               onViewPhoto={handleViewPhoto}
             />
           </div>

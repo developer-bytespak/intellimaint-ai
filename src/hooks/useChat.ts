@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Chat, Message, MessageDocument, TabType } from '@/types/chat';
+import { Chat, Message, MessageDocument, TabType, Photo } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
@@ -13,6 +13,7 @@ export function useChat() {
   const [chats, setChats] = useState<Chat[]>(mockChats);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('chats');
+  const [photos, setPhotos] = useState<Photo[]>(mockPhotos);
   const [isMobile, setIsMobile] = useState(false);
   const searchParams = useSearchParams();
 
@@ -227,6 +228,10 @@ Try these steps and let me know what happens when you attempt to start it.`;
     }
   };
 
+  const deletePhoto = (photoId: string) => {
+    setPhotos(prev => prev.filter(photo => photo.id !== photoId));
+  };
+
   const textToSpeech = async (text: string) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/v1/asr/synthesize`, {
@@ -258,7 +263,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     }
   };
 
-  const photoGroups = getPhotoGroups(mockPhotos);
+  const photoGroups = getPhotoGroups(photos);
 
   return {
     chats,
@@ -274,6 +279,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     searchingofSpecificChat,
     cleanupEmptyChats,
     deleteChat,
+    deletePhoto,
     textToSpeech
   };
 }
