@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import Image from "next/image"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
@@ -129,6 +129,12 @@ function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const [showCameraMenu, setShowCameraMenu] = useState(false)
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [showCameraModal, setShowCameraModal] = useState(false)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const items = [
     { label: "Account Details", icon: IconUser, href: "/account" },
@@ -145,6 +151,103 @@ export default function ProfilePage() {
   const handleBack = () => {
     router.push("/chat")
   }
+
+  const handleCameraClick = () => {
+    setShowCameraMenu(!showCameraMenu)
+  }
+
+  const handleCaptureImage = async () => {
+    setShowCameraMenu(false)
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      setStream(mediaStream)
+      setShowCameraModal(true)
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      alert('Unable to access camera. Please check your permissions.')
+    }
+  }
+
+  const handleUploadImage = () => {
+    fileInputRef.current?.click()
+    setShowCameraMenu(false)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setProfileImage(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleTakePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoRef.current.videoWidth
+      canvas.height = videoRef.current.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0)
+        const imageDataUrl = canvas.toDataURL('image/png')
+        setProfileImage(imageDataUrl)
+        handleCloseCamera()
+      }
+    }
+  }
+
+  const handleCloseCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+      setStream(null)
+    }
+    setShowCameraModal(false)
+  }
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showCameraMenu && !(event.target as Element).closest('.camera-menu-container')) {
+        setShowCameraMenu(false)
+      }
+    }
+
+    if (showCameraMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showCameraMenu])
+
+  // Set video stream when modal opens and stream is available
+  useEffect(() => {
+    if (showCameraModal && stream && videoRef.current) {
+      videoRef.current.srcObject = stream
+      videoRef.current.play().catch(error => {
+        console.error('Error playing video:', error)
+      })
+    }
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
+    }
+  }, [showCameraModal, stream])
+
+  // Cleanup stream on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [stream])
 
   return (
     <main className="min-h-screen bg-gray-100 dark:bg-[var(--color-background)] text-[var(--color-foreground)]">
@@ -165,22 +268,94 @@ export default function ProfilePage() {
       {/* Profile section */}
       <section className="relative pb-8 -mt-16 md:-mt-20">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 ring-4 ring-gray-50 dark:ring-gray-900 shadow-xl">
-            <Image
-              src="/diverse-profile-avatars.png"
-              alt="Profile avatar"
-              width={144}
-              height={144}
-              className="h-full w-full object-cover"
-            />
+          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-gray-100 dark:bg-gray-800 ring-4 ring-gray-50 dark:ring-gray-900 shadow-xl camera-menu-container">
+            <div className="h-full w-full rounded-full overflow-hidden">
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt="Profile avatar"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
+                  <IconUser className="h-12 w-12 md:h-16 md:w-16 lg:h-20 lg:w-20 text-gray-400 dark:text-gray-500" />
+                </div>
+              )}
+            </div>
             {/* camera badge */}
-            <span
-              aria-hidden="true"
-              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] ring-2 ring-gray-50 dark:ring-gray-900 h-7 w-7 shadow-lg hover:scale-110 transition-transform"
+            <button
+              type="button"
+              onClick={handleCameraClick}
+              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-blue-500 dark:bg-blue-600 text-white ring-2 ring-gray-50 dark:ring-gray-900 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10"
+              aria-label="Change profile picture"
             >
               <IconCamera className="h-4 w-4" />
-            </span>
+            </button>
+            
+            {/* Camera menu dropdown */}
+            {showCameraMenu && (
+              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[160px] z-20">
+                <button
+                  type="button"
+                  onClick={handleCaptureImage}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <IconCamera className="h-4 w-4" />
+                  Capture Image
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUploadImage}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <IconFolder className="h-4 w-4" />
+                  Upload from Media
+                </button>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
+
+          {/* Camera Modal */}
+          {showCameraModal && (
+            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 max-w-md w-full">
+                <div className="relative bg-black rounded-lg overflow-hidden mb-4 aspect-video">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    type="button"
+                    onClick={handleCloseCamera}
+                    className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTakePhoto}
+                    className="px-6 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                  >
+                    Capture
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 text-center">
             <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-[var(--color-foreground)]">Leslie Moses</p>
