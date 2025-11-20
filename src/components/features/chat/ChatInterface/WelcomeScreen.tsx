@@ -21,6 +21,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Cleanup object URLs when component unmounts
   useEffect(() => {
@@ -53,6 +54,12 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
       setInputValue('');
       setSelectedImages([]);
       setSelectedDocuments([]);
+      
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = '24px';
+      }
     }
   };
 
@@ -263,20 +270,40 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
             )}
             
             {/* Input Field - Disabled when audio is active or sending */}
-            <div className="flex items-center gap-2 relative mb-3">
-              <input
-                type="text"
+            <div className="flex items-end gap-2 relative mb-3">
+              <textarea
+                ref={textareaRef}
                 value={inputValue || ''}
-                onChange={(e) => setInputValue(e.target.value || '')}
+                onChange={(e) => {
+                  setInputValue(e.target.value || '');
+                  // Auto-resize textarea
+                  const textarea = e.target;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                }}
+                onKeyDown={(e) => {
+                  // Allow Enter to submit, Shift+Enter for new line
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }
+                }}
                 placeholder={isSending ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
-                className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base ${
+                rows={1}
+                className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base resize-none overflow-y-hidden max-h-[200px] pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
                   (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
+                style={{ 
+                  minHeight: '24px', 
+                  height: '24px',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                } as React.CSSProperties}
               />
               
-              {/* Right side icons: Plus and Voice (Microphone) */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) */}
+              <div className="flex items-center gap-2 flex-shrink-0 pb-1">
                 {/* Plus Icon Button with Dropdown */}
                 <div className="relative pin-dropdown">
                   <button
@@ -346,18 +373,37 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                   )}
                 </div>
                 
-                {/* Voice Button (Microphone) - Right side */}
-                <AudioRecorder 
-                  variant="button"
-                  isRecording={audioRecorder.isRecording}
-                  recordingTime={audioRecorder.recordingTime}
-                  audioUrl={audioRecorder.audioUrl}
-                  handleStartRecording={audioRecorder.handleStartRecording}
-                  stopAndSend={audioRecorder.stopAndSend}
-                  handleSendAudio={audioRecorder.handleSendAudio}
-                  handleCancel={audioRecorder.handleCancel}
-                  formatTime={audioRecorder.formatTime}
-                />
+                {/* Send Button (when typing) or Voice Button (Microphone) - Right side */}
+                {inputValue.trim() ? (
+                  <button
+                    type="submit"
+                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
+                    className={`p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${
+                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    title="Send message"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSubmit(e as any);
+                    }}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
+                ) : (
+                  <AudioRecorder 
+                    variant="button"
+                    isRecording={audioRecorder.isRecording}
+                    recordingTime={audioRecorder.recordingTime}
+                    audioUrl={audioRecorder.audioUrl}
+                    handleStartRecording={audioRecorder.handleStartRecording}
+                    stopAndSend={audioRecorder.stopAndSend}
+                    handleSendAudio={audioRecorder.handleSendAudio}
+                    handleCancel={audioRecorder.handleCancel}
+                    formatTime={audioRecorder.formatTime}
+                  />
+                )}
               </div>
             </div>
           </div>
