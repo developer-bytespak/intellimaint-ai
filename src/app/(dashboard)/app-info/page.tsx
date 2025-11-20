@@ -50,19 +50,21 @@ export default function AppInfoPage() {
 
   return (
     <div className="min-h-screen bg-[#1f2632] text-white overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-4 sm:mb-6">
+      {/* Header */}
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-8">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
             aria-label="Go back"
           >
             <IconChevronLeft className="h-6 w-6 text-white" />
           </button>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white flex-1 text-center">App Info</h1>
-          <div className="w-10"></div> {/* Spacer for centering */}
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex-1 text-center pr-4">App Info</h1>
         </div>
+      </header>
+      
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
 
         {/* Mini Tutorials Section */}
         <div className="mb-6 sm:mb-8 pt-6">
