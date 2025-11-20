@@ -2,16 +2,20 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { Chat, TabType } from '@/types/chat';
-import { mockDocuments } from '@/data/mockData';
+import { Chat, TabType, Photo } from '@/types/chat';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
+import DocumentsList from '@/components/features/chat/History/DocumentsList';
+import PhotosGrid from '@/components/features/chat/History/PhotosGrid';
 
 function RecentHistoryContent() {
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto } = useChat();
+  const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto, documents, deleteDocument } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -48,9 +52,74 @@ function RecentHistoryContent() {
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredDocuments = mockDocuments.filter(doc =>
+  const filteredDocuments = documents.filter(doc =>
     doc.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleDeleteDocument = (documentId: string) => {
+    deleteDocument(documentId);
+  };
+
+  const handleViewDocument = (documentId: string) => {
+    console.log('View document:', documentId);
+    // Document viewing will be handled by RecentHistory component
+  };
+
+  // Handle view photo - find the photo and set it for overlay
+  const handleViewPhoto = (photoId: string) => {
+    // Find the photo in all photo groups
+    for (const group of photoGroups) {
+      const photo = group.photos.find(p => p.id === photoId);
+      if (photo) {
+        setViewingPhoto(photo);
+        break;
+      }
+    }
+  };
+
+  // Handle delete photo - show confirmation dialog
+  const handleDeletePhoto = (photoId: string) => {
+    setPhotoToDelete(photoId);
+    setShowDeleteConfirm(true);
+  };
+
+  // Confirm delete photo
+  const confirmDeletePhoto = () => {
+    if (photoToDelete) {
+      // If the photo being viewed is deleted, close the overlay
+      if (viewingPhoto?.id === photoToDelete) {
+        setViewingPhoto(null);
+      }
+      // Call the delete handler
+      deletePhoto(photoToDelete);
+      setPhotoToDelete(null);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  // Cancel delete photo
+  const cancelDeletePhoto = () => {
+    setPhotoToDelete(null);
+    setShowDeleteConfirm(false);
+  };
+
+  // Generate image URL for photo
+  const getPhotoImageUrl = (photo: Photo, index: number) => {
+    if (photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/'))) {
+      return photo.url;
+    }
+    const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+    const imageId = (photoSeed % 1000) + 1;
+    return `https://picsum.photos/id/${imageId}/800/800`;
+  };
+
+  // Filter photo groups based on search query
+  const filteredPhotoGroups = photoGroups.map(group => ({
+    ...group,
+    photos: group.photos.filter(photo =>
+      photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  })).filter(group => group.photos.length > 0);
 
   return (
     <div className="h-screen bg-[#1f2632] text-white flex flex-col overflow-hidden">
@@ -181,124 +250,23 @@ function RecentHistoryContent() {
 
         {/* Photos Tab */}
         {activeTab === 'photos' && (
-          <div>
-            <h2 className="text-gray-400 text-sm font-medium mb-4">Photos</h2>
-            <div className="space-y-6">
-              {photoGroups.map((group, groupIndex) => {
-                const filteredPhotos = group.photos.filter(photo => 
-                  photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
-                );
-                
-                if (filteredPhotos.length === 0) return null;
-                
-                return (
-                  <div key={`${group.month}-${group.year}`}>
-                    <h3 className="text-gray-400 text-sm font-medium mb-3">{group.month} {group.year}</h3>
-                    {/* Responsive Grid: 2 columns on mobile, 3 on tablet, 4 on desktop */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                      {filteredPhotos.map((photo, index) => {
-                        // Generate machine image URLs using Picsum Photos
-                        const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
-                        const imageId = (photoSeed % 1000) + 1;
-                        const imageUrl = `https://picsum.photos/id/${imageId}/400/400`;
-                        
-                        return (
-                        <div key={photo.id} className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden group cursor-pointer relative">
-                          {/* Machine Image */}
-                          <img
-                            src={photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/')) ? photo.url : imageUrl}
-                            alt={photo.filename || 'Machine photo'}
-                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
-                              const fallbackId = ((photoSeed + 100) % 1000) + 1;
-                              if (!target.dataset.fallbackAttempted) {
-                                target.dataset.fallbackAttempted = 'true';
-                                target.src = `https://picsum.photos/id/${fallbackId}/400/400`;
-                              } else {
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent && !parent.querySelector('.fallback-bg')) {
-                                  const fallbackDiv = document.createElement('div');
-                                  fallbackDiv.className = 'fallback-bg w-full h-full bg-gradient-to-br from-blue-500 to-purple-600';
-                                  parent.appendChild(fallbackDiv);
-                                }
-                              }
-                            }}
-                          />
-                          
-                          {/* Hover overlay with action buttons */}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // TODO: Implement photo viewing logic
-                                console.log('View photo:', photo.id);
-                              }}
-                              className="p-2 bg-blue-500/80 hover:bg-blue-500 rounded-lg transition-colors duration-200"
-                              title="View photo"
-                            >
-                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                              </svg>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deletePhoto(photo.id);
-                              }}
-                              className="p-2 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors duration-200"
-                              title="Delete photo"
-                            >
-                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                              </svg>
-                            </button>
-                          </div>
-                          
-                          {/* Photo info overlay */}
-                          <div className="absolute inset-0 transition-opacity duration-200 flex items-end p-2 pointer-events-none">
-                            <p className="text-white text-xs truncate">{photo.filename}</p>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="pb-4">
+            <PhotosGrid
+              photoGroups={filteredPhotoGroups}
+              onDeletePhoto={handleDeletePhoto}
+              onViewPhoto={handleViewPhoto}
+            />
           </div>
         )}
 
         {/* Documents Tab */}
         {activeTab === 'documents' && (
-          <div>
-            <h2 className="text-gray-400 text-sm font-medium mb-4">Documents</h2>
-            <div className="space-y-2">
-              {filteredDocuments.map((doc) => (
-                <div key={doc.id} className="p-3 bg-[#2a3441] rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${
-                      doc.type === 'PDF' ? 'bg-green-500' :
-                      doc.type === 'PPT' ? 'bg-orange-500' : 'bg-blue-500'
-                    }`}>
-                      {doc.type}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{doc.title}</p>
-                      <p className="text-gray-400 text-xs">{doc.date.toLocaleDateString()} - {doc.size}</p>
-                    </div>
-                    <button className="p-1 hover:bg-[#3a3a3a] rounded">
-                      <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="pb-4">
+            <DocumentsList
+              documents={filteredDocuments}
+              onDeleteDocument={handleDeleteDocument}
+              onViewDocument={handleViewDocument}
+            />
           </div>
         )}
       </div>
@@ -334,6 +302,105 @@ function RecentHistoryContent() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Photo Overlay - Constrained to menu bar width */}
+      {viewingPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingPhoto(null)}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxHeight: '90vh' }}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setViewingPhoto(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors duration-200"
+              title="Close"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Photo */}
+            <div className="p-4">
+              <img
+                src={getPhotoImageUrl(viewingPhoto, 0)}
+                alt={viewingPhoto.filename || 'Photo'}
+                className="w-full h-auto max-h-[calc(90vh-180px)] object-contain rounded-lg"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const photoSeed = parseInt(viewingPhoto.id.replace(/\D/g, '')) || 0;
+                  const fallbackId = ((photoSeed + 100) % 1000) + 1;
+                  if (!target.dataset.fallbackAttempted) {
+                    target.dataset.fallbackAttempted = 'true';
+                    target.src = `https://picsum.photos/id/${fallbackId}/800/800`;
+                  }
+                }}
+              />
+              {/* Photo Info */}
+              <div className="mt-4 relative">
+                <div className="text-center">
+                  <p className="text-white text-sm font-medium">{viewingPhoto.filename}</p>
+                  <p className="text-gray-400 text-xs mt-1">
+                    {viewingPhoto.date.toLocaleDateString()} • {viewingPhoto.size ? `${(viewingPhoto.size / 1000).toFixed(1)} KB` : ''}
+                </p>
+                </div>
+                {/* Delete Button - Bottom Right after description */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeletePhoto(viewingPhoto.id);
+                  }}
+                  className="absolute -bottom-1 -right-1 p-2 bg-red-500/90 hover:bg-red-600 rounded-full transition-colors duration-200 shadow-lg"
+                  title="Delete photo"
+                >
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={cancelDeletePhoto}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Delete Photo</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to delete this photo? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDeletePhoto}
+                  className="px-4 py-2 bg-[#2a3441] hover:bg-[#3a4a5a] text-white rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePhoto}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

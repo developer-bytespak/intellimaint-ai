@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Chat, Message, MessageDocument, TabType, Photo } from '@/types/chat';
+import { Chat, Message, MessageDocument, TabType, Photo, Document } from '@/types/chat';
 import { mockChats, mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
@@ -14,6 +14,7 @@ export function useChat() {
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [photos, setPhotos] = useState<Photo[]>(mockPhotos);
+  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
   const [isMobile, setIsMobile] = useState(false);
   const searchParams = useSearchParams();
 
@@ -232,6 +233,10 @@ Try these steps and let me know what happens when you attempt to start it.`;
     setPhotos(prev => prev.filter(photo => photo.id !== photoId));
   };
 
+  const deleteDocument = (documentId: string) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
   const textToSpeech = async (text: string) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/v1/asr/synthesize`, {
@@ -271,7 +276,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     activeTab,
     isMobile,
     photoGroups,
-    documents: mockDocuments,
+    documents,
     createNewChat,
     selectChat,
     sendMessage,
@@ -280,6 +285,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     cleanupEmptyChats,
     deleteChat,
     deletePhoto,
+    deleteDocument,
     textToSpeech
   };
 }

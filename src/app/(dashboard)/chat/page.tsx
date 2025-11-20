@@ -23,7 +23,8 @@ function ChatPageContent() {
     sendMessage,
     setActiveTab,
     deleteChat,
-    deletePhoto
+    deletePhoto,
+    deleteDocument
   } = useChat();
 
   const searchParams = useSearchParams();
@@ -84,11 +85,12 @@ function ChatPageContent() {
   };
 
   const handleDeleteDocument = (documentId: string) => {
-    console.log('Delete document:', documentId);
+    deleteDocument(documentId);
   };
 
   const handleViewDocument = (documentId: string) => {
     console.log('View document:', documentId);
+    // TODO: Implement document viewing (open in new tab or overlay)
   };
 
   const toggleSidebar = () => {
@@ -151,17 +153,37 @@ function ChatPageContent() {
         {!isMobile && (
           <div className="flex-shrink-0 bg-[#1f2632] border-b border-[#2a3441]">
             <div className="flex items-center justify-between px-4 py-3">
-              {!isSidebarOpen && (
-                <button
-                  onClick={toggleSidebar}
-                  className="flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              )}
-              {isSidebarOpen && <div className="w-8"></div>}
+              <div className="flex items-center gap-3">
+                {!isSidebarOpen && (
+                  <button
+                    onClick={toggleSidebar}
+                    className="flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                )}
+                {isSidebarOpen && <div className="w-8"></div>}
+                
+                {/* IntelliMaint AI Logo and Name - Only show when chat has messages */}
+                {activeChat && activeChat.messages.length > 0 && (
+                  <button
+                    onClick={handleCreateNewChat}
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+                    title="Start new chat"
+                  >
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                      <img 
+                        src="/Intelliment LOgo.png" 
+                        alt="IntelliMaint AI Logo" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <h1 className="text-lg font-semibold text-white">IntelliMaint AI</h1>
+                  </button>
+                )}
+              </div>
               
               <button className="bg-[#2a3441] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-blue-500 hover:text-white transition-colors duration-200 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">

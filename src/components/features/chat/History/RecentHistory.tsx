@@ -39,6 +39,9 @@ export default function RecentHistory({
 }: RecentHistoryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
 
   // Filter chats based on search query
   const filteredChats = chats.filter(chat =>
@@ -73,14 +76,51 @@ export default function RecentHistory({
     onViewPhoto(photoId);
   };
 
-  // Handle delete photo - close overlay if the deleted photo is being viewed
+  // Handle delete photo - show confirmation dialog
   const handleDeletePhoto = (photoId: string) => {
-    // If the photo being viewed is deleted, close the overlay
-    if (viewingPhoto?.id === photoId) {
-      setViewingPhoto(null);
+    setPhotoToDelete(photoId);
+    setShowDeleteConfirm(true);
+  };
+
+  // Confirm delete photo
+  const confirmDeletePhoto = () => {
+    if (photoToDelete) {
+      // If the photo being viewed is deleted, close the overlay
+      if (viewingPhoto?.id === photoToDelete) {
+        setViewingPhoto(null);
+      }
+      // Call the original delete handler
+      onDeletePhoto(photoToDelete);
+      setPhotoToDelete(null);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  // Cancel delete photo
+  const cancelDeletePhoto = () => {
+    setPhotoToDelete(null);
+    setShowDeleteConfirm(false);
+  };
+
+  // Handle view document - find the document and set it for overlay
+  const handleViewDocument = (documentId: string) => {
+    // Find the document in the documents array
+    const document = documents.find(doc => doc.id === documentId);
+    if (document) {
+      setViewingDocument(document);
+    }
+    // Also call the original handler if needed
+    onViewDocument(documentId);
+  };
+
+  // Handle delete document - close overlay if the deleted document is being viewed
+  const handleDeleteDocument = (documentId: string) => {
+    // If the document being viewed is deleted, close the overlay
+    if (viewingDocument?.id === documentId) {
+      setViewingDocument(null);
     }
     // Call the original delete handler
-    onDeletePhoto(photoId);
+    onDeleteDocument(documentId);
   };
 
   // Generate image URL for photo (same logic as PhotosGrid)
@@ -183,8 +223,8 @@ export default function RecentHistory({
           <div className="pb-4">
             <DocumentsList
               documents={filteredDocuments}
-              onDeleteDocument={onDeleteDocument}
-              onViewDocument={onViewDocument}
+              onDeleteDocument={handleDeleteDocument}
+              onViewDocument={handleViewDocument}
             />
           </div>
         )}
@@ -217,7 +257,7 @@ export default function RecentHistory({
               <img
                 src={getPhotoImageUrl(viewingPhoto, 0)}
                 alt={viewingPhoto.filename || 'Photo'}
-                className="w-full h-auto max-h-[calc(90vh-100px)] object-contain rounded-lg"
+                className="w-full h-auto max-h-[calc(90vh-180px)] object-contain rounded-lg"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   const photoSeed = parseInt(viewingPhoto.id.replace(/\D/g, '')) || 0;
@@ -229,11 +269,129 @@ export default function RecentHistory({
                 }}
               />
               {/* Photo Info */}
-              <div className="mt-4 text-center">
-                <p className="text-white text-sm font-medium">{viewingPhoto.filename}</p>
-                <p className="text-gray-400 text-xs mt-1">
-                  {viewingPhoto.date.toLocaleDateString()} • {viewingPhoto.size ? `${(viewingPhoto.size / 1000).toFixed(1)} KB` : ''}
+              <div className="mt-4 relative">
+                <div className="text-center">
+                  <p className="text-white text-sm font-medium">{viewingPhoto.filename}</p>
+                  <p className="text-gray-400 text-xs mt-1">
+                    {viewingPhoto.date.toLocaleDateString()} • {viewingPhoto.size ? `${(viewingPhoto.size / 1000).toFixed(1)} KB` : ''}
                 </p>
+                </div>
+                {/* Delete Button - Bottom Right after description */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeletePhoto(viewingPhoto.id);
+                  }}
+                  className="absolute -bottom-1 -right-1 p-2 bg-red-500/90 hover:bg-red-600 rounded-full transition-colors duration-200 shadow-lg"
+                  title="Delete photo"
+                >
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div 
+          className="absolute inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={cancelDeletePhoto}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Delete Photo</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to delete this photo? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDeletePhoto}
+                  className="px-4 py-2 bg-[#2a3441] hover:bg-[#3a4a5a] text-white rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePhoto}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Overlay - Constrained to menu bar width */}
+      {viewingDocument && (
+        <div 
+          className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingDocument(null)}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxHeight: '90vh' }}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setViewingDocument(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors duration-200"
+              title="Close"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Document Preview */}
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className={`w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold ${
+                  viewingDocument.type === 'PDF' ? 'bg-green-500' :
+                  viewingDocument.type === 'PPT' ? 'bg-orange-500' : 'bg-blue-500'
+                }`}>
+                  {viewingDocument.type}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-white text-lg font-semibold mb-1">{viewingDocument.title}</h3>
+                  <p className="text-gray-400 text-sm">
+                    {viewingDocument.date.toLocaleDateString()} • {viewingDocument.size}
+                  </p>
+                </div>
+              </div>
+
+              {/* Document Content Preview */}
+              <div className="bg-[#2a3441] rounded-lg p-6 min-h-[400px] flex items-center justify-center">
+                <div className="text-center">
+                  <div className={`w-24 h-24 mx-auto mb-4 rounded-lg flex items-center justify-center text-white text-3xl font-bold ${
+                    viewingDocument.type === 'PDF' ? 'bg-green-500' :
+                    viewingDocument.type === 'PPT' ? 'bg-orange-500' : 'bg-blue-500'
+                  }`}>
+                    {viewingDocument.type}
+                  </div>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Document preview would be displayed here
+                  </p>
+                  <a
+                    href={viewingDocument.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Open Document
+                  </a>
+                </div>
               </div>
             </div>
           </div>
