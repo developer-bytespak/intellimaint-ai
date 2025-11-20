@@ -42,8 +42,8 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
+    e?.preventDefault();
     if (!inputValue.trim() && selectedImages.length === 0 && selectedDocuments.length === 0) return;
     
     if (onSendMessage) {
@@ -296,7 +296,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                   // Allow Enter to submit, Shift+Enter for new line
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleSubmit(e as any);
+                    handleSubmit(e);
                   }
                 }}
                 placeholder={isSending ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
@@ -395,7 +395,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     title="Send message"
                     onClick={(e) => {
                       e.preventDefault();
-                      handleSubmit(e as any);
+                      handleSubmit(e);
                     }}
                   >
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
