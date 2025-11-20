@@ -47,7 +47,7 @@ export function useChat() {
   //   }
   // }, [chats, activeChat]);
 
-  const createNewChat = (skipRedirect = false) => {
+  const createNewChat = (skipRedirect = false): Chat => {
     // Remove any existing empty chats (chats with no messages)
     setChats(prev => prev.filter(chat => chat.messages.length > 0));
     
@@ -65,6 +65,7 @@ export function useChat() {
       router.push(`/chat?chat=${newChat.id}`);
     }
     setActiveTab('chats');
+    return newChat;
   };
 
   const selectChat = (chat: Chat) => {
@@ -75,12 +76,13 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[]) => {
-    if (!activeChat) return;
+    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[], chatOverride?: Chat) => {
+    const chatToUse = chatOverride || activeChat;
+    if (!chatToUse) return;
 
-    const isFirstMessage = activeChat.messages.length === 0;
+    const isFirstMessage = chatToUse.messages.length === 0;
     // Count user messages (excluding assistant messages)
-    const userMessageCount = activeChat.messages.filter(m => m.role === 'user').length;
+    const userMessageCount = chatToUse.messages.filter(m => m.role === 'user').length;
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -92,8 +94,8 @@ export function useChat() {
     };
 
     const updatedChat = {
-      ...activeChat,
-      messages: [...activeChat.messages, newMessage],
+      ...chatToUse,
+      messages: [...chatToUse.messages, newMessage],
       updatedAt: new Date()
     };
 
@@ -103,7 +105,7 @@ export function useChat() {
     }
 
     setChats(prev => prev.map(chat => 
-      chat.id === activeChat.id ? updatedChat : chat
+      chat.id === chatToUse.id ? updatedChat : chat
     ));
     setActiveChat(updatedChat);
 
@@ -196,7 +198,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
       };
 
       setChats(prev => prev.map(chat => 
-        chat.id === updatedChat.id ? finalChat : chat
+        chat.id === chatToUse.id ? finalChat : chat
       ));
       setActiveChat(finalChat);
     }, 1000);

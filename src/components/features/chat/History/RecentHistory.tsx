@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Chat, PhotoGroup, Document, TabType } from '@/types/chat';
 import ChatsList from './ChatsList';
 import PhotosGrid from './PhotosGrid';
@@ -36,6 +37,27 @@ export default function RecentHistory({
   onDeleteDocument,
   onViewDocument
 }: RecentHistoryProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter chats based on search query
+  const filteredChats = chats.filter(chat =>
+    chat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].content.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Filter documents based on search query
+  const filteredDocuments = documents.filter(doc =>
+    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter photo groups based on search query
+  const filteredPhotoGroups = photoGroups.map(group => ({
+    ...group,
+    photos: group.photos.filter(photo =>
+      photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  })).filter(group => group.photos.length > 0);
+
   return (
     <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full min-h-0">
       {/* Header */}
@@ -83,6 +105,13 @@ export default function RecentHistory({
           <input
             type="text"
             placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
             className="w-full bg-[#3a4a5a] text-white placeholder-gray-300 px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-blue-500"
           />
           <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
@@ -96,7 +125,7 @@ export default function RecentHistory({
         {activeTab === 'chats' && (
           <div className="pb-4">
             <ChatsList
-              chats={chats}
+              chats={filteredChats}
               activeChat={activeChat}
               onChatSelect={onChatSelect}
               onCreateNewChat={onCreateNewChat}
@@ -108,7 +137,7 @@ export default function RecentHistory({
         {activeTab === 'photos' && (
           <div className="pb-4">
             <PhotosGrid
-              photoGroups={photoGroups}
+              photoGroups={filteredPhotoGroups}
               onDeletePhoto={onDeletePhoto}
               onViewPhoto={onViewPhoto}
             />
@@ -118,7 +147,7 @@ export default function RecentHistory({
         {activeTab === 'documents' && (
           <div className="pb-4">
             <DocumentsList
-              documents={documents}
+              documents={filteredDocuments}
               onDeleteDocument={onDeleteDocument}
               onViewDocument={onViewDocument}
             />
