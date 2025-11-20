@@ -10,13 +10,15 @@ interface AttachmentPreviewProps {
   documents: MessageDocument[];
   onRemoveImage: (index: number) => void;
   onRemoveDocument: (index: number) => void;
+  onViewImage?: (index: number) => void;
 }
 
 export default function AttachmentPreview({
   images,
   documents,
   onRemoveImage,
-  onRemoveDocument
+  onRemoveDocument,
+  onViewImage
 }: AttachmentPreviewProps) {
   return (
     <>
@@ -27,12 +29,18 @@ export default function AttachmentPreview({
               <div key={index} className="flex flex-col items-end w-16">
                 <button 
                   type="button" 
-                  onClick={() => onRemoveImage(index)} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveImage(index);
+                  }} 
                   className="z-20 bg-[#1f2632] border border-[#3a4a5a] text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#3a4a5a] transition-colors -mb-4 -mr-1"
                 >
                   ×
                 </button>
-                <div className="w-16 h-16 rounded-lg overflow-hidden border border-[#3a4a5a]">
+                <div 
+                  className="w-16 h-16 rounded-lg overflow-hidden border border-[#3a4a5a] cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => onViewImage && onViewImage(index)}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={src} alt={`preview-${index}`} className="w-full h-full object-cover" />
                 </div>

@@ -7,6 +7,7 @@ import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
 import MessageList from './MessageList';
+import AttachmentPreview from './AttachmentPreview';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -19,6 +20,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -250,6 +252,15 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
       <div className="flex-shrink-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 border-t border-[#2a3441] bg-[#1f2632] pb-24 sm:pb-4 md:pb-6">
         <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto" noValidate>
           <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-2 sm:px-3 md:px-4 py-2 sm:py-3 flex flex-col w-full overflow-visible box-border">
+            {/* Attachment Preview - Shows uploaded images and documents */}
+            <AttachmentPreview
+              images={selectedImages}
+              documents={selectedDocuments}
+              onRemoveImage={removeImageAt}
+              onRemoveDocument={removeDocumentAt}
+              onViewImage={(index) => setViewingImageIndex(index)}
+            />
+            
             {/* Audio Recorder UI - Shows when recording or audio ready */}
             {(audioRecorder.isRecording || audioRecorder.audioUrl) && (
               <div className="mb-3">
@@ -373,8 +384,8 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                   )}
                 </div>
                 
-                {/* Send Button (when typing) or Voice Button (Microphone) - Right side */}
-                {inputValue.trim() ? (
+                {/* Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
+                {(inputValue.trim() || selectedImages.length > 0 || selectedDocuments.length > 0) ? (
                   <button
                     type="submit"
                     disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
@@ -432,6 +443,37 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         onClose={() => setShowCamera(false)}
         onCapture={handleCapturePhoto}
       />
+
+      {/* Image Overlay */}
+      {viewingImageIndex !== null && selectedImages[viewingImageIndex] && (
+        <div 
+          className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingImageIndex(null)}
+        >
+          {/* Close Button */}
+          <button
+            onClick={() => setViewingImageIndex(null)}
+            className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors duration-200"
+            title="Close"
+          >
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Image */}
+          <img
+            src={selectedImages[viewingImageIndex]}
+            alt={`preview-${viewingImageIndex}`}
+            className="max-w-[85%] max-h-[75vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              console.error('Failed to load image:', selectedImages[viewingImageIndex]);
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -511,7 +511,7 @@ export default function RecentHistory({
         )}
 
         {activeTab === 'documents' && (
-          <div className="pb-4">
+          <div className="pb-24">
             <DocumentsList
               documents={filteredDocuments}
               onViewDocument={handleViewDocument}

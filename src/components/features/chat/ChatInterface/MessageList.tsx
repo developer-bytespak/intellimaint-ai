@@ -12,6 +12,7 @@ export default function MessageList({ activeChat }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const { textToSpeech, currentPlayingId, playAudio, stopAudio } = useAudio();
 
   const scrollToBottom = () => {
@@ -105,7 +106,7 @@ export default function MessageList({ activeChat }: MessageListProps) {
                         src={src} 
                         alt={`attachment-${idx}`} 
                         className="w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity block" 
-                        onClick={() => window.open(src, '_blank')}
+                        onClick={() => setViewingImage(src)}
                         onError={(e) => {
                           console.error('Failed to load image:', src);
                           e.currentTarget.style.display = 'none';
@@ -268,6 +269,37 @@ export default function MessageList({ activeChat }: MessageListProps) {
         ))}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Image Overlay */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          {/* Close Button */}
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors duration-200"
+            title="Close"
+          >
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Image */}
+          <img
+            src={viewingImage}
+            alt="Full size image"
+            className="max-w-[85%] max-h-[75vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              console.error('Failed to load image:', viewingImage);
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
