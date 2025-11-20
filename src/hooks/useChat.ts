@@ -47,7 +47,7 @@ export function useChat() {
   //   }
   // }, [chats, activeChat]);
 
-  const createNewChat = () => {
+  const createNewChat = (skipRedirect = false) => {
     // Remove any existing empty chats (chats with no messages)
     setChats(prev => prev.filter(chat => chat.messages.length > 0));
     
@@ -61,7 +61,9 @@ export function useChat() {
     
     setChats(prev => [newChat, ...prev]);
     setActiveChat(newChat);
-    router.push(`/chat?chat=${newChat.id}`);
+    if (!skipRedirect) {
+      router.push(`/chat?chat=${newChat.id}`);
+    }
     setActiveTab('chats');
   };
 

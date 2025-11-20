@@ -48,10 +48,11 @@ function ChatPageContent() {
   };
 
   const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
-    // Create new chat first if no active chat
+    // Create new chat first if no active chat (without redirect)
     if (!activeChat) {
-      createNewChat();
-      // Wait for chat to be created, then send message
+      // Create new chat without redirecting
+      createNewChat(true); // Pass true to skip redirect
+      // Wait a bit for state to update, then send message
       setTimeout(() => {
         sendMessage(content, images, documents);
       }, 100);

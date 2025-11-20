@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { MessageDocument } from '@/types/chat';
+import { MessageDocument, Chat } from '@/types/chat';
 import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
+import MessageList from './MessageList';
 
 interface WelcomeScreenProps {
+  activeChat?: Chat | null;
   onSendMessage?: (content: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
-export default function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
+export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
@@ -165,51 +167,59 @@ export default function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
   // Use recording hook directly
   const audioRecorder = useAudioRecorder(handleSendAudioWrapper);
 
+  // Check if we should show welcome content or messages
+  const showWelcomeContent = !activeChat || activeChat.messages.length === 0;
+
   return (
     <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden">
-      {/* Welcome Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto items-center justify-center p-4 sm:p-8 flex">
-        <div className="max-w-2xl text-center space-y-4 sm:space-y-6 w-full">
-          {/* Logo or Icon */}
-          <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 flex items-center justify-center">
-              <img 
-                src="/Intelliment LOgo.png" 
-                alt="IntelliMaint AI Logo" 
-                className="w-full h-full object-contain"
-              />
+      {/* Show Welcome Content only when no active chat or chat has no messages */}
+      {showWelcomeContent ? (
+        <div className="flex-1 overflow-y-auto items-center justify-center p-4 sm:p-8 flex">
+          <div className="max-w-2xl text-center space-y-4 sm:space-y-6 w-full">
+            {/* Logo or Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-20 h-20 flex items-center justify-center">
+                <img 
+                  src="/Intelliment LOgo.png" 
+                  alt="IntelliMaint AI Logo" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Welcome Text */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Welcome to IntelliMaint AI</h1>
+            {/* Welcome Text */}
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Welcome to IntelliMaint AI</h1>
 
-          {/* Feature Highlights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 sm:mt-8">
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
-              <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <h3 className="text-white font-semibold mb-1">Fast Response</h3>
-              <p className="text-gray-400 text-sm">Get instant AI-powered answers</p>
-            </div>
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
-              <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              <h3 className="text-white font-semibold mb-1">Expert Knowledge</h3>
-              <p className="text-gray-400 text-sm">Access comprehensive maintenance data</p>
-            </div>
-            <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
-              <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="text-white font-semibold mb-1">24/7 Available</h3>
-              <p className="text-gray-400 text-sm">Always here when you need help</p>
+            {/* Feature Highlights */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 sm:mt-8">
+              <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+                <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h3 className="text-white font-semibold mb-1">Fast Response</h3>
+                <p className="text-gray-400 text-sm">Get instant AI-powered answers</p>
+              </div>
+              <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+                <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <h3 className="text-white font-semibold mb-1">Expert Knowledge</h3>
+                <p className="text-gray-400 text-sm">Access comprehensive maintenance data</p>
+              </div>
+              <div className="bg-[#2a3441] p-3 sm:p-4 rounded-xl">
+                <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-white font-semibold mb-1">24/7 Available</h3>
+                <p className="text-gray-400 text-sm">Always here when you need help</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Show Message List when chat has messages */
+        <MessageList activeChat={activeChat} />
+      )}
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}
       <div className="flex-shrink-0 px-4 sm:px-6 py-4 sm:py-6 border-t border-[#2a3441] bg-[#1f2632]">

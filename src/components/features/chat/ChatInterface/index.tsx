@@ -12,15 +12,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ activeChat, onSendMessage, onSendMessageFromWelcome }: ChatInterfaceProps) {
-  if (!activeChat) {
-    return <WelcomeScreen onSendMessage={onSendMessageFromWelcome || onSendMessage} />;
-  }
-
-  return (
-    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden max-w-full min-w-0">
-      <MessageList activeChat={activeChat} />
-      <MessageInput onSendMessage={onSendMessage} />
-    </div>
-  );
+  // Always show WelcomeScreen, but pass activeChat so it can show messages when chat exists
+  return <WelcomeScreen activeChat={activeChat} onSendMessage={onSendMessageFromWelcome || onSendMessage} />;
 }
 
