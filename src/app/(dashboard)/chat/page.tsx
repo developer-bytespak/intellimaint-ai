@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { Chat } from '@/types/chat';
+import { Chat, MessageDocument } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
@@ -44,6 +44,19 @@ function ChatPageContent() {
     if (isMobile) {
       setCurrentView('chat');
       setIsSidebarOpen(false);
+    }
+  };
+
+  const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
+    // Create new chat first if no active chat
+    if (!activeChat) {
+      createNewChat();
+      // Wait for chat to be created, then send message
+      setTimeout(() => {
+        sendMessage(content, images, documents);
+      }, 100);
+    } else {
+      sendMessage(content, images, documents);
     }
   };
 
@@ -157,6 +170,7 @@ function ChatPageContent() {
             <ChatInterface 
               activeChat={activeChat} 
               onSendMessage={sendMessage}
+              onSendMessageFromWelcome={handleSendMessageFromWelcome}
             />
           )}
         </div>

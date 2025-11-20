@@ -8,11 +8,12 @@ import MessageInput from './MessageInput';
 interface ChatInterfaceProps {
   activeChat: Chat | null;
   onSendMessage: (content: string, images?: string[], documents?: MessageDocument[]) => void;
+  onSendMessageFromWelcome?: (content: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
-export default function ChatInterface({ activeChat, onSendMessage }: ChatInterfaceProps) {
+export default function ChatInterface({ activeChat, onSendMessage, onSendMessageFromWelcome }: ChatInterfaceProps) {
   if (!activeChat) {
-    return <WelcomeScreen />;
+    return <WelcomeScreen onSendMessage={onSendMessageFromWelcome || onSendMessage} />;
   }
 
   return (
