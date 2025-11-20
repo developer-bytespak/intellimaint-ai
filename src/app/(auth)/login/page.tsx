@@ -3,15 +3,33 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/hooks/useUser';
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const { loginUser } = useUser();
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
-    router.push('/verify?flow=signin');
+    const data = {
+      email,
+      password,
+    };
+    console.log(data);
+    loginUser.mutate(data,{
+      onSuccess: (data: unknown) => {
+        console.log('Login successful:', data);
+        router.push('/chat');
+      },
+      onError: (error) => {
+        console.error('Login error:', error);
+      }
+    });
   };
 
   const handleSignUp = () => {
@@ -53,11 +71,17 @@ export default function LoginPage() {
         {/* Login Form */}
         <div className="w-full max-w-sm sm:max-w-md space-y-6">
           {/* Email Field */}
+          <form >
           <div>
-            <label className="block text-white text-sm font-medium mb-2">
+            <label
+             htmlFor="email"
+             className="block text-white text-sm font-medium mb-2">
               Email
             </label>
             <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              id="email"
               type="email"
               placeholder="Enter your email"
               className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500"
@@ -66,11 +90,16 @@ export default function LoginPage() {
 
           {/* Password Field */}
           <div>
-            <label className="block text-white text-sm font-medium mb-2">
+            <label
+             htmlFor="password"
+             className="block text-white text-sm font-medium mb-2">
               Password
             </label>
             <div className="relative">
               <input
+                value={password}
+                id="password"
+                onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
@@ -90,6 +119,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+          </form>
 
           {/* Remember Me and Forgot Password */}
           <div className="flex items-center justify-between">
@@ -120,10 +150,12 @@ export default function LoginPage() {
 
           {/* Sign In Button */}
           <button 
+          type="submit"
             onClick={handleSignIn}
+            disabled={loginUser.isPending}
             className="w-full bg-[#2196F3] text-white font-semibold py-3 rounded-3xl hover:bg-blue-600 transition-colors"
           >
-            Sign In
+            {loginUser.isPending ? 'Signing in...' : 'Sign In'}
           </button>
 
           {/* OR Separator */}

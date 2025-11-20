@@ -2,13 +2,15 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useUser } from '@/hooks/useUser';
 
 function VerifyPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [code, setCode] = useState(['', '', '', '']);
   const [isResending, setIsResending] = useState(false);
-
+  const { verifyOtp, resendOtp } = useUser();
+  const email = searchParams.get('email');
   const handleInputChange = (index: number, value: string) => {
     if (value.length > 1) return; // Only allow single digit
     
@@ -43,30 +45,36 @@ function VerifyPageContent() {
 
   const handleResend = async () => {
     setIsResending(true);
-    // Simulate API call
-    setTimeout(() => {
+    if(email){
+      resendOtp.mutate({email:email},{
+        onSuccess: (data: unknown) => {
+          console.log('OTP resent:', data);
+          setIsResending(false);
+        },
+        onError: (error) => {
+          console.error('OTP resend error:', error);
+          setIsResending(false);
+        }
+      });
+    } else {
       setIsResending(false);
-    }, 1000);
+    }
   };
 
   const handleVerify = () => {
     const fullCode = code.join('');
     if (fullCode.length === 4) {
-      // Get the flow type from URL parameters
-      const flow = searchParams.get('flow');
-      
-      if (flow === 'signup') {
-        // User is signing up - redirect to form page
-        router.push('/form');
-      } else if (flow === 'signin') {
-        // User is signing in - redirect to home page
-        router.push('/chat');
-      } else {
-        // Default fallback - redirect to form page
-        router.push('/form');
-      }
-      
-      console.log('Verification successful:', fullCode, 'Flow:', flow);
+      const emailValue = email || '';
+
+      verifyOtp.mutate({email:emailValue,otp:fullCode},{
+        onSuccess: (data: unknown) => {
+          console.log('Verification successful:', data);
+          router.push('/login');
+        },
+        onError: (error) => {
+          console.error('Verification error:', error);
+        }
+      });
     }
   };
 
@@ -98,7 +106,7 @@ function VerifyPageContent() {
           {/* Instructional Text */}
           <p className="text-[#A0A0A0] text-base sm:text-lg lg:text-lg leading-relaxed max-w-xs sm:max-w-sm lg:max-w-md lg:mx-auto text-center mb-6 sm:mb-8 lg:mb-8 font-medium">
             Enter the code we&apos;ve sent by text to{' '}
-            <span className="text-white font-semibold">leslimoses@example.com</span>
+            <span className="text-white font-semibold">{email || 'your email'}</span>
           </p>
 
           {/* Code Input Section */}
@@ -133,10 +141,10 @@ function VerifyPageContent() {
                 Didn&apos;t get a code?{' '}
                 <button
                   onClick={handleResend}
-                  disabled={isResending}
+                  disabled={isResending || resendOtp.isPending}
                   className="text-[#2196F3] font-semibold hover:text-blue-400 transition-colors disabled:opacity-50"
                 >
-                  {isResending ? 'Sending...' : 'Resend'}
+                  {isResending || resendOtp.isPending ? 'Sending...' : 'Resend'}
                 </button>
               </span>
             </div>
@@ -150,10 +158,10 @@ function VerifyPageContent() {
         <div className="block lg:hidden">
           <button
             onClick={handleVerify}
-            disabled={!isCodeComplete}
+            disabled={!isCodeComplete || verifyOtp.isPending}
             className="w-full bg-[#2196F3] text-white font-semibold py-3 sm:py-4 text-sm sm:text-base rounded-3xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           >
-            Verify Code
+            {verifyOtp.isPending ? 'Verifying...' : 'Verify Code'}
           </button>
         </div>
         
@@ -173,6 +181,7 @@ function VerifyPageContent() {
     </div>
   );
 }
+
 
 export default function VerifyPage() {
   return (
