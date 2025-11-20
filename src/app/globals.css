@@ -74,20 +74,21 @@ html {
 
 /* Custom scrollbar for chat components */
 .chat-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(42, 52, 65, 0.3);
+  border-radius: 3px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
-  background: #2a3441;
-  border-radius: 2px;
+  background: #3a4a5a;
+  border-radius: 3px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3a4a5a;
+  background: #4a5a6a;
 }
 
 .dark {

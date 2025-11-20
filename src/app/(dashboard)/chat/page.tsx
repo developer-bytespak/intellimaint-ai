@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { Chat, MessageDocument } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
+import { useSearchParams } from 'next/navigation';
 
 type NavigationTab = 'chat' | 'history' | 'info' | 'profile';
 
@@ -24,8 +25,21 @@ function ChatPageContent() {
     deleteChat
   } = useChat();
 
+  const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar if coming from recent-history page with closeSidebar parameter
+  useEffect(() => {
+    const closeSidebar = searchParams.get('closeSidebar');
+    if (closeSidebar === 'true') {
+      setIsSidebarOpen(false);
+      // Create new chat when coming from recent-history
+      if (!activeChat) {
+        createNewChat();
+      }
+    }
+  }, [searchParams, createNewChat, activeChat]);
 
   const handleChatSelect = (chat: Chat) => {
     selectChat(chat);
@@ -41,10 +55,9 @@ function ChatPageContent() {
 
   const handleCreateNewChat = () => {
     createNewChat();
-    if (isMobile) {
-      setCurrentView('chat');
-      setIsSidebarOpen(false);
-    }
+    // Close sidebar on both mobile and desktop when creating new chat
+    setCurrentView('chat');
+    setIsSidebarOpen(false);
   };
 
   const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {

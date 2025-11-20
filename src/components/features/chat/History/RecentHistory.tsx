@@ -92,31 +92,37 @@ export default function RecentHistory({
       </div>
 
       {/* Content - Dynamic Height */}
-      <div className="flex-1 overflow-y-auto px-4 min-h-0 chat-scrollbar">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 min-h-0 chat-scrollbar" style={{ paddingBottom: '40px' }}>
         {activeTab === 'chats' && (
-          <ChatsList
-            chats={chats}
-            activeChat={activeChat}
-            onChatSelect={onChatSelect}
-            onCreateNewChat={onCreateNewChat}
-            onDeleteChat={onDeleteChat}
-          />
+          <div className="pb-4">
+            <ChatsList
+              chats={chats}
+              activeChat={activeChat}
+              onChatSelect={onChatSelect}
+              onCreateNewChat={onCreateNewChat}
+              onDeleteChat={onDeleteChat}
+            />
+          </div>
         )}
 
         {activeTab === 'photos' && (
-          <PhotosGrid
-            photoGroups={photoGroups}
-            onDeletePhoto={onDeletePhoto}
-            onViewPhoto={onViewPhoto}
-          />
+          <div className="pb-4">
+            <PhotosGrid
+              photoGroups={photoGroups}
+              onDeletePhoto={onDeletePhoto}
+              onViewPhoto={onViewPhoto}
+            />
+          </div>
         )}
 
         {activeTab === 'documents' && (
-          <DocumentsList
-            documents={documents}
-            onDeleteDocument={onDeleteDocument}
-            onViewDocument={onViewDocument}
-          />
+          <div className="pb-4">
+            <DocumentsList
+              documents={documents}
+              onDeleteDocument={onDeleteDocument}
+              onViewDocument={onViewDocument}
+            />
+          </div>
         )}
       </div>
     </div>

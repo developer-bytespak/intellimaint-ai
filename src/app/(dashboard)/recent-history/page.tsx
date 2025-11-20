@@ -55,24 +55,24 @@ function RecentHistoryContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#1f2632] text-white">
+    <div className="h-screen bg-[#1f2632] text-white flex flex-col overflow-hidden">
 
       {/* Header */}
-      <div className="px-4 py-6 bg-transparent">
+      <div className="px-4 py-6 bg-transparent flex-shrink-0">
         <h1 className="text-xl font-bold text-white text-center">Recent History</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex justify-center px-4 py-4 border-b border-[#2a3441] gap-2">
+      <div className="flex w-full border-b border-[#2a3441] flex-shrink-0">
         <button
           onClick={() => {
             handleTabChange('chats');
             addParams("chats");
           }}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+          className={`flex-1 py-4 rounded-none text-sm font-medium transition-all duration-200 border-b-2 ${
             activeTab === 'chats'
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-400 hover:text-white'
+              ? 'bg-blue-500/10 text-white border-blue-500'
+              : 'text-gray-400 hover:text-white border-transparent'
           }`}
         >
           Chats
@@ -82,10 +82,10 @@ function RecentHistoryContent() {
             handleTabChange('photos');
             addParams("photos");
           }}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+          className={`flex-1 py-4 rounded-none text-sm font-medium transition-all duration-200 border-b-2 ${
             activeTab === 'photos'
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-400 hover:text-white'
+              ? 'bg-blue-500/10 text-white border-blue-500'
+              : 'text-gray-400 hover:text-white border-transparent'
           }`}
         >
           Photos
@@ -95,10 +95,10 @@ function RecentHistoryContent() {
             handleTabChange('documents');
             addParams("documents");
           }}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+          className={`flex-1 py-4 rounded-none text-sm font-medium transition-all duration-200 border-b-2 ${
             activeTab === 'documents'
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-400 hover:text-white'
+              ? 'bg-blue-500/10 text-white border-blue-500'
+              : 'text-gray-400 hover:text-white border-transparent'
           }`}
         >
           Documents
@@ -106,7 +106,7 @@ function RecentHistoryContent() {
       </div>
 
       {/* Search Bar */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 flex-shrink-0">
         <div className="relative">
           <input
             type="text"
@@ -122,7 +122,7 @@ function RecentHistoryContent() {
       </div>
 
       {/* Content - Responsive Grid */}
-      <div className="px-4 h-[calc(100vh-200px)] overflow-y-auto pb-20 chat-scrollbar ">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 min-h-0 chat-scrollbar" style={{ paddingBottom: '200px' }}>
         {/* Chats Tab */}
         {activeTab === 'chats' && (
           <div>
@@ -130,7 +130,7 @@ function RecentHistoryContent() {
               <h2 className="text-gray-400 text-sm font-medium ">Chats</h2>
               <button 
               onClick={() => {
-                router.push("/chat");
+                router.push("/chat?closeSidebar=true");
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer">
                 New Chat
@@ -178,10 +178,10 @@ function RecentHistoryContent() {
 
         {/* Photos Tab */}
         {activeTab === 'photos' && (
-          <div className="pb-6 ">
+          <div>
             <h2 className="text-gray-400 text-sm font-medium mb-4">Photos</h2>
             <div className="space-y-6">
-              {photoGroups.map((group) => {
+              {photoGroups.map((group, groupIndex) => {
                 const filteredPhotos = group.photos.filter(photo => 
                   photo.filename.toLowerCase().includes(searchQuery.toLowerCase())
                 );
@@ -193,13 +193,37 @@ function RecentHistoryContent() {
                     <h3 className="text-gray-400 text-sm font-medium mb-3">{group.month} {group.year}</h3>
                     {/* Responsive Grid: 2 columns on mobile, 3 on tablet, 4 on desktop */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                      {filteredPhotos.map((photo) => (
+                      {filteredPhotos.map((photo, index) => {
+                        // Generate machine image URLs using Picsum Photos
+                        const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                        const imageId = (photoSeed % 1000) + 1;
+                        const imageUrl = `https://picsum.photos/id/${imageId}/400/400`;
+                        
+                        return (
                         <div key={photo.id} className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden group cursor-pointer relative">
-                          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
-                            <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                            </svg>
-                          </div>
+                          {/* Machine Image */}
+                          <img
+                            src={photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/')) ? photo.url : imageUrl}
+                            alt={photo.filename || 'Machine photo'}
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                              const fallbackId = ((photoSeed + 100) % 1000) + 1;
+                              if (!target.dataset.fallbackAttempted) {
+                                target.dataset.fallbackAttempted = 'true';
+                                target.src = `https://picsum.photos/id/${fallbackId}/400/400`;
+                              } else {
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent && !parent.querySelector('.fallback-bg')) {
+                                  const fallbackDiv = document.createElement('div');
+                                  fallbackDiv.className = 'fallback-bg w-full h-full bg-gradient-to-br from-blue-500 to-purple-600';
+                                  parent.appendChild(fallbackDiv);
+                                }
+                              }
+                            }}
+                          />
                           
                           {/* Hover overlay with action buttons */}
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
@@ -236,7 +260,8 @@ function RecentHistoryContent() {
                             <p className="text-white text-xs truncate">{photo.filename}</p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );

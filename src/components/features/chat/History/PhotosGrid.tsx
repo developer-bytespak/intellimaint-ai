@@ -14,23 +14,54 @@ export default function PhotosGrid({
   onViewPhoto
 }: PhotosGridProps) {
   return (
-    <div>
+    <div className="pb-8">
       <h2 className="text-gray-400 text-sm font-medium mb-4">Photos</h2>
       <div className="space-y-6">
-        {photoGroups.map((group) => (
-          <div key={`${group.month}-${group.year}`}>
+        {photoGroups.map((group, groupIndex) => {
+          const isLastGroup = groupIndex === photoGroups.length - 1;
+          return (
+          <div key={`${group.month}-${group.year}`} className={isLastGroup ? 'pb-8' : ''}>
             <h3 className="text-gray-400 text-sm font-medium mb-3">{group.month} {group.year}</h3>
             <div className="grid grid-cols-3 gap-2">
-              {group.photos.map((photo) => (
+              {group.photos.map((photo, index) => {
+                // Generate machine image URLs using Picsum Photos - reliable service
+                const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                // Use different image IDs for variety (using seed-based approach)
+                // Using Picsum Photos which is reliable and always works
+                const imageId = (photoSeed % 1000) + 1;
+                const imageUrl = `https://picsum.photos/id/${imageId}/400/400`;
+                
+                return (
                 <div 
                   key={photo.id} 
                   className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden relative group cursor-pointer"
                 >
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                    </svg>
-                  </div>
+                  {/* Machine Image - Using placeholder service with machine images */}
+                  <img
+                    src={photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/')) ? photo.url : imageUrl}
+                    alt={photo.filename || 'Machine photo'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Try fallback with different image ID
+                      const target = e.target as HTMLImageElement;
+                      const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                      const fallbackId = ((photoSeed + 100) % 1000) + 1;
+                      // Try a different image ID as fallback
+                      if (!target.dataset.fallbackAttempted) {
+                        target.dataset.fallbackAttempted = 'true';
+                        target.src = `https://picsum.photos/id/${fallbackId}/400/400`;
+                      } else {
+                        // If Picsum fails, use placeholder with gradient background
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent && !parent.querySelector('.fallback-bg')) {
+                          const fallbackDiv = document.createElement('div');
+                          fallbackDiv.className = 'fallback-bg w-full h-full bg-gradient-to-br from-blue-500 to-purple-600';
+                          parent.appendChild(fallbackDiv);
+                        }
+                      }
+                    }}
+                  />
                   
                   {/* Hover overlay with action buttons */}
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
@@ -60,10 +91,12 @@ export default function PhotosGrid({
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

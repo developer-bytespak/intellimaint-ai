@@ -91,16 +91,40 @@ export default function Sidebar({
                 <div key={`${group.month}-${group.year}`}>
                   <h3 className="text-gray-400 text-xs font-medium mb-2">{group.month} {group.year}</h3>
                   <div className="grid grid-cols-3 gap-2">
-                    {group.photos.slice(0, 6).map((photo) => (
+                    {group.photos.slice(0, 6).map((photo, index) => {
+                      // Generate machine image URLs using Picsum Photos
+                      const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                      const imageId = (photoSeed % 1000) + 1;
+                      const imageUrl = `https://picsum.photos/id/${imageId}/400/400`;
+                      
+                      return (
                       <div 
                         key={photo.id} 
                         className="aspect-square bg-[#2a3441] rounded-xl overflow-hidden relative group cursor-pointer"
                       >
-                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                          </svg>
-                        </div>
+                        {/* Machine Image */}
+                        <img
+                          src={photo.url && (photo.url.startsWith('http') || photo.url.startsWith('/')) ? photo.url : imageUrl}
+                          alt={photo.filename || 'Machine photo'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
+                            const fallbackId = ((photoSeed + 100) % 1000) + 1;
+                            if (!target.dataset.fallbackAttempted) {
+                              target.dataset.fallbackAttempted = 'true';
+                              target.src = `https://picsum.photos/id/${fallbackId}/400/400`;
+                            } else {
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent && !parent.querySelector('.fallback-bg')) {
+                                const fallbackDiv = document.createElement('div');
+                                fallbackDiv.className = 'fallback-bg w-full h-full bg-gradient-to-br from-blue-500 to-purple-600';
+                                parent.appendChild(fallbackDiv);
+                              }
+                            }
+                          }}
+                        />
                         
                         {/* Hover overlay with action buttons */}
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
@@ -126,11 +150,12 @@ export default function Sidebar({
                           >
                             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                );
+              })}
                   </div>
                 </div>
               ))}
