@@ -268,7 +268,7 @@ export default function ProfilePage() {
       {/* Profile section */}
       <section className="relative pb-8 -mt-16 md:-mt-20">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-white/10 backdrop-blur-sm ring-4 ring-white/10 shadow-xl camera-menu-container">
+          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-white/10 backdrop-blur-sm border-4 border-white shadow-xl camera-menu-container">
             <div className="h-full w-full rounded-full overflow-hidden">
               {profileImage ? (
                 <img
