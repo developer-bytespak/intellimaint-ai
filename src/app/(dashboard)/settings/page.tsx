@@ -100,7 +100,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen space-y-4 bg-gray-100 dark:bg-[var(--color-background)]">
+    <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
         <div className="flex items-center gap-2 pt-6 pb-8">
@@ -121,14 +121,14 @@ export default function SettingsPage() {
           
           {/* Notifications Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Notifications</h2>
-            <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+            <h2 className="text-md font-semibold text-white mb-4">Notifications</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
               <div className="px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="">
-                    <IconBell className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <IconBell className="h-5 w-5 text-blue-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-gray-900 dark:text-gray-100">Notifications</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-white">Notifications</span>
                 </div>
                 <ToggleSwitch 
                   enabled={notificationsEnabled} 
@@ -140,42 +140,42 @@ export default function SettingsPage() {
 
           {/* Support Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Support</h2>
-            <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+            <h2 className="text-md font-semibold text-white mb-4">Support</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
               <button
                 onClick={handleCustomerSupport}
-                className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-white/15 transition-colors rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
               >
                 <div className="">
-                  <IconQuestionMark className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <IconQuestionMark className="h-5 w-5 text-blue-400" />
                 </div>
-                <span className="text-sm md:text-base lg:text-lg font-medium text-gray-900 dark:text-gray-100">Customer Support</span>
+                <span className="text-sm md:text-base lg:text-lg font-medium text-white">Customer Support</span>
               </button>
             </div>
           </div>
 
           {/* Account Management Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Account Management</h2>
-            <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <h2 className="text-md font-semibold text-white mb-4">Account Management</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
+              <div className="divide-y divide-white/10">
                 <button
                   onClick={handleLogout}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-white/15 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                 >
                   <div className="">
-                    <IconLogout className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <IconLogout className="h-5 w-5 text-blue-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-gray-900 dark:text-gray-100">Logout</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-white">Logout</span>
                 </button>
                 <button
                   onClick={handleDeleteAccount}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
+                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-red-900/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
                 >
                   <div className="">
-                    <IconTrash className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <IconTrash className="h-5 w-5 text-red-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-red-600 dark:text-red-400">Delete Account</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-red-400">Delete Account</span>
                 </button>
               </div>
             </div>

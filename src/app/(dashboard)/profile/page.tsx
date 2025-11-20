@@ -250,7 +250,7 @@ export default function ProfilePage() {
   }, [stream])
 
   return (
-    <main className="min-h-screen bg-gray-100 dark:bg-[var(--color-background)] text-[var(--color-foreground)]">
+    <main className="min-h-screen bg-[#1f2632] text-white">
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
         <div className="flex items-center gap-2 pt-6 pb-24 md:pb-28">
@@ -268,7 +268,7 @@ export default function ProfilePage() {
       {/* Profile section */}
       <section className="relative pb-8 -mt-16 md:-mt-20">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-gray-100 dark:bg-gray-800 ring-4 ring-gray-50 dark:ring-gray-900 shadow-xl camera-menu-container">
+          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-white/10 backdrop-blur-sm ring-4 ring-white/10 shadow-xl camera-menu-container">
             <div className="h-full w-full rounded-full overflow-hidden">
               {profileImage ? (
                 <img
@@ -277,8 +277,8 @@ export default function ProfilePage() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="h-full w-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
-                  <IconUser className="h-12 w-12 md:h-16 md:w-16 lg:h-20 lg:w-20 text-gray-400 dark:text-gray-500" />
+                <div className="h-full w-full flex items-center justify-center bg-white/5">
+                  <IconUser className="h-12 w-12 md:h-16 md:w-16 lg:h-20 lg:w-20 text-white/50" />
                 </div>
               )}
             </div>
@@ -286,7 +286,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={handleCameraClick}
-              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-blue-500 dark:bg-blue-600 text-white ring-2 ring-gray-50 dark:ring-gray-900 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10"
+              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white/10 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10"
               aria-label="Change profile picture"
             >
               <IconCamera className="h-4 w-4" />
@@ -294,11 +294,11 @@ export default function ProfilePage() {
             
             {/* Camera menu dropdown */}
             {showCameraMenu && (
-              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[160px] z-20">
+              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-sm rounded-lg shadow-xl border border-white/10 py-2 min-w-[160px] z-20">
                 <button
                   type="button"
                   onClick={handleCaptureImage}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/15 flex items-center gap-2"
                 >
                   <IconCamera className="h-4 w-4" />
                   Capture Image
@@ -306,7 +306,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleUploadImage}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/15 flex items-center gap-2"
                 >
                   <IconFolder className="h-4 w-4" />
                   Upload from Media
@@ -358,26 +358,26 @@ export default function ProfilePage() {
           )}
 
           <div className="mt-4 text-center">
-            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-[var(--color-foreground)]">Leslie Moses</p>
-            <p className="text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-400 mt-1">lesliemoses874@gmail.com</p>
+            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-white">Leslie Moses</p>
+            <p className="text-sm md:text-base lg:text-lg text-white/70 mt-1">lesliemoses874@gmail.com</p>
           </div>
 
           {/* list card */}
-          <div className="mt-6 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
-            <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="mt-6 rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
+            <ul role="list" className="divide-y divide-white/10">
               {items.map(({ label, icon: Icon, href }) => (
                 <li key={label}>
                   <button
                     type="button"
                     onClick={() => handleItemClick(href)}
-                    className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group"
+                    className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 rounded-2xl hover:bg-white/15 transition-colors group"
                     aria-label={label}
                   >
                     <span className="flex items-center gap-3">
-                      <Icon className="h-5 w-5 lg:h-6 lg:w-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--color-brand)] transition-colors" />
-                      <span className="text-sm md:text-base lg:text-lg text-[var(--color-foreground)]">{label}</span>
+                      <Icon className="h-5 w-5 lg:h-6 lg:w-6 text-white/70 group-hover:text-white transition-colors" />
+                      <span className="text-sm md:text-base lg:text-lg text-white">{label}</span>
                     </span>
-                    <IconChevronRight className="h-5 w-5 lg:h-6 lg:w-6 text-gray-400 dark:text-gray-500 group-hover:text-[var(--color-brand)] transition-colors" />
+                    <IconChevronRight className="h-5 w-5 lg:h-6 lg:w-6 text-white/50 group-hover:text-white transition-colors" />
                   </button>
                 </li>
               ))}
@@ -385,7 +385,7 @@ export default function ProfilePage() {
           </div>
 
           {/* subscription card */}
-          <div className="mt-6 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-1 shadow-lg">
+          <div className="mt-6 rounded-2xl bg-white/10 backdrop-blur-sm p-1 shadow-lg">
             <div className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white px-5 py-4 lg:px-6 lg:py-5 flex items-center justify-between">
               <span className="font-medium text-sm md:text-base lg:text-lg">Subscription</span>
               <span className="text-xs md:text-sm lg:text-base px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white flex items-center gap-1.5 font-medium">

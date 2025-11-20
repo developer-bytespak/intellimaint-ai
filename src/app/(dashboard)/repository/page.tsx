@@ -19,7 +19,7 @@ export default function RepositoryPage() {
   }
 
   return (
-    <main className="min-h-screen space-y-4 bg-gray-100 dark:bg-[var(--color-background)]">
+    <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
         <div className="flex items-center gap-2 pt-6 pb-8">
@@ -37,9 +37,9 @@ export default function RepositoryPage() {
       {/* Content */}
       <section className="">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-8 text-center">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Repository (Military Products)</h2>
-            <p className="text-gray-600 dark:text-gray-400">Product grid and filters will be displayed here</p>
+          <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
+            <h2 className="text-xl font-semibold text-white mb-2">Repository (Military Products)</h2>
+            <p className="text-white/70">Product grid and filters will be displayed here</p>
           </div>
         </div>
       </section>

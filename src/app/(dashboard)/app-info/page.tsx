@@ -1,5 +1,8 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import type React from 'react';
+
 // Play icon component
 const PlayIcon = ({ className }: { className?: string }) => (
   <svg 
@@ -12,7 +15,20 @@ const PlayIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export default function AppInfoPage() {
+  const router = useRouter();
+
+  const handleBack = () => {
+    router.push("/chat")
+  }
   const tutorials = [
     {
       id: 1,
@@ -36,12 +52,20 @@ export default function AppInfoPage() {
     <div className="min-h-screen bg-[#1f2632] text-white overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
-        <div className="text-center mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-3 sm:mb-4">App Info</h1>
+        <div className="flex items-center gap-2 mb-4 sm:mb-6">
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            aria-label="Go back"
+          >
+            <IconChevronLeft className="h-6 w-6 text-white" />
+          </button>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white flex-1 text-center">App Info</h1>
+          <div className="w-10"></div> {/* Spacer for centering */}
         </div>
 
         {/* Mini Tutorials Section */}
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-6 sm:mb-8 pt-6">
           <h2 className="text-lg sm:text-xl font-semibold text-white/80 mb-4 sm:mb-6">Mini Tutorials</h2>
           
           <div className="space-y-4 sm:space-y-6">
