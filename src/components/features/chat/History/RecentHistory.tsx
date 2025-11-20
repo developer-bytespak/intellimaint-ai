@@ -42,6 +42,10 @@ export default function RecentHistory({
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+  const [showDeleteChatConfirm, setShowDeleteChatConfirm] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
 
   // Filter chats based on search query
   const filteredChats = chats.filter(chat =>
@@ -102,6 +106,27 @@ export default function RecentHistory({
     setShowDeleteConfirm(false);
   };
 
+  // Handle delete chat - show confirmation dialog
+  const handleDeleteChat = (chatId: string) => {
+    setChatToDelete(chatId);
+    setShowDeleteChatConfirm(true);
+  };
+
+  // Confirm delete chat
+  const confirmDeleteChat = () => {
+    if (chatToDelete) {
+      onDeleteChat(chatToDelete);
+      setChatToDelete(null);
+      setShowDeleteChatConfirm(false);
+    }
+  };
+
+  // Cancel delete chat
+  const cancelDeleteChat = () => {
+    setChatToDelete(null);
+    setShowDeleteChatConfirm(false);
+  };
+
   // Handle view document - find the document and set it for overlay
   const handleViewDocument = (documentId: string) => {
     // Find the document in the documents array
@@ -113,14 +138,30 @@ export default function RecentHistory({
     onViewDocument(documentId);
   };
 
-  // Handle delete document - close overlay if the deleted document is being viewed
+  // Handle delete document - show confirmation dialog
   const handleDeleteDocument = (documentId: string) => {
-    // If the document being viewed is deleted, close the overlay
-    if (viewingDocument?.id === documentId) {
-      setViewingDocument(null);
+    setDocumentToDelete(documentId);
+    setShowDeleteDocumentConfirm(true);
+  };
+
+  // Confirm delete document
+  const confirmDeleteDocument = () => {
+    if (documentToDelete) {
+      // If the document being viewed is deleted, close the overlay
+      if (viewingDocument?.id === documentToDelete) {
+        setViewingDocument(null);
+      }
+      // Call the original delete handler
+      onDeleteDocument(documentToDelete);
+      setDocumentToDelete(null);
+      setShowDeleteDocumentConfirm(false);
     }
-    // Call the original delete handler
-    onDeleteDocument(documentId);
+  };
+
+  // Cancel delete document
+  const cancelDeleteDocument = () => {
+    setDocumentToDelete(null);
+    setShowDeleteDocumentConfirm(false);
   };
 
   // Generate image URL for photo (same logic as PhotosGrid)
@@ -131,6 +172,256 @@ export default function RecentHistory({
     const photoSeed = parseInt(photo.id.replace(/\D/g, '')) || index;
     const imageId = (photoSeed % 1000) + 1;
     return `https://picsum.photos/id/${imageId}/800/800`;
+  };
+
+  // Generate document content preview based on document type and title
+  const getDocumentContent = (document: Document) => {
+    const title = document.title.toLowerCase();
+    
+    // PDF content
+    if (document.type === 'PDF') {
+      if (title.includes('maintenance') || title.includes('schedule')) {
+        return {
+          title: 'Maintenance Schedule',
+          content: [
+            '**Quarterly Maintenance Schedule**',
+            '',
+            '**Equipment:** Industrial Generator Set',
+            '**Model:** GEN-5000-XL',
+            '**Serial Number:** IG-2024-7892',
+            '',
+            '**Scheduled Tasks:**',
+            '1. Oil Change - Every 250 hours',
+            '2. Air Filter Replacement - Every 500 hours',
+            '3. Spark Plug Inspection - Every 100 hours',
+            '4. Battery Check - Monthly',
+            '5. Coolant System Flush - Annually',
+            '',
+            '**Next Service Date:** July 15, 2025',
+            '**Service Provider:** IntelliMaint Services',
+            '',
+            '**Notes:**',
+            'All maintenance activities should be logged in the system.',
+            'Any anomalies detected during inspection must be reported immediately.'
+          ]
+        };
+      } else if (title.includes('fault') || title.includes('report')) {
+        return {
+          title: 'Fault Analysis Report',
+          content: [
+            '**Operational Fault Report**',
+            '',
+            '**Date:** June 20, 2025',
+            '**Equipment ID:** GEN-5000-XL-7892',
+            '**Fault Code:** ERR-0421',
+            '',
+            '**Issue Description:**',
+            'Generator failed to start during scheduled maintenance test.',
+            'Initial diagnosis indicates potential fuel system contamination.',
+            '',
+            '**Symptoms Observed:**',
+            '• Engine cranks but does not start',
+            '• Fuel pump activates but no ignition',
+            '• Check engine light illuminated',
+            '',
+            '**Recommended Actions:**',
+            '1. Drain and replace fuel',
+            '2. Inspect fuel filter for contamination',
+            '3. Check fuel injectors for blockages',
+            '4. Test fuel pump pressure',
+            '',
+            '**Priority:** High',
+            '**Status:** Under Investigation'
+          ]
+        };
+      } else if (title.includes('inspection')) {
+        return {
+          title: 'Inspection Report',
+          content: [
+            '**Generator Inspection Report**',
+            '',
+            '**Inspection Date:** May 28, 2025',
+            '**Inspector:** John Smith, Certified Technician',
+            '**Equipment:** Industrial Generator Set',
+            '',
+            '**Visual Inspection:**',
+            '✓ Exterior condition: Good',
+            '✓ No visible leaks or damage',
+            '✓ All connections secure',
+            '',
+            '**Functional Tests:**',
+            '✓ Start-up test: Passed',
+            '✓ Load test: Passed',
+            '✓ Voltage output: Within specifications',
+            '',
+            '**Maintenance Items:**',
+            '• Oil level: Adequate',
+            '• Coolant level: Adequate',
+            '• Battery voltage: 12.6V (Normal)',
+            '',
+            '**Recommendations:**',
+            'Schedule next service in 250 operating hours.',
+            'Monitor fuel quality regularly.'
+          ]
+        };
+      }
+    }
+    
+    // PPT content
+    if (document.type === 'PPT') {
+      if (title.includes('diagnostic') || title.includes('troubleshooting')) {
+        return {
+          title: 'Troubleshooting Guide',
+          content: [
+            '**Slide 1: Equipment Diagnostic Overview**',
+            '',
+            '**Common Issues and Solutions**',
+            '',
+            '**Issue 1: Generator Won\'t Start**',
+            '• Check fuel level and quality',
+            '• Inspect battery voltage',
+            '• Verify oil level',
+            '• Check for error codes',
+            '',
+            '**Issue 2: Low Power Output**',
+            '• Inspect air filter',
+            '• Check fuel injectors',
+            '• Verify load capacity',
+            '• Test voltage regulator',
+            '',
+            '**Issue 3: Overheating**',
+            '• Check coolant level',
+            '• Inspect radiator',
+            '• Verify fan operation',
+            '• Check for blockages',
+            '',
+            '**Preventive Measures:**',
+            '• Regular maintenance schedule',
+            '• Quality fuel usage',
+            '• Proper storage conditions',
+            '• Timely service intervals'
+          ]
+        };
+      } else if (title.includes('performance') || title.includes('metrics')) {
+        return {
+          title: 'Performance Metrics',
+          content: [
+            '**Equipment Performance Analysis**',
+            '',
+            '**Q2 2025 Performance Metrics**',
+            '',
+            '**Uptime:** 98.5%',
+            '**Average Load:** 75%',
+            '**Fuel Efficiency:** 0.42 L/kWh',
+            '**Maintenance Cost:** $2,450',
+            '',
+            '**Key Performance Indicators:**',
+            '• Mean Time Between Failures: 1,250 hours',
+            '• Mean Time To Repair: 4.5 hours',
+            '• Overall Equipment Effectiveness: 92%',
+            '',
+            '**Trends:**',
+            '✓ Improved fuel efficiency vs. Q1',
+            '✓ Reduced maintenance incidents',
+            '✓ Increased reliability',
+            '',
+            '**Recommendations:**',
+            'Continue current maintenance schedule.',
+            'Consider predictive maintenance upgrades.'
+          ]
+        };
+      }
+    }
+    
+    // DOC content
+    if (document.type === 'DOC') {
+      if (title.includes('health') || title.includes('summary')) {
+        return {
+          title: 'Machine Health Summary',
+          content: [
+            '**Machine Health Summary - June 2025**',
+            '',
+            '**Overall Health Status:** Good',
+            '**Health Score:** 87/100',
+            '',
+            '**Component Status:**',
+            '• Engine: Excellent (95/100)',
+            '• Fuel System: Good (85/100)',
+            '• Electrical System: Good (88/100)',
+            '• Cooling System: Good (82/100)',
+            '• Battery: Fair (75/100) - Replacement recommended',
+            '',
+            '**Recent Activities:**',
+            '• Oil change completed: June 10, 2025',
+            '• Air filter replaced: June 5, 2025',
+            '• Inspection completed: June 15, 2025',
+            '',
+            '**Upcoming Maintenance:**',
+            '• Battery replacement: July 2025',
+            '• Coolant flush: August 2025',
+            '',
+            '**Alerts:**',
+            '⚠ Battery voltage below optimal range',
+            '⚠ Consider replacing within 30 days'
+          ]
+        };
+      } else if (title.includes('checklist') || title.includes('procedures')) {
+        return {
+          title: 'Maintenance Checklist',
+          content: [
+            '**Preventive Maintenance Checklist**',
+            '',
+            '**Daily Checks:**',
+            '☐ Check fuel level',
+            '☐ Inspect for leaks',
+            '☐ Verify battery voltage',
+            '☐ Check oil level',
+            '☐ Test start-up',
+            '',
+            '**Weekly Checks:**',
+            '☐ Clean air filter',
+            '☐ Check coolant level',
+            '☐ Inspect belts',
+            '☐ Test load capacity',
+            '',
+            '**Monthly Checks:**',
+            '☐ Full system inspection',
+            '☐ Oil analysis',
+            '☐ Battery load test',
+            '☐ Document all findings',
+            '',
+            '**Quarterly Checks:**',
+            '☐ Complete service',
+            '☐ Replace filters',
+            '☐ System calibration',
+            '☐ Performance testing'
+          ]
+        };
+      }
+    }
+    
+    // Default content
+    return {
+      title: document.title,
+      content: [
+        `**${document.title}**`,
+        '',
+        '**Document Information:**',
+        `Type: ${document.type}`,
+        `Size: ${document.size}`,
+        `Date: ${document.date.toLocaleDateString()}`,
+        '',
+        '**Content Preview:**',
+        'This document contains important information about equipment maintenance and operations.',
+        'Please review all sections carefully and follow the recommended procedures.',
+        '',
+        '**Key Points:**',
+        '• Regular maintenance is essential for optimal performance',
+        '• Follow manufacturer guidelines',
+        '• Document all maintenance activities',
+        '• Report any anomalies immediately'
+      ]
+    };
   };
 
   return (
@@ -204,7 +495,7 @@ export default function RecentHistory({
               activeChat={activeChat}
               onChatSelect={onChatSelect}
               onCreateNewChat={onCreateNewChat}
-              onDeleteChat={onDeleteChat}
+              onDeleteChat={handleDeleteChat}
             />
           </div>
         )}
@@ -223,7 +514,6 @@ export default function RecentHistory({
           <div className="pb-4">
             <DocumentsList
               documents={filteredDocuments}
-              onDeleteDocument={handleDeleteDocument}
               onViewDocument={handleViewDocument}
             />
           </div>
@@ -353,7 +643,7 @@ export default function RecentHistory({
 
             {/* Document Preview */}
             <div className="p-6">
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-4 mb-6 relative">
                 <div className={`w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold ${
                   viewingDocument.type === 'PDF' ? 'bg-green-500' :
                   viewingDocument.type === 'PPT' ? 'bg-orange-500' : 'bg-blue-500'
@@ -366,32 +656,159 @@ export default function RecentHistory({
                     {viewingDocument.date.toLocaleDateString()} • {viewingDocument.size}
                   </p>
                 </div>
+                {/* Delete Button - Bottom Right after description */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteDocument(viewingDocument.id);
+                  }}
+                  className="absolute -bottom-1 -right-1 p-2 bg-red-500/90 hover:bg-red-600 rounded-full transition-colors duration-200 shadow-lg"
+                  title="Delete document"
+                >
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </button>
               </div>
 
               {/* Document Content Preview */}
-              <div className="bg-[#2a3441] rounded-lg p-6 min-h-[400px] flex items-center justify-center">
-                <div className="text-center">
-                  <div className={`w-24 h-24 mx-auto mb-4 rounded-lg flex items-center justify-center text-white text-3xl font-bold ${
-                    viewingDocument.type === 'PDF' ? 'bg-green-500' :
-                    viewingDocument.type === 'PPT' ? 'bg-orange-500' : 'bg-blue-500'
-                  }`}>
-                    {viewingDocument.type}
-                  </div>
-                  <p className="text-gray-400 text-sm mb-4">
-                    Document preview would be displayed here
-                  </p>
-                  <a
-                    href={viewingDocument.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    Open Document
-                  </a>
-                </div>
+              <div className="bg-[#2a3441] rounded-lg p-6 min-h-[400px] max-h-[calc(90vh-300px)] overflow-y-auto">
+                {(() => {
+                  const docContent = getDocumentContent(viewingDocument);
+                  return (
+                    <div className="space-y-4">
+                      <div className="border-b border-[#3a4a5a] pb-3">
+                        <h4 className="text-white text-lg font-semibold mb-2">{docContent.title}</h4>
+                      </div>
+                      <div className="text-white text-sm leading-relaxed space-y-2">
+                        {docContent.content.map((line, index) => {
+                          if (line.startsWith('**') && line.endsWith('**')) {
+                            // Bold text
+                            const text = line.slice(2, -2);
+                            return (
+                              <p key={index} className="font-semibold text-base mt-4 mb-2">
+                                {text}
+                              </p>
+                            );
+                          } else if (line.startsWith('•') || line.startsWith('☐') || line.startsWith('✓') || line.startsWith('⚠')) {
+                            // List item
+                            return (
+                              <p key={index} className="ml-4 text-gray-300">
+                                {line}
+                              </p>
+                            );
+                          } else if (line.trim() === '') {
+                            // Empty line
+                            return <div key={index} className="h-2" />;
+                          } else {
+                            // Regular text
+                            return (
+                              <p key={index} className="text-gray-300">
+                                {line}
+                              </p>
+                            );
+                          }
+                        })}
+                      </div>
+                      <div className="mt-6 pt-4 border-t border-[#3a4a5a]">
+                        <button
+                          onClick={() => {
+                            // Create a blob with dummy content based on document type
+                            const docContent = getDocumentContent(viewingDocument);
+                            const content = docContent.content.join('\n');
+                            const blob = new Blob([content], { 
+                              type: viewingDocument.type === 'PDF' ? 'application/pdf' : 
+                                    viewingDocument.type === 'PPT' ? 'application/vnd.ms-powerpoint' : 
+                                    'application/msword' 
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `${viewingDocument.title}.${viewingDocument.type.toLowerCase()}`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download Document
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Confirmation Dialog */}
+      {showDeleteDocumentConfirm && (
+        <div 
+          className="absolute inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={cancelDeleteDocument}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Delete Document</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to delete this document? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDeleteDocument}
+                  className="px-4 py-2 bg-[#2a3441] hover:bg-[#3a4a5a] text-white rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteDocument}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Chat Confirmation Dialog */}
+      {showDeleteChatConfirm && (
+        <div 
+          className="absolute inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={cancelDeleteChat}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Delete Chat</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to delete this chat? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDeleteChat}
+                  className="px-4 py-2 bg-[#2a3441] hover:bg-[#3a4a5a] text-white rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteChat}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
