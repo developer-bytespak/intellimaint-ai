@@ -68,7 +68,7 @@ export default function SignUpPage() {
       console.log('Form data:', formData);
     // Navigate to verify account page with sign-up flow
     signUpUser.mutate(formData,{
-      onSuccess: (data: any) => {
+      onSuccess: (data: unknown) => {
         console.log('Sign up success:', data);
         // toast.success('Sign up successful');
         router.push(`/verify?email=${formData.email}`);

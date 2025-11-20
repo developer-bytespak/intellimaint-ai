@@ -22,7 +22,7 @@ export default function LoginPage() {
     };
     console.log(data);
     loginUser.mutate(data,{
-      onSuccess: (data: any) => {
+      onSuccess: (data: unknown) => {
         console.log('Login successful:', data);
         router.push('/chat');
       },

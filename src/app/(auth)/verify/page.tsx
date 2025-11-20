@@ -47,7 +47,7 @@ function VerifyPageContent() {
     setIsResending(true);
     if(email){
       resendOtp.mutate({email:email},{
-        onSuccess: (data: any) => {
+        onSuccess: (data: unknown) => {
           console.log('OTP resent:', data);
           setIsResending(false);
         },
@@ -67,7 +67,7 @@ function VerifyPageContent() {
       const emailValue = email || '';
 
       verifyOtp.mutate({email:emailValue,otp:fullCode},{
-        onSuccess: (data: any) => {
+        onSuccess: (data: unknown) => {
           console.log('Verification successful:', data);
           router.push('/login');
         },
