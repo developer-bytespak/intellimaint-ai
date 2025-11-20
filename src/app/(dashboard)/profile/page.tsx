@@ -294,11 +294,11 @@ export default function ProfilePage() {
             
             {/* Camera menu dropdown */}
             {showCameraMenu && (
-              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-sm rounded-lg shadow-xl border border-white/10 py-2 min-w-[160px] z-20">
+              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl border border-gray-400 dark:border-gray-600 py-2 min-w-[160px] z-20">
                 <button
                   type="button"
                   onClick={handleCaptureImage}
-                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/15 flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
                 >
                   <IconCamera className="h-4 w-4" />
                   Capture Image
@@ -306,7 +306,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleUploadImage}
-                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/15 flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
                 >
                   <IconFolder className="h-4 w-4" />
                   Upload from Media
