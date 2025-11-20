@@ -105,23 +105,23 @@ export default function CreditsPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden">
-      {/* Sticky Header */}
-      <header className="fixed w-[100%] z-50 bg-[var(--color-background)]/95 backdrop-blur-sm border-b border-[color:var(--border)]/10 top-0 pb-2 px-6">
-        <div className="flex items-center gap-2">
+    <div className="min-h-screen overflow-x-hidden bg-gray-100 dark:bg-[var(--color-background)]">
+      {/* Header */}
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-8">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
             aria-label="Go back"
           >
-            <IconChevronLeft className="h-5 w-5 border border-white/10 rounded p-0.5" />
+            <IconChevronLeft className="h-6 w-6 text-white" />
           </button>
-          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1">Credits</h1>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Credits</h1>
         </div>
       </header>
 
       {/* Content */}
-      <main className="pt-14 space-y-4">
+      <main className="space-y-4 pt-6">
         <section className="">
           <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
             
@@ -130,30 +130,30 @@ export default function CreditsPage() {
               <>
                 {/* Credits Balance Card Skeleton */}
                 <div className="mb-6">
-                  <div className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-6">
+                  <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-6">
                     <div className="text-center">
-                      <div className="h-6 w-24 bg-gray-300 rounded animate-pulse mx-auto mb-2" />
-                      <div className="h-12 w-32 bg-gray-300 rounded animate-pulse mx-auto mb-4" />
-                      <div className="h-4 w-40 bg-gray-300 rounded animate-pulse mx-auto" />
+                      <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-2" />
+                      <div className="h-12 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-4" />
+                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto" />
                     </div>
                   </div>
                 </div>
 
                 {/* Purchase Options Skeleton */}
                 <div className="mb-6">
-                  <div className="h-6 w-32 bg-gray-300 rounded animate-pulse mb-4" />
+                  <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4" />
                   <div className="space-y-4">
                     {[1, 2, 3].map((item) => (
-                      <div key={item} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                      <div key={item} className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-gray-300 rounded-full animate-pulse" />
+                            <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
                             <div>
-                              <div className="h-4 w-24 bg-gray-300 rounded animate-pulse mb-2" />
-                              <div className="h-3 w-16 bg-gray-300 rounded animate-pulse" />
+                              <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
+                              <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                             </div>
                           </div>
-                          <div className="h-8 w-16 bg-gray-300 rounded animate-pulse" />
+                          <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                         </div>
                       </div>
                     ))}
@@ -162,19 +162,19 @@ export default function CreditsPage() {
 
                 {/* Transaction History Skeleton */}
                 <div className="mb-6">
-                  <div className="h-6 w-40 bg-gray-300 rounded animate-pulse mb-4" />
+                  <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4" />
                   <div className="space-y-3">
                     {[1, 2, 3, 4].map((item) => (
-                      <div key={item} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                      <div key={item} className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 bg-gray-300 rounded-full animate-pulse" />
+                            <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
                             <div>
-                              <div className="h-4 w-32 bg-gray-300 rounded animate-pulse mb-2" />
-                              <div className="h-3 w-20 bg-gray-300 rounded animate-pulse" />
+                              <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2" />
+                              <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                             </div>
                           </div>
-                          <div className="h-4 w-16 bg-gray-300 rounded animate-pulse" />
+                          <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                         </div>
                       </div>
                     ))}
@@ -186,43 +186,43 @@ export default function CreditsPage() {
               <>
                 {/* Credits Balance Card */}
                 <div className="mb-6">
-                  <div className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-6">
+                  <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-6">
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-2 mb-2">
-                        <IconWallet className="h-5 w-5 text-blue-500" />
-                        <span className="text-sm text-gray-400">Available Credits</span>
+                        <IconWallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Available Credits</span>
                       </div>
-                      <div className="text-3xl font-bold text-white mb-2">{balance}</div>
-                      <div className="text-sm text-gray-400">Credits remaining</div>
+                      <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{balance}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Credits remaining</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Purchase Options */}
                 <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Purchase Credits</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Purchase Credits</h2>
                   <div className="space-y-4">
                     {packages.map((pkg) => (
-                      <div key={pkg.id} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                      <div key={pkg.id} className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-blue-100">
-                              <IconWallet className="h-5 w-5 text-blue-600" />
+                            <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                              <IconWallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-white">{pkg.name}</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-100">{pkg.name}</span>
                                 {pkg.popular && (
-                                  <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">Popular</span>
+                                  <span className="px-2 py-1 bg-green-600 dark:bg-green-500 text-white text-xs rounded-full">Popular</span>
                                 )}
                               </div>
-                              <div className="text-sm text-gray-400">{pkg.credits} credits</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">{pkg.credits} credits</div>
                             </div>
                           </div>
                           <button
                             onClick={() => handlePurchase(pkg.id)}
                             disabled={isLoading}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
                           >
                             ${pkg.price}
                           </button>
@@ -234,22 +234,22 @@ export default function CreditsPage() {
 
                 {/* Transaction History */}
                 <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-[#f0f0f0] mb-4">Transaction History</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Transaction History</h2>
                   <div className="space-y-3">
                     {transactions.map((transaction) => (
-                      <div key={transaction.id} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                      <div key={transaction.id} className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-gray-100">
+                            <div className="p-2 rounded-full bg-gray-100 dark:bg-gray-700">
                               {getTransactionIcon(transaction.type)}
                             </div>
                             <div>
-                              <div className="font-medium text-white">{transaction.description}</div>
-                              <div className="text-sm text-gray-400">{formatDate(transaction.date)}</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{transaction.description}</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">{formatDate(transaction.date)}</div>
                             </div>
                           </div>
                           <div className={`font-medium ${
-                            transaction.credits > 0 ? 'text-green-500' : 'text-red-500'
+                            transaction.credits > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                           }`}>
                             {transaction.credits > 0 ? '+' : ''}{transaction.credits}
                           </div>

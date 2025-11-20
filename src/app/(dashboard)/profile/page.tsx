@@ -119,6 +119,14 @@ function IconCrown(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   
@@ -134,56 +142,67 @@ export default function ProfilePage() {
     router.push(href)
   }
 
+  const handleBack = () => {
+    router.push("/chat")
+  }
+
   return (
-    <main className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]">
+    <main className="min-h-screen bg-gray-100 dark:bg-[var(--color-background)] text-[var(--color-foreground)]">
       {/* Header */}
-      <header className="bg-[var(--color-brand)] text-[var(--color-brand-foreground)] rounded-b-[28px]">
-        <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6 pt-10 pb-24 md:pb-28">
-          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold">Your Profile</h1>
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-24 md:pb-28">
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
+            aria-label="Go back"
+          >
+            <IconChevronLeft className="h-6 w-6 text-white" />
+          </button>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Your Profile</h1>
         </div>
       </header>
 
       {/* Profile section */}
-      <section className="relative  pb-8 -mt-16 md:-mt-20">
-        <div className="mx-auto   max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          <div className="relative   mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full overflow-hidden bg-[var(--color-card)] ring-4 ring-[var(--color-background)] shadow-lg">
+      <section className="relative pb-8 -mt-16 md:-mt-20">
+        <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
+          <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 ring-4 ring-gray-50 dark:ring-gray-900 shadow-xl">
             <Image
               src="/diverse-profile-avatars.png"
               alt="Profile avatar"
               width={144}
               height={144}
-              className="h-full w-full  object-cover"
+              className="h-full w-full object-cover"
             />
             {/* camera badge */}
             <span
               aria-hidden="true"
-              className="absolute  bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] ring-2 ring-[var(--color-background)] h-7 w-7 shadow-md"
+              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] ring-2 ring-gray-50 dark:ring-gray-900 h-7 w-7 shadow-lg hover:scale-110 transition-transform"
             >
               <IconCamera className="h-4 w-4" />
             </span>
           </div>
 
           <div className="mt-4 text-center">
-            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight">Leslie Moses</p>
-            <p className="text-sm md:text-base lg:text-lg text-[color:var(--muted-foreground)]">lesliemoses874@gmail.com</p>
+            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-[var(--color-foreground)]">Leslie Moses</p>
+            <p className="text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-400 mt-1">lesliemoses874@gmail.com</p>
           </div>
 
           {/* list card */}
-          <div className="mt-6 rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg">
-            <ul role="list" className="divide-y divide-[color:var(--border)]/10">
+          <div className="mt-6 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+            <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
               {items.map(({ label, icon: Icon, href }) => (
                 <li key={label}>
                   <button
                     type="button"
                     onClick={() => handleItemClick(href)}
-                    className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 rounded-2xl hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)] transition-colors"
+                    className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group"
                     aria-label={label}
                   >
                     <span className="flex items-center gap-3">
-                      <Icon className="h-5 w-5 lg:h-6 lg:w-6 text-[color:var(--muted-foreground)]" />
-                      <span className="text-sm md:text-base lg:text-lg">{label}</span>
+                      <Icon className="h-5 w-5 lg:h-6 lg:w-6 text-gray-500 dark:text-gray-400 group-hover:text-[var(--color-brand)] transition-colors" />
+                      <span className="text-sm md:text-base lg:text-lg text-[var(--color-foreground)]">{label}</span>
                     </span>
-                    <IconChevronRight className="h-5 w-5 lg:h-6 lg:w-6 text-[color:var(--muted-foreground)]" />
+                    <IconChevronRight className="h-5 w-5 lg:h-6 lg:w-6 text-gray-400 dark:text-gray-500 group-hover:text-[var(--color-brand)] transition-colors" />
                   </button>
                 </li>
               ))}
@@ -191,10 +210,10 @@ export default function ProfilePage() {
           </div>
 
           {/* subscription card */}
-          <div className="mt-6 rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 p-1 shadow-lg">
-            <div className="rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-foreground)] px-5 py-4 lg:px-6 lg:py-5 flex items-center justify-between">
+          <div className="mt-6 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-1 shadow-lg">
+            <div className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white px-5 py-4 lg:px-6 lg:py-5 flex items-center justify-between">
               <span className="font-medium text-sm md:text-base lg:text-lg">Subscription</span>
-              <span className="text-xs md:text-sm lg:text-base px-3 py-1 rounded-full bg-[var(--color-brand-foreground)]/15 text-[var(--color-brand-foreground)] flex items-center gap-1">
+              <span className="text-xs md:text-sm lg:text-base px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white flex items-center gap-1.5 font-medium">
                 <IconCrown className="h-4 w-4" />
                 Premium
               </span>
