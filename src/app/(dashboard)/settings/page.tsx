@@ -63,8 +63,8 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (enab
     <button
       type="button"
       onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-        enabled ? 'bg-blue-600' : 'bg-gray-200'
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-50 dark:focus:ring-offset-gray-800 ${
+        enabled ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'
       }`}
     >
       <span
@@ -100,37 +100,35 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen pt-3 space-y-4">
+    <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
-      <header className=" ">
-        {/* <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6 pt-10 pb-24 md:pb-28"> */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBack}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Go back"
-            >
-              <IconChevronLeft className="h-5 w-5  border border-white/10 rounded p-.5" />
-            </button>
-            <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1">Settings</h1>
-          </div>
-        {/* </div> */}
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-8">
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
+            aria-label="Go back"
+          >
+            <IconChevronLeft className="h-6 w-6 text-white" />
+          </button>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Settings</h1>
+        </div>
       </header>
 
       {/* Settings Content */}
-      <section className="">
+      <section className="pt-6">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
           
           {/* Notifications Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-[#f0f0f0] mb-4">Notifications</h2>
-            <div className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg">
+            <h2 className="text-md font-semibold text-white mb-4">Notifications</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
               <div className="px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="">
-                    <IconBell className="h-5 w-5 text-blue-600" />
+                    <IconBell className="h-5 w-5 text-blue-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium">Notifications</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-white">Notifications</span>
                 </div>
                 <ToggleSwitch 
                   enabled={notificationsEnabled} 
@@ -142,42 +140,42 @@ export default function SettingsPage() {
 
           {/* Support Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-[#f0f0f0] mb-4">Support</h2>
-            <div className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg">
+            <h2 className="text-md font-semibold text-white mb-4">Support</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
               <button
                 onClick={handleCustomerSupport}
-                className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)] transition-colors rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60"
+                className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-white/15 transition-colors rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
               >
                 <div className="">
-                  <IconQuestionMark className="h-5 w-5 text-blue-600" />
+                  <IconQuestionMark className="h-5 w-5 text-blue-400" />
                 </div>
-                <span className="text-sm md:text-base lg:text-lg font-medium">Customer Support</span>
+                <span className="text-sm md:text-base lg:text-lg font-medium text-white">Customer Support</span>
               </button>
             </div>
           </div>
 
           {/* Account Management Section */}
           <div className="mb-2">
-            <h2 className="text-md font-semibold text-[#f0f0f0] mb-4">Support</h2>
-            <div className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg">
-              <div className="divide-y divide-[color:var(--border)]/10">
+            <h2 className="text-md font-semibold text-white mb-4">Account Management</h2>
+            <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
+              <div className="divide-y divide-white/10">
                 <button
                   onClick={handleLogout}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60"
+                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-white/15 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                 >
                   <div className="">
-                    <IconLogout className="h-5 w-5 text-blue-600" />
+                    <IconLogout className="h-5 w-5 text-blue-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium ">Logout</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-white">Logout</span>
                 </button>
                 <button
                   onClick={handleDeleteAccount}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5  flex items-center gap-3 hover:bg-red-50 hover:text-red-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
+                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-red-900/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
                 >
                   <div className="">
-                    <IconTrash className="h-5 w-5 text-red-600" />
+                    <IconTrash className="h-5 w-5 text-red-400" />
                   </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-red-600">Delete Account</span>
+                  <span className="text-sm md:text-base lg:text-lg font-medium text-red-400">Delete Account</span>
                 </button>
               </div>
             </div>

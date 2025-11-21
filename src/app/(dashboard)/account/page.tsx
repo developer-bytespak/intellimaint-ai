@@ -10,10 +10,10 @@ import AccountDetailsSkeleton from "@/components/shared/AccountDetailsSkeleton"
 import { useUser } from "@/hooks/useUser"
 
 // Icons
-function IconArrowLeft(props: React.SVGProps<SVGSVGElement>) {
+function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <path d="M19 12H5m7-7l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -107,21 +107,19 @@ export default function AccountPage() {
   }
 
   return (
-    <main className=" min-h-screen pt-3 space-y-4">
+    <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
-      <header className="">
-        {/* <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6 pt-10 pb-24 md:pb-28"> */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBack}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Go back"
-            >
-              <IconArrowLeft className="h-6 w-6 border border-white/10 rounded p-.5" />
-            </button>
-            <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1">Account Details</h1>
-          </div>
-        {/* </div> */}
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-8">
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
+            aria-label="Go back"
+          >
+            <IconChevronLeft className="h-6 w-6 text-white" />
+          </button>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Account Details</h1>
+        </div>
       </header>
 
       {/* Content */}
@@ -129,9 +127,9 @@ export default function AccountPage() {
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Profile Picture */}
-            <div className="flex justify-center mb-1 ">
+            <div className="flex justify-center mb-1">
               <div className="relative">
-                <div className="h-24 w-24 md:h-28 md:w-28 rounded-full border-4 border-blue-400 overflow-hidden bg-[var(--color-card)] ring-4 ring-[var(--color-background)] shadow-lg">
+                <div className="h-24 w-24 md:h-28 md:w-28 rounded-full border-4 border-blue-400 overflow-hidden bg-white/10 backdrop-blur-sm ring-4 ring-white/10 shadow-lg">
                   <Image
                     src={user?.profileImage || "/images/img1.png"}
                     alt="Profile avatar"
@@ -142,7 +140,7 @@ export default function AccountPage() {
                 </div>
                 <button
                   type="button"
-                  className="absolute bottom-1 right-1 inline-flex items-center justify-center rounded-full bg-[var(--color-brand)] text-[var(--color-brand-foreground)] ring-2 ring-[var(--color-background)] h-6 w-6 shadow-md hover:bg-[var(--color-brand)]/90 transition-colors"
+                  className="absolute bottom-1 right-1 inline-flex items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white/10 h-6 w-6 shadow-md hover:bg-blue-600 transition-colors"
                   aria-label="Change profile picture"
                 >
                   <IconCamera className="h-3 w-3" />
@@ -152,7 +150,7 @@ export default function AccountPage() {
 
             {/* Name Field */}
             <div className="space-y-2">
-              <label htmlFor="name" className="block text-sm font-medium text-[var(--color-foreground)]">
+              <label htmlFor="name" className="block text-sm font-medium text-white">
                 Name
               </label>
               <div className="relative">
@@ -161,27 +159,27 @@ export default function AccountPage() {
                   type="text"
                   id="name"
                   disabled={!isEditing}
-                  className="w-full px-4 py-3 bg-transparent border border-[color:var(--border)]/20 rounded-full text-[#f0f0f0] placeholder-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/50 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="Enter your name"
                 />
                 {!isEditing && (
                   <button
                     type="button"
                     onClick={handleEditName}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 text-[var(--color-brand)] hover:text-[var(--color-brand)]/80 text-sm font-medium transition-colors"
+                    className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
                   >
                     Edit
                   </button>
                 )}
               </div>
               {errors.name && (
-                <p className="text-sm text-red-500">{errors.name.message}</p>
+                <p className="text-sm text-red-400">{errors.name.message}</p>
               )}
             </div>
 
             {/* Email Field */}
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-[var(--color-foreground)]">
+              <label htmlFor="email" className="block text-sm font-medium text-white">
                 Email
               </label>
               <input
@@ -189,14 +187,14 @@ export default function AccountPage() {
                 type="email"
                 id="email"
                 disabled
-                className="w-full px-4 py-3 bg-transparent  border border-[color:var(--border)]/20 rounded-full text-[#f0f0f0] placeholder-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/50 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
                 placeholder="Enter your email"
               />
             </div>
 
             {/* Password Field */}
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-[var(--color-foreground)]">
+              <label htmlFor="password" className="block text-sm font-medium text-white">
                 Password
               </label>
               <div className="relative">
@@ -205,13 +203,13 @@ export default function AccountPage() {
                   type="password"
                   id="password"
                   disabled
-                  className="w-full px-4 py-3 bg-transparent  border border-[color:var(--border)]/20 rounded-full text-[#f0f0f0] placeholder-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/50 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="Enter your password"
                 />
                 <button
                   type="button"
                   onClick={handleChangePassword}
-                  className="absolute right-6 top-1/2 -translate-y-1/2 text-[var(--color-brand)] hover:text-[var(--color-brand)]/80 text-sm font-medium transition-colors"
+                  className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
                 >
                   Change
                 </button>
@@ -220,7 +218,7 @@ export default function AccountPage() {
 
             {/* Account Type Field */}
             <div className="space-y-2">
-              <label htmlFor="accountType" className="block text-sm font-medium text-[var(--color-foreground)]">
+              <label htmlFor="accountType" className="block text-sm font-medium text-white">
                 Account type
               </label>
               <div className="relative">
@@ -229,11 +227,11 @@ export default function AccountPage() {
                   type="text"
                   id="accountType"
                   disabled
-                  className="w-full px-4 py-3 bg-bg-transparent  border border-[color:var(--border)]/20 rounded-full text-[#f0f0f0] placeholder-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/50 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="Account type"
                 />
                 {user?.isVerified && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 text-sm font-medium">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-sm font-medium">
                     Verified
                   </span>
                 )}
@@ -256,14 +254,14 @@ export default function AccountPage() {
                       })
                     }
                   }}
-                  className="flex-1 px-4 py-3 bg-[var(--color-secondary)] text-[var(--color-foreground)] rounded-lg hover:bg-[var(--color-accent)] hover:text-[#000] transition-colors"
+                  className="flex-1 px-4 py-3 bg-white/10 backdrop-blur-sm text-white rounded-lg hover:bg-white/15 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-3 bg-[var(--color-brand)] text-[var(--color-brand-foreground)] rounded-lg hover:bg-[var(--color-brand)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isSubmitting ? "Saving..." : "Save Changes"}
                 </button>

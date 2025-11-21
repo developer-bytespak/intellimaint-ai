@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { Chat } from '@/types/chat';
+import { useState, Suspense, useEffect } from 'react';
+import { Chat, MessageDocument } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
+import { useSearchParams } from 'next/navigation';
 
 type NavigationTab = 'chat' | 'history' | 'info' | 'profile';
 
@@ -21,11 +22,26 @@ function ChatPageContent() {
     selectChat,
     sendMessage,
     setActiveTab,
-    deleteChat
+    deleteChat,
+    deletePhoto,
+    deleteDocument
   } = useChat();
 
+  const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar if coming from recent-history page with closeSidebar parameter
+  useEffect(() => {
+    const closeSidebar = searchParams.get('closeSidebar');
+    if (closeSidebar === 'true') {
+      setIsSidebarOpen(false);
+      // Create new chat when coming from recent-history
+      if (!activeChat) {
+        createNewChat();
+      }
+    }
+  }, [searchParams, createNewChat, activeChat]);
 
   const handleChatSelect = (chat: Chat) => {
     selectChat(chat);
@@ -41,14 +57,27 @@ function ChatPageContent() {
 
   const handleCreateNewChat = () => {
     createNewChat();
-    if (isMobile) {
-      setCurrentView('chat');
-      setIsSidebarOpen(false);
+    // Close sidebar on both mobile and desktop when creating new chat
+    setCurrentView('chat');
+    setIsSidebarOpen(false);
+  };
+
+  const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
+    // Create new chat first if no active chat (without redirect)
+    if (!activeChat) {
+      // Create new chat without redirecting and get the new chat object
+      const newChat = createNewChat(true); // Pass true to skip redirect
+      // Use the new chat directly to send message immediately
+      if (newChat) {
+        sendMessage(content, images, documents, newChat);
+      }
+    } else {
+      sendMessage(content, images, documents);
     }
   };
 
   const handleDeletePhoto = (photoId: string) => {
-    console.log('Delete photo:', photoId);
+    deletePhoto(photoId);
   };
 
   const handleViewPhoto = (photoId: string) => {
@@ -56,11 +85,12 @@ function ChatPageContent() {
   };
 
   const handleDeleteDocument = (documentId: string) => {
-    console.log('Delete document:', documentId);
+    deleteDocument(documentId);
   };
 
   const handleViewDocument = (documentId: string) => {
     console.log('View document:', documentId);
+    // TODO: Implement document viewing (open in new tab or overlay)
   };
 
   const toggleSidebar = () => {
@@ -123,17 +153,37 @@ function ChatPageContent() {
         {!isMobile && (
           <div className="flex-shrink-0 bg-[#1f2632] border-b border-[#2a3441]">
             <div className="flex items-center justify-between px-4 py-3">
-              {!isSidebarOpen && (
-                <button
-                  onClick={toggleSidebar}
-                  className="flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              )}
-              {isSidebarOpen && <div className="w-8"></div>}
+              <div className="flex items-center gap-3">
+                {!isSidebarOpen && (
+                  <button
+                    onClick={toggleSidebar}
+                    className="flex items-center justify-center w-8 h-8 text-white hover:bg-[#3a4a5a] transition-all duration-200 rounded-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                )}
+                {isSidebarOpen && <div className="w-8"></div>}
+                
+                {/* IntelliMaint AI Logo and Name - Only show when chat has messages */}
+                {activeChat && activeChat.messages.length > 0 && (
+                  <button
+                    onClick={handleCreateNewChat}
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+                    title="Start new chat"
+                  >
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                      <img 
+                        src="/Intelliment LOgo.png" 
+                        alt="IntelliMaint AI Logo" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <h1 className="text-lg font-semibold text-white">IntelliMaint AI</h1>
+                  </button>
+                )}
+              </div>
               
               <button className="bg-[#2a3441] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-blue-500 hover:text-white transition-colors duration-200 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
@@ -157,6 +207,7 @@ function ChatPageContent() {
             <ChatInterface 
               activeChat={activeChat} 
               onSendMessage={sendMessage}
+              onSendMessageFromWelcome={handleSendMessageFromWelcome}
             />
           )}
         </div>

@@ -133,23 +133,23 @@ function SavedPromptsContent() {
   const categories = ['all', 'generator', 'engine', 'power', 'electrical']
 
   return (
-    <main className="min-h-screen">
-      {/* Sticky Header */}
-      <header className="fixed top-0  w-[100%] z-10 bg-[var(--color-background)]/95 backdrop-blur-sm border-b border-[color:var(--border)]/10 pt-3 pb-4">
-        <div className="flex items-center  gap-2">
+    <main className="min-h-screen bg-[#1f2632] text-white">
+      {/* Header */}
+      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+        <div className="flex items-center gap-2 pt-6 pb-8">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
             aria-label="Go back"
           >
-            <IconChevronLeft className="h-5 w-5 border border-white/10 rounded p-0.5" />
+            <IconChevronLeft className="h-6 w-6 text-white" />
           </button>
-          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1">Saved Prompts</h1>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Saved Prompts</h1>
         </div>
       </header>
 
       {/* Content */}
-      <div className="pt-18 space-y-4">
+      <div className="space-y-4 pt-6">
         <section className="">
           <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
             
@@ -158,14 +158,14 @@ function SavedPromptsContent() {
               <>
                 {/* Search Bar Skeleton */}
                 <div className="mb-6">
-                  <div className="h-12 bg-gray-300 rounded-lg animate-pulse" />
+                  <div className="h-12 bg-white/20 rounded-lg animate-pulse" />
                 </div>
 
                 {/* Filter Tabs Skeleton */}
                 <div className="mb-6">
                   <div className="flex gap-2">
                     {[1, 2, 3, 4, 5].map((item) => (
-                      <div key={item} className="h-8 w-20 bg-gray-300 rounded-full animate-pulse" />
+                      <div key={item} className="h-8 w-20 bg-white/20 rounded-full animate-pulse" />
                     ))}
                   </div>
                 </div>
@@ -173,30 +173,30 @@ function SavedPromptsContent() {
                 {/* Prompts List Skeleton */}
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map((item) => (
-                    <div key={item} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                    <div key={item} className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <div className="h-5 w-3/4 bg-gray-300 rounded animate-pulse mb-2" />
-                          <div className="h-4 w-1/2 bg-gray-300 rounded animate-pulse" />
+                          <div className="h-5 w-3/4 bg-white/20 rounded animate-pulse mb-2" />
+                          <div className="h-4 w-1/2 bg-white/20 rounded animate-pulse" />
                         </div>
-                        <div className="h-6 w-6 bg-gray-300 rounded-full animate-pulse ml-4" />
+                        <div className="h-6 w-6 bg-white/20 rounded-full animate-pulse ml-4" />
                       </div>
                       
                       <div className="space-y-2 mb-4">
-                        <div className="h-4 w-full bg-gray-300 rounded animate-pulse" />
-                        <div className="h-4 w-5/6 bg-gray-300 rounded animate-pulse" />
-                        <div className="h-4 w-4/5 bg-gray-300 rounded animate-pulse" />
+                        <div className="h-4 w-full bg-white/20 rounded animate-pulse" />
+                        <div className="h-4 w-5/6 bg-white/20 rounded animate-pulse" />
+                        <div className="h-4 w-4/5 bg-white/20 rounded animate-pulse" />
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="h-6 w-16 bg-gray-300 rounded-full animate-pulse" />
-                          <div className="h-4 w-20 bg-gray-300 rounded animate-pulse" />
+                          <div className="h-6 w-16 bg-white/20 rounded-full animate-pulse" />
+                          <div className="h-4 w-20 bg-white/20 rounded animate-pulse" />
                         </div>
                         <div className="flex gap-2">
-                          <div className="h-8 w-8 bg-gray-300 rounded animate-pulse" />
-                          <div className="h-8 w-8 bg-gray-300 rounded animate-pulse" />
-                          <div className="h-8 w-8 bg-gray-300 rounded animate-pulse" />
+                          <div className="h-8 w-8 bg-white/20 rounded animate-pulse" />
+                          <div className="h-8 w-8 bg-white/20 rounded animate-pulse" />
+                          <div className="h-8 w-8 bg-white/20 rounded animate-pulse" />
                         </div>
                       </div>
                     </div>
@@ -205,7 +205,7 @@ function SavedPromptsContent() {
 
                 {/* Load More Button Skeleton */}
                 <div className="mt-8 text-center">
-                  <div className="h-10 w-32 bg-gray-300 rounded-lg animate-pulse mx-auto" />
+                  <div className="h-10 w-32 bg-white/20 rounded-lg animate-pulse mx-auto" />
                 </div>
               </>
             ) : (
@@ -214,13 +214,13 @@ function SavedPromptsContent() {
                 {/* Search Bar */}
                 <div className="mb-6">
                   <div className="relative">
-                    <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-gray-500" />
                     <input
                       type="text"
                       placeholder="Search saved prompts..."
                       value={searchQuery}
                       onChange={(e) => handleSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-[var(--color-secondary)] border border-[color:var(--border)]/10 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -234,8 +234,8 @@ function SavedPromptsContent() {
                         onClick={() => handleFilter(category)}
                         className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                           activeFilter === category
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-[var(--color-secondary)] text-gray-400 hover:text-white'
+                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                            : 'bg-white/10 backdrop-blur-sm border border-white/20 text-white/70 hover:bg-white/15'
                         }`}
                       >
                         {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -247,57 +247,57 @@ function SavedPromptsContent() {
                 {/* Prompts List */}
                 <div className="space-y-4">
                   {filteredChats.map((chat) => (
-                    <div key={chat.id} className="rounded-2xl bg-[var(--color-secondary)] border border-[color:var(--border)]/10 shadow-lg p-4">
+                    <div key={chat.id} className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h3 className="font-medium text-white mb-1">{chat.title}</h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <div className="flex items-center gap-2 text-sm text-white/70">
                             <span>{formatDate(chat.updatedAt)}</span>
                             <span>•</span>
                             <span>{getCategoryFromTitle(chat.title)}</span>
                           </div>
                         </div>
                         <button className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                          <IconHeart className="h-5 w-5 text-red-500" />
+                          <IconHeart className="h-5 w-5 text-red-400" />
                         </button>
                       </div>
                       
                       <div className="mb-4">
-                        <p className="text-sm text-gray-300 line-clamp-3">
+                        <p className="text-sm text-white/80 line-clamp-3">
                           {chat.messages[0]?.content || 'No content available'}
                         </p>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                          <span className="px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
                             {chat.messages.length} messages
                           </span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-white/70">
                             {Math.ceil(chat.messages.reduce((acc, msg) => acc + msg.content.length, 0) / 100)} min read
                           </span>
                         </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleUsePrompt(chat.id)}
-                            className="p-2 hover:bg-blue-600/20 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                             title="Use this prompt"
                           >
-                            <IconPlay className="h-4 w-4 text-blue-500" />
+                            <IconPlay className="h-4 w-4 text-blue-400" />
                           </button>
                           <button
                             onClick={() => handleCopyPrompt(chat.messages[0]?.content || '')}
-                            className="p-2 hover:bg-gray-600/20 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                             title="Copy prompt"
                           >
-                            <IconCopy className="h-4 w-4 text-gray-400" />
+                            <IconCopy className="h-4 w-4 text-white/70" />
                           </button>
                           <button
                             onClick={() => handleDeletePrompt(chat.id)}
-                            className="p-2 hover:bg-red-600/20 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                             title="Delete prompt"
                           >
-                            <IconTrash className="h-4 w-4 text-red-500" />
+                            <IconTrash className="h-4 w-4 text-red-400" />
                           </button>
                         </div>
                       </div>
@@ -308,7 +308,7 @@ function SavedPromptsContent() {
                 {/* Load More Button */}
                 {filteredChats.length > 0 && (
                   <div className="mt-8 text-center">
-                    <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <button className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
                       Load More Prompts
                     </button>
                   </div>
@@ -317,9 +317,9 @@ function SavedPromptsContent() {
                 {/* Empty State */}
                 {filteredChats.length === 0 && (
                   <div className="text-center py-12">
-                    <IconHeart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <IconHeart className="h-12 w-12 text-white/50 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-white mb-2">No saved prompts found</h3>
-                    <p className="text-gray-400">
+                    <p className="text-white/70">
                       {searchQuery ? 'Try adjusting your search terms' : 'Start saving prompts from your chat sessions'}
                     </p>
                   </div>
