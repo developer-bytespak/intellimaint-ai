@@ -4,13 +4,16 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
+import { IAxiosError, IAxiosResponse } from '@/types/response';
+import { toast } from 'react-toastify';
+import ForgotPasswordModal from '@/components/features/auth/ForgotPasswordModal';
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   const { loginUser } = useUser();
 
@@ -20,14 +23,18 @@ export default function LoginPage() {
       email,
       password,
     };
-    console.log(data);
+    // console.log(data);
     loginUser.mutate(data,{
-      onSuccess: (data: unknown) => {
+      onSuccess: (data) => {
         console.log('Login successful:', data);
+        const response = data as IAxiosResponse;
+        toast.success(response.message);
         router.push('/chat');
       },
       onError: (error) => {
         console.error('Login error:', error);
+        const axiosError = error as unknown as IAxiosError;
+        toast.error(axiosError?.response?.data?.message);
       }
     });
   };
@@ -123,7 +130,7 @@ export default function LoginPage() {
 
           {/* Remember Me and Forgot Password */}
           <div className="flex items-center justify-between">
-            <label className="flex items-center cursor-pointer">
+            {/* <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -142,10 +149,14 @@ export default function LoginPage() {
                 }}
               />
               <span className="ml-2 text-white text-sm">Remember me</span>
-            </label>
-            <a href="#" className="text-[#2196F3] text-sm hover:underline">
+            </label> */}
+            <button
+              type="button"
+              onClick={() => setShowForgotPasswordModal(true)}
+              className="text-[#2196F3] text-sm hover:underline cursor-pointer"
+            >
               Forgot Password?
-            </a>
+            </button>
           </div>
 
           {/* Sign In Button */}
@@ -176,14 +187,14 @@ export default function LoginPage() {
           </button>
 
           {/* Apple Sign In */}
-          <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          {/* <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
             <div className="w-6 h-6 flex items-center justify-center mr-3">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
               </svg>
             </div>
             Sign in with Apple
-          </button>
+          </button> */}
 
           {/* Footer */}
           <div className="text-center pt-4">
@@ -234,6 +245,8 @@ export default function LoginPage() {
             </label>
             <input
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
               className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500"
             />
@@ -247,6 +260,8 @@ export default function LoginPage() {
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
               />
@@ -268,7 +283,7 @@ export default function LoginPage() {
 
           {/* Remember Me and Forgot Password */}
           <div className="flex items-center justify-between">
-            <label className="flex items-center cursor-pointer">
+            {/* <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -287,18 +302,23 @@ export default function LoginPage() {
                 }}
               />
               <span className="ml-2 text-white text-sm">Remember me</span>
-            </label>
-            <a href="#" className="text-[#2196F3] text-sm hover:underline">
+            </label> */}
+            <button
+              type="button"
+              onClick={() => setShowForgotPasswordModal(true)}
+              className="text-[#2196F3] text-sm hover:underline cursor-pointer"
+            >
               Forgot Password?
-            </a>
+            </button>
           </div>
 
           {/* Sign In Button */}
           <button 
             onClick={handleSignIn}
-            className="w-full bg-[#2196F3] text-white font-semibold md:py-3  rounded-3xl hover:bg-blue-600 transition-colors"
+            disabled={loginUser.isPending}
+            className="w-full bg-[#2196F3] text-white font-semibold md:py-3  rounded-3xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign In
+            {loginUser.isPending ? 'Signing in...' : 'Sign In'}
           </button>
 
           {/* OR Separator */}
@@ -319,14 +339,14 @@ export default function LoginPage() {
           </button>
 
           {/* Apple Sign In */}
-          <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          {/* <button className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
             <div className="w-6 h-6 flex items-center justify-center mr-3">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
               </svg>
             </div>
             Sign in with Apple
-          </button>
+          </button> */}
 
           {/* Footer */}
           <div className="text-center pt-4">
@@ -342,6 +362,12 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </div>
   );
 }

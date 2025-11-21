@@ -1,7 +1,6 @@
 // UserContext.tsx
 import baseURL from "@/lib/api/axios";
 import { useMutation, UseMutationResult, useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { useRouter } from "next/navigation";
 // import { Session } from "next-auth";
 // import { useSession } from "next-auth/react";
@@ -28,6 +27,8 @@ interface UserContextType {
   verifyOtp: UseMutationResult<unknown, Error, {email:string,otp:string}, unknown>;
   resendOtp: UseMutationResult<unknown, Error, {email:string}, unknown>;
   loginUser: UseMutationResult<unknown, Error, {email:string,password:string}, unknown>;
+  forgotPassword: UseMutationResult<unknown, Error, {email:string}, unknown>;
+  resetPassword: UseMutationResult<unknown, Error, {email:string,otp:string,newPassword:string}, unknown>;
 }
 
 
@@ -55,7 +56,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { data: user, isLoading } = useQuery<IUser>({
     queryKey: ["user"],
     queryFn: async () => {
-      const res = await axios.get('/api/profile');
+      const res = await baseURL.get('/profile');
       return res?.data;
     },
   });
@@ -64,7 +65,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const updateUser = useMutation({
     mutationFn: async (data: Partial<IUser>) => {
-      const res = await axios.put('/api/profile', data);
+      const res = await baseURL.put('/profile', data);
       return res?.data;
     },
     onSuccess: () => {
@@ -88,7 +89,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const verifyOtp = useMutation({
         mutationFn: async (data: {email: string, otp: string}) => {
-            const res = await axios.post('/api/auth/verify-code', data);
+            const res = await baseURL.post('/auth/verify-otp', data);
             return res.data;
         },
     });
@@ -97,7 +98,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const resendOtp = useMutation({
         mutationFn: async (data: {email: string}) => {
-            const res = await axios.post('/api/auth/resend-code', data);
+            const res = await baseURL.post('/auth/resend-otp', data);
             return res.data;
         },
     });
@@ -107,7 +108,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const loginUser = useMutation({
         mutationFn: async (data: {email: string, password: string}) => {
           console.log(data)
-            const res = await axios.post('http://localhost:4000/api/v1/auth/login', data);
+            const res = await baseURL.post('/auth/login', data);
+            return res.data;
+        },
+    });
+
+    //* FORGOT PASSWORD :
+
+    const forgotPassword = useMutation({
+        mutationFn: async (data: {email: string}) => {
+            const res = await baseURL.post('/auth/forgot-password', data);
+            return res.data;
+        },
+    });
+
+    //* RESET PASSWORD :
+
+    const resetPassword = useMutation({
+        mutationFn: async (data: {email: string, otp: string, newPassword: string}) => {
+            const res = await baseURL.post('/auth/reset-password', data);
             return res.data;
         },
     });
@@ -121,7 +140,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
     return (
-        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser }}>
+        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser, forgotPassword, resetPassword }}>
             {children}
         </UserContext.Provider>
     );
