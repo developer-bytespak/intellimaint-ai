@@ -130,7 +130,7 @@ export default function SignUpPage() {
           <div>
             <input
               type="text"
-              placeholder="First name (optional)"
+              placeholder="First name"
               {...register('firstName')}
               className={`w-full px-4 py-2.5 sm:py-3 bg-[#2C303A] border rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 text-sm sm:text-base ${errors.firstName ? 'border-red-500' : 'border-[#4A4E57] focus:border-[#2196F3]'
                 }`}
@@ -144,7 +144,7 @@ export default function SignUpPage() {
           <div>
             <input
               type="text"
-              placeholder="Last name (optional)"
+              placeholder="Last name"
               {...register('lastName')}
               className={`w-full px-4 py-2.5 sm:py-3 bg-[#2C303A] border rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 text-sm sm:text-base ${errors.lastName ? 'border-red-500' : 'border-[#4A4E57] focus:border-[#2196F3]'
                 }`}

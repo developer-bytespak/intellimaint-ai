@@ -13,8 +13,8 @@ export const registerSchema = z
       .string({ message: 'Confirm password must be a string' })
       .min(8, { message: 'Password must be at least 8 characters long' }),
     role: z.union([z.nativeEnum(UserRole), z.literal('')]),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
+    firstName: z.string().min(1, { message: 'First name is required' }),
+    lastName: z.string().min(1, { message: 'Last name is required' }),
     company: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {

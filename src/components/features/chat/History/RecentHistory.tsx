@@ -425,7 +425,7 @@ export default function RecentHistory({
   };
 
   return (
-    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full min-h-0">
+    <div className="bg-[#1f2632] text-white flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="px-4 py-4 bg-transparent flex-shrink-0">
         <h1 className="text-lg font-bold text-center text-white">Recent History</h1>
