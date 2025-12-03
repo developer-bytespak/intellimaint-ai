@@ -25,51 +25,104 @@ export function useVoiceStream() {
         return;
       }
 
-      // Request access to the user's microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request access to the user's microphone with HIGH QUALITY settings
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,              // Mono audio
+          sampleRate: 48000,            // High sample rate
+          echoCancellation: true,       // Echo cancellation
+          noiseSuppression: true,       // Noise suppression
+          autoGainControl: true         // Auto gain control
+        }
+      });
       mediaStreamRef.current = stream;
 
-      // Initialize the media recorder
-      const recorder = new MediaRecorder(stream);
+      // Check supported MIME types
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg'
+      ];
+
+      let selectedMimeType = 'audio/webm;codecs=opus'; // default
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          console.log('✓ Selected MIME type:', mimeType);
+          break;
+        }
+      }
+
+      // Initialize the media recorder with HIGH QUALITY
+      const recorder = new MediaRecorder(stream, {
+        mimeType: selectedMimeType,
+        audioBitsPerSecond: 128000 // 128 kbps - HIGH QUALITY
+      });
+      
       recorderRef.current = recorder;
       isStreamingRef.current = true;
 
+      console.log('MediaRecorder created:', {
+        mimeType: recorder.mimeType,
+        audioBitsPerSecond: 128000
+      });
+
       recorder.onstart = () => {
-        console.log("Recording started for streaming...");
+        console.log("✓ Recording started for streaming...");
       };
 
       recorder.onerror = (e) => {
-        console.error("Recorder error:", e);
+        console.error("✗ Recorder error:", e);
         isStreamingRef.current = false;
         stopMediaStream();
       };
 
-      recorder.ondataavailable = (e) => {
+      // CRITICAL FIX: Convert Blob to ArrayBuffer before sending
+      recorder.ondataavailable = async (e) => {
         if (e.data.size > 0 && isStreamingRef.current) {
           try {
+            console.log(`📦 Chunk received: ${e.data.size} bytes`);
+            
+            // Convert Blob to ArrayBuffer (CRITICAL!)
+            const arrayBuffer = await e.data.arrayBuffer();
+            console.log(`📤 Sending ArrayBuffer: ${arrayBuffer.byteLength} bytes`);
+            
+            // Send only if connected and streaming
             if (isConnected && isStreamingRef.current) {
-              send(e.data);
+              send(arrayBuffer);
+            } else {
+              console.warn("⚠️ Cannot send - WebSocket not connected or streaming stopped");
             }
           } catch (err) {
-            console.error("Send chunk error:", err);
+            console.error("✗ Send chunk error:", err);
           }
+        } else if (e.data.size === 0) {
+          console.warn("⚠️ Empty chunk received");
         }
       };
 
       recorder.onstop = () => {
-        console.log("Recording stopped.");
+        console.log("✓ Recording stopped.");
         isStreamingRef.current = false;
         stopMediaStream();
       };
 
-      recorder.start(1000); // Start recording with 1000ms chunks
+      // Start recording with 1000ms (1 second) chunks
+      recorder.start(1000);
+      console.log("✓ Recording started with 1 second chunks");
+      
     } catch (err: any) {
       isStreamingRef.current = false;
+      
       if (err.name === 'NotReadableError') {
-        console.error("Error: Microphone is already in use by another process.");
+        console.error("✗ Error: Microphone is already in use by another process.");
         alert("The microphone is in use by another application. Please close other applications using the microphone.");
+      } else if (err.name === 'NotAllowedError') {
+        console.error("✗ Error: Microphone permission denied.");
+        alert("Microphone permission denied. Please allow microphone access in browser settings.");
       } else {
-        console.error("Error starting voice stream:", err);
+        console.error("✗ Error starting voice stream:", err);
         alert("Cannot access the microphone. Please check your microphone permissions.");
       }
     }
@@ -77,26 +130,29 @@ export function useVoiceStream() {
 
   const stopStreaming = () => {
     try {
+      console.log("🛑 Stopping streaming...");
+      
       // First, set flag to false to immediately stop sending new chunks
       isStreamingRef.current = false;
 
-      // Send stop signal to backend via WebSocket (if backend expects it)
+      // Send stop signal to backend via WebSocket
       if (isConnected) {
         try {
-          // Send a JSON message to indicate stream end
-          // Note: If backend expects binary only, you may need to adjust this
-          const stopMessage = JSON.stringify({ type: "stop", action: "end_stream" });
+          const stopMessage = JSON.stringify({ 
+            type: "stop", 
+            action: "end_stream" 
+          });
           send(stopMessage);
-          console.log("Stop signal sent to backend");
+          console.log("✓ Stop signal sent to backend");
         } catch (err) {
-          console.error("Error sending stop signal:", err);
+          console.error("✗ Error sending stop signal:", err);
         }
       }
 
       // Stop the recorder (this will trigger onstop handler)
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
-        console.log("Recorder stopped.");
+        console.log("✓ Recorder stopped.");
       }
 
       // Stop media stream immediately (this will turn off the mic)
@@ -104,8 +160,11 @@ export function useVoiceStream() {
 
       // Clear recorder reference
       recorderRef.current = null;
+      
+      console.log("✓ Streaming stopped successfully");
+      
     } catch (err) {
-      console.error("Stop streaming error:", err);
+      console.error("✗ Stop streaming error:", err);
       isStreamingRef.current = false;
       stopMediaStream();
       recorderRef.current = null;
@@ -116,10 +175,10 @@ export function useVoiceStream() {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => {
         track.stop();
-        console.log("Media track stopped:", track.kind);
+        console.log("✓ Media track stopped:", track.kind);
       });
       mediaStreamRef.current = null;
-      console.log("Media stream stopped and cleared.");
+      console.log("✓ Media stream stopped and cleared.");
     }
   };
 
