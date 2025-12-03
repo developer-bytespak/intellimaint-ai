@@ -3,6 +3,7 @@
 import { useState, Suspense, useEffect } from 'react';
 import { Chat, MessageDocument } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
+import { useUser } from '@/hooks/useUser';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
@@ -27,6 +28,7 @@ function ChatPageContent() {
     deleteDocument
   } = useChat();
 
+  const { logout } = useUser();
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -110,10 +112,10 @@ function ChatPageContent() {
 
       {/* Sidebar - Desktop only */}
       {!isMobile && (
-        <div className={`fixed left-0 top-0 bottom-0 w-80 bg-[#1f2632] border-r border-[#2a3441] z-40 transform transition-transform duration-300 ease-in-out ${
+        <div className={`fixed left-0 top-0 bottom-0 w-80 bg-[#1f2632] border-r border-[#2a3441] z-40 transform transition-transform duration-300 ease-in-out flex flex-col ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3441]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3441] flex-shrink-0">
             <h2 className="text-lg font-bold text-white">Menu</h2>
             <button
               onClick={() => setIsSidebarOpen(false)}
@@ -125,22 +127,38 @@ function ChatPageContent() {
             </button>
           </div>
           
-          <div className="h-full overflow-hidden">
-            <RecentHistory
-              chats={chats}
-              activeChat={activeChat}
-              photoGroups={photoGroups}
-              documents={documents}
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              onChatSelect={handleChatSelect}
-              onCreateNewChat={handleCreateNewChat}
-              onDeleteChat={deleteChat}
-              onDeletePhoto={handleDeletePhoto}
-              onViewPhoto={handleViewPhoto}
-              onDeleteDocument={handleDeleteDocument}
-              onViewDocument={handleViewDocument}
-            />
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0">
+              <RecentHistory
+                chats={chats}
+                activeChat={activeChat}
+                photoGroups={photoGroups}
+                documents={documents}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                onChatSelect={handleChatSelect}
+                onCreateNewChat={handleCreateNewChat}
+                onDeleteChat={deleteChat}
+                onDeletePhoto={handleDeletePhoto}
+                onViewPhoto={handleViewPhoto}
+                onDeleteDocument={handleDeleteDocument}
+                onViewDocument={handleViewDocument}
+              />
+            </div>
+            {/* Logout Button at bottom of sidebar */}
+            <div className="flex-shrink-0 border-t border-[#2a3441] bg-[#1f2632]">
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-none bg-[#2a3441] hover:bg-red-600/20 text-white transition-colors duration-200 border-0"
+              >
+                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 17l5-5-5-5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12H9" />
+                </svg>
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

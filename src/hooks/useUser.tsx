@@ -29,6 +29,7 @@ interface UserContextType {
   loginUser: UseMutationResult<unknown, Error, {email:string,password:string}, unknown>;
   forgotPassword: UseMutationResult<unknown, Error, {email:string}, unknown>;
   resetPassword: UseMutationResult<unknown, Error, {email:string,otp:string,newPassword:string}, unknown>;
+  logout: () => void;
 }
 
 
@@ -131,6 +132,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         },
     });
 
+    //* LOGOUT USER :
+    // Navigate to logout endpoint - backend will authenticate via JwtAuthGuard, clear cookies and redirect to /login
+    const logout = () => {
+        const apiUrl = baseURL.defaults.baseURL || "http://localhost:3000/api/v1";
+        // Navigate to logout endpoint - cookies are sent automatically, backend will redirect to /login
+        window.location.href = `${apiUrl}/auth/logout`;
+    };
+
     //* Memoize the context value to prevent unnecessary re-renders
 
       // const contextValue = useMemo<IUserContext>(() => ({
@@ -140,7 +149,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
     return (
-        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser, forgotPassword, resetPassword }}>
+        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser, forgotPassword, resetPassword, logout }}>
             {children}
         </UserContext.Provider>
     );

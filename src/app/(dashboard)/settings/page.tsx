@@ -37,16 +37,6 @@ function IconQuestionMark(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-function IconLogout(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M16 17l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 function IconTrash(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -82,11 +72,6 @@ export default function SettingsPage() {
 
   const handleBack = () => {
     router.back()
-  }
-
-  const handleLogout = () => {
-    // Implement logout logic
-    console.log('Logout clicked')
   }
 
   const handleDeleteAccount = () => {
@@ -158,26 +143,15 @@ export default function SettingsPage() {
           <div className="mb-2">
             <h2 className="text-md font-semibold text-white mb-4">Account Management</h2>
             <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg">
-              <div className="divide-y divide-white/10">
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-white/15 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
-                >
-                  <div className="">
-                    <IconLogout className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-white">Logout</span>
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-red-900/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
-                >
-                  <div className="">
-                    <IconTrash className="h-5 w-5 text-red-400" />
-                  </div>
-                  <span className="text-sm md:text-base lg:text-lg font-medium text-red-400">Delete Account</span>
-                </button>
-              </div>
+              <button
+                onClick={handleDeleteAccount}
+                className="w-full px-4 py-4 md:px-5 md:py-4 lg:px-6 lg:py-5 flex items-center gap-3 hover:bg-red-900/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
+              >
+                <div className="">
+                  <IconTrash className="h-5 w-5 text-red-400" />
+                </div>
+                <span className="text-sm md:text-base lg:text-lg font-medium text-red-400">Delete Account</span>
+              </button>
             </div>
           </div>
         </div>
