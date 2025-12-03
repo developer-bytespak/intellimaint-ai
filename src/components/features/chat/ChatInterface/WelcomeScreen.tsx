@@ -8,6 +8,9 @@ import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
 import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
+import { useVoiceStream } from '@/hooks/useVoiceStream';
+import { CallModal } from './CamModel';
+
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -20,11 +23,14 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const { startStreaming, stopStreaming, isConnected } = useVoiceStream();
   // Cleanup object URLs when component unmounts
   useEffect(() => {
     return () => {
@@ -45,18 +51,18 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() && selectedImages.length === 0 && selectedDocuments.length === 0) return;
-    
+
     if (onSendMessage) {
       const imageDataUrls = selectedImages.map(url => {
         if (url.startsWith('data:')) return url;
         return url;
       });
-      
+
       onSendMessage(inputValue.trim(), imageDataUrls, selectedDocuments.length > 0 ? selectedDocuments : undefined);
       setInputValue('');
       setSelectedImages([]);
       setSelectedDocuments([]);
-      
+
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -173,8 +179,33 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     }
   };
 
+
+
+
   // Use recording hook directly
   const audioRecorder = useAudioRecorder(handleSendAudioWrapper);
+
+  const handleCallingFeature = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isConnected) {
+      alert("WebSocket not connected yet.");
+      return;
+    }
+    setShowCallModal(true);
+
+    console.log("Starting voice call...");
+    // startStreaming();
+    // console.log("SjowCall",showCallModal)
+  }
+
+
+  const handleEndCall = () => {
+    
+    console.log("Ending call...");
+    stopStreaming();
+    setIsCallActive(false);
+    setShowCallModal(false)
+  };
 
   // Check if we should show welcome content or messages
   const showWelcomeContent = !activeChat || activeChat.messages.length === 0;
@@ -185,9 +216,9 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
       {!showWelcomeContent && (
         <div className="fixed top-0 left-0 right-0 sm:hidden z-20 bg-[#1f2632] px-3 py-2 flex items-center gap-2 border-b border-[#2a3441]">
           <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-            <img 
-              src="/Intelliment LOgo.png" 
-              alt="IntelliMaint AI Logo" 
+            <img
+              src="/Intelliment LOgo.png"
+              alt="IntelliMaint AI Logo"
               className="w-full h-full object-contain"
             />
           </div>
@@ -202,9 +233,9 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
             {/* Logo or Icon */}
             <div className="flex justify-center mb-3 sm:mb-4 md:mb-6">
               <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 flex items-center justify-center">
-                <img 
-                  src="/Intelliment LOgo.png" 
-                  alt="IntelliMaint AI Logo" 
+                <img
+                  src="/Intelliment LOgo.png"
+                  alt="IntelliMaint AI Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -260,12 +291,12 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
               onRemoveDocument={removeDocumentAt}
               onViewImage={(index) => setViewingImageIndex(index)}
             />
-            
+
             {/* Audio Recorder UI - Shows when recording or audio ready */}
             {(audioRecorder.isRecording || audioRecorder.audioUrl) && (
               <div className="mb-3">
                 {!isSending && (
-                  <AudioRecorder 
+                  <AudioRecorder
                     variant="ui"
                     isRecording={audioRecorder.isRecording}
                     recordingTime={audioRecorder.recordingTime}
@@ -279,7 +310,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                 )}
               </div>
             )}
-            
+
             {/* Input Field - Disabled when audio is active or sending */}
             <div className="flex items-end gap-1.5 sm:gap-2 relative mb-2 sm:mb-3">
               <textarea
@@ -302,17 +333,16 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                 placeholder={isSending ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
                 rows={1}
-                className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-xs sm:text-sm md:text-base resize-none overflow-y-hidden max-h-[200px] pr-1 sm:pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
-                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                style={{ 
-                  minHeight: '20px', 
+                className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-xs sm:text-sm md:text-base resize-none overflow-y-hidden max-h-[200px] pr-1 sm:pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                style={{
+                  minHeight: '20px',
                   height: '20px',
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none'
                 } as React.CSSProperties}
               />
-              
+
               {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) */}
               <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0 pb-0.5 sm:pb-1">
                 {/* Plus Icon Button with Dropdown */}
@@ -321,16 +351,15 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     type="button"
                     onClick={() => setShowPinMenu(!showPinMenu)}
                     disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
-                    className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     title="More Options"
                   >
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
-                  
+
                   {/* Plus Dropdown Menu */}
                   {showPinMenu && (
                     <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-[100]">
@@ -346,18 +375,22 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                         </button>
-                        
+
+                        {/* Phone Icon */}
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => setShowPinMenu(false)}
+                          onClick={(e) => handleCallingFeature(e)}
                           title="Call"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
                         </button>
-                        
+
+
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
@@ -368,7 +401,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </button>
-                        
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
@@ -383,15 +416,14 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     </div>
                   )}
                 </div>
-                
+
                 {/* Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
                 {(inputValue.trim() || selectedImages.length > 0 || selectedDocuments.length > 0) ? (
                   <button
                     type="submit"
                     disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
-                    className={`p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     title="Send message"
                     onClick={(e) => {
                       e.preventDefault();
@@ -403,7 +435,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     </svg>
                   </button>
                 ) : (
-                  <AudioRecorder 
+                  <AudioRecorder
                     variant="button"
                     isRecording={audioRecorder.isRecording}
                     recordingTime={audioRecorder.recordingTime}
@@ -443,10 +475,29 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         onClose={() => setShowCamera(false)}
         onCapture={handleCapturePhoto}
       />
+      {/* Add CallModal here */}
+      <CallModal
+        isOpen={showCallModal}
+        isCallActive={isCallActive}
+        onClose={() => {
+          setShowCallModal(false);
+          if (isCallActive) {
+            stopStreaming();
+            setIsCallActive(false);
+          }
+        }}
+        onStartCall={() => {
+          console.log("Starting voice call...");
+          startStreaming(); // ✅ YE YAHAN SAHI HAI
+          setIsCallActive(true);
+          // Modal open rakhein taake End Call button dikhe
+        }}
+        onEndCall={handleEndCall}
+      />
 
       {/* Image Overlay */}
       {viewingImageIndex !== null && selectedImages[viewingImageIndex] && (
-        <div 
+        <div
           className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
           onClick={() => setViewingImageIndex(null)}
         >
