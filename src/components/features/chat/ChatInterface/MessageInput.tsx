@@ -7,6 +7,7 @@ import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
+import { useUpload } from '@/hooks/useUploadContext';
 
 interface MessageInputProps {
   onSendMessage: (content: string, images?: string[], documents?: MessageDocument[]) => void;
@@ -20,6 +21,8 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
   const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFile, uploadMultipleFiles } = useUpload();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -79,34 +82,118 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
     setShowCamera(true);
   };
 
-  const handleCapturePhoto = (url: string) => {
-    setSelectedImages(prev => [...prev, url].slice(0, 10));
+  const handleCapturePhoto = async (url: string) => {
+    // If it's a data URL from camera, convert to File and upload
+    if (url.startsWith('data:')) {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        
+        // Add temporary URL for preview
+        setSelectedImages(prev => [...prev, url].slice(0, 10));
+        
+        // Upload to blob using TanStack Query
+        uploadFile.mutate({ file }, {
+          onSuccess: (result) => {
+            if (result.success && result.url) {
+              // Replace data URL with blob URL
+              setSelectedImages(prev => {
+                const updated = [...prev];
+                const index = updated.findIndex(u => u === url);
+                if (index !== -1) {
+                  updated[index] = result.url!;
+                }
+                return updated;
+              });
+            }
+          },
+        });
+      } catch (error) {
+        console.error('Error processing camera photo:', error);
+        // Fallback: just add the data URL
+        setSelectedImages(prev => [...prev, url].slice(0, 10));
+      }
+    } else {
+      // Already a blob URL or external URL
+      setSelectedImages(prev => [...prev, url].slice(0, 10));
+    }
   };
 
-  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newUrls: string[] = [];
+    
+    const imageFiles: File[] = [];
+    const tempUrls: string[] = [];
+    
+    // First, create temporary URLs for preview
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
+        imageFiles.push(file);
         const url = URL.createObjectURL(file);
-        newUrls.push(url);
+        tempUrls.push(url);
       }
     }
-    setSelectedImages(prev => [...prev, ...newUrls].slice(0, 10));
+    
+    if (imageFiles.length === 0) {
+      e.target.value = '';
+      return;
+    }
+    
+    // Add temporary URLs for immediate preview
+    setSelectedImages(prev => [...prev, ...tempUrls].slice(0, 10));
     e.target.value = '';
+    
+    // Upload files to blob storage using TanStack Query
+    uploadMultipleFiles.mutate(imageFiles, {
+      onSuccess: (uploadResults) => {
+        // Replace temporary URLs with blob URLs
+        setSelectedImages(prev => {
+          const updated = [...prev];
+          
+          uploadResults.forEach((result, index) => {
+            if (result.success && result.url) {
+              // Find the corresponding temp URL and replace it
+              const tempUrlIndex = updated.findIndex(url => 
+                url === tempUrls[index] || url.startsWith('blob:')
+              );
+              if (tempUrlIndex !== -1) {
+                // Revoke the old object URL
+                URL.revokeObjectURL(updated[tempUrlIndex]);
+                updated[tempUrlIndex] = result.url!;
+              }
+            } else {
+              // Upload failed - remove the temp URL
+              const tempUrlIndex = updated.findIndex(url => url === tempUrls[index]);
+              if (tempUrlIndex !== -1) {
+                URL.revokeObjectURL(updated[tempUrlIndex]);
+                updated.splice(tempUrlIndex, 1);
+              }
+            }
+          });
+          
+          return updated;
+        });
+      },
+    });
   };
 
-  const handleDocumentFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newDocuments: MessageDocument[] = [];
+    
+    const documentFiles: { file: File; type: 'PDF' | 'DOC' }[] = [];
+    const tempDocuments: MessageDocument[] = [];
+    
+    // First, create temporary documents for preview
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type === 'application/pdf') {
         const url = URL.createObjectURL(file);
-        newDocuments.push({ file, url, type: 'PDF' });
+        documentFiles.push({ file, type: 'PDF' });
+        tempDocuments.push({ file, url, type: 'PDF' });
       } else if (
         file.type === 'application/msword' ||
         file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -114,11 +201,56 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
         file.name.endsWith('.docx')
       ) {
         const url = URL.createObjectURL(file);
-        newDocuments.push({ file, url, type: 'DOC' });
+        documentFiles.push({ file, type: 'DOC' });
+        tempDocuments.push({ file, url, type: 'DOC' });
       }
     }
-    setSelectedDocuments(prev => [...prev, ...newDocuments].slice(0, 5));
+    
+    if (documentFiles.length === 0) {
+      e.target.value = '';
+      return;
+    }
+    
+    // Add temporary documents for immediate preview
+    setSelectedDocuments(prev => [...prev, ...tempDocuments].slice(0, 5));
     e.target.value = '';
+    
+    // Upload files to blob storage using TanStack Query
+    const filesToUpload = documentFiles.map(({ file }) => file);
+    uploadMultipleFiles.mutate(filesToUpload, {
+      onSuccess: (uploadResults) => {
+        // Replace temporary URLs with blob URLs
+        setSelectedDocuments(prev => {
+          const updated = [...prev];
+          
+          uploadResults.forEach((result, index) => {
+            if (result.success && result.url) {
+              // Find the corresponding temp document and update it
+              const tempDocIndex = updated.findIndex(doc => 
+                doc.file === documentFiles[index].file
+              );
+              if (tempDocIndex !== -1) {
+                // Revoke the old object URL
+                URL.revokeObjectURL(updated[tempDocIndex].url);
+                updated[tempDocIndex] = {
+                  ...updated[tempDocIndex],
+                  url: result.url!,
+                };
+              }
+            } else {
+              // Upload failed - remove the temp document
+              const tempDocIndex = updated.findIndex(doc => doc.file === documentFiles[index].file);
+              if (tempDocIndex !== -1) {
+                URL.revokeObjectURL(updated[tempDocIndex].url);
+                updated.splice(tempDocIndex, 1);
+              }
+            }
+          });
+          
+          return updated;
+        });
+      },
+    });
   };
 
   const removeImageAt = (index: number) => {
@@ -187,6 +319,7 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
       removeImageAt={removeImageAt}
       removeDocumentAt={removeDocumentAt}
       isSending={isSending}
+      uploading={uploadFile.isPending || uploadMultipleFiles.isPending}
     />
   );
 }
@@ -220,6 +353,7 @@ function MessageInputContent({
   removeImageAt,
   removeDocumentAt,
   isSending,
+  uploading,
 }: {
   isRecording: boolean;
   recordingTime: number;
@@ -249,9 +383,10 @@ function MessageInputContent({
   removeImageAt: (index: number) => void;
   removeDocumentAt: (index: number) => void;
   isSending: boolean;
+  uploading: boolean;
 }) {
   const isAudioActive = isRecording || !!audioUrl;
-  const isDisabled = isAudioActive || isSending;
+  const isDisabled = isAudioActive || isSending || uploading;
   // Wrapper function - yeh handleSendAudio ko wrap karta hai
 
     const handleCallingFeature = (e:any) => {
@@ -297,7 +432,7 @@ function MessageInputContent({
                 type="text"
                 value={inputValue || ''}
                 onChange={(e) => setInputValue(e.target.value || '')}
-                placeholder={isSending ? "Transcribing audio..." : isAudioActive ? "Recording audio..." : "Ask Intellimaint AI."}
+                placeholder={uploading ? "Uploading files..." : isSending ? "Transcribing audio..." : isAudioActive ? "Recording audio..." : "Ask Intellimaint AI."}
                 disabled={isDisabled}
                 className={`w-full max-w-full bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base py-2 pr-8 overflow-hidden text-ellipsis box-border ${
                   isDisabled ? 'opacity-50 cursor-not-allowed' : ''
@@ -498,3 +633,4 @@ function MessageInputContent({
     </>
   );
 }
+
