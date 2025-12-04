@@ -200,7 +200,7 @@ function VerifyPageContent() {
                   onChange={(e) => handleInputChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
                   onPaste={handlePaste}
-                  className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 text-center text-lg sm:text-2xl lg:text-3xl font-semibold bg-transparent border-2 border-[#2196F3] rounded-xl sm:rounded-2xl lg:rounded-3xl text-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                  className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 text-center text-lg sm:text-2xl lg:text-3xl font-semibold bg-transparent border-2 border-[#2196F3] rounded-xl sm:rounded-2xl lg:rounded-3xl text-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               ))}
             </div>
