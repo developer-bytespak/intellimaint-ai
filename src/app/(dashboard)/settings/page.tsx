@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useUser } from "@/hooks/useUser"
 
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -68,15 +69,93 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (enab
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { getSettings, updateSettings, deleteAccount, sendDeleteAccountOtp, user } = useUser()
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteOtp, setDeleteOtp] = useState("")
+  const [deleteError, setDeleteError] = useState("")
+  const [isOAuthAccount, setIsOAuthAccount] = useState(false)
+  const [otpSent, setOtpSent] = useState(false)
+
+  // Load settings from backend
+  useEffect(() => {
+    if (getSettings.data) {
+      setNotificationsEnabled(getSettings.data.emailNotifications)
+    }
+  }, [getSettings.data])
 
   const handleBack = () => {
     router.back()
   }
 
+  const handleToggleNotifications = async (enabled: boolean) => {
+    setNotificationsEnabled(enabled)
+    try {
+      await updateSettings.mutateAsync({ emailNotifications: enabled })
+    } catch (error) {
+      console.error('Failed to update notifications:', error)
+      // Revert on error
+      setNotificationsEnabled(!enabled)
+      alert('Failed to update notification settings')
+    }
+  }
+
+  // Check if account is OAuth (no password) when modal opens
   const handleDeleteAccount = () => {
-    // Implement delete account logic
-    console.log('Delete account clicked')
+    // Determine account type from user data (hasPassword: false = OAuth account)
+    const isOAuth = user ? !user.hasPassword : false
+    setIsOAuthAccount(isOAuth)
+    setShowDeleteConfirm(true)
+    setDeletePassword("")
+    setDeleteOtp("")
+    setDeleteError("")
+    setOtpSent(false)
+  }
+
+  const handleRequestOtp = async () => {
+    try {
+      await sendDeleteAccountOtp.mutateAsync()
+      setOtpSent(true)
+      setDeleteError("")
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string } } }
+      setDeleteError(axiosError?.response?.data?.message || "Failed to send OTP")
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    try {
+      if (isOAuthAccount) {
+        // OAuth account - require OTP
+        if (!deleteOtp) {
+          setDeleteError("Please enter the OTP code to delete your account.")
+          return
+        }
+        await deleteAccount.mutateAsync({ otp: deleteOtp })
+      } else {
+        // Regular account - require password
+        if (!deletePassword) {
+          setDeleteError("Password is required to delete your account.")
+          return
+        }
+        await deleteAccount.mutateAsync({ password: deletePassword })
+      }
+      // Success, will redirect automatically via mutation's onSuccess
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string } } }
+      const errorMessage = axiosError?.response?.data?.message || "Failed to delete account"
+      setDeleteError(errorMessage)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false)
+    setDeletePassword("")
+    setDeleteOtp("")
+    setDeleteError("")
+    setIsOAuthAccount(false)
+    setOtpSent(false)
   }
 
   const handleCustomerSupport = () => {
@@ -117,7 +196,7 @@ export default function SettingsPage() {
                 </div>
                 <ToggleSwitch 
                   enabled={notificationsEnabled} 
-                  onChange={setNotificationsEnabled} 
+                  onChange={handleToggleNotifications} 
                 />
               </div>
             </div>
@@ -156,6 +235,89 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-4">
+              Delete Account
+            </h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              Are you sure you want to delete your account? This action cannot be undone.
+            </p>
+            
+            {/* Password Input (for regular accounts) */}
+            {!isOAuthAccount && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password (required)
+                </label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="Enter your password"
+                />
+              </div>
+            )}
+
+            {/* OTP Input (for OAuth accounts) */}
+            {isOAuthAccount && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  OTP Verification Code (required)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={deleteOtp}
+                    onChange={(e) => setDeleteOtp(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Enter OTP code"
+                    maxLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRequestOtp}
+                    disabled={sendDeleteAccountOtp.isPending || otpSent}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    {sendDeleteAccountOtp.isPending ? "Sending..." : otpSent ? "OTP Sent" : "Request OTP"}
+                  </button>
+                </div>
+                {otpSent && (
+                  <p className="text-sm text-green-500 mt-2">
+                    OTP sent to {user?.email}. Please check your email.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {deleteError && (
+              <p className="text-sm text-red-500 mb-4">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleCancelDelete}
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteAccount.isPending || (!isOAuthAccount && !deletePassword) || (isOAuthAccount && (!otpSent || !deleteOtp || deleteOtp.length !== 6))}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

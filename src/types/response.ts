@@ -3,10 +3,16 @@ interface IAxiosResponse {
 }
 
 interface IAxiosError {
-  response: {
-    data: {
-      message: string;
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      data?: string[];
     };
+  };
+  message?: string;
+  config?: {
+    url?: string;
   };
 }
 

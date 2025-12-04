@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useUser } from "@/hooks/useUser"
 
 function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -129,6 +130,7 @@ function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { user, isLoading, updateUser } = useUser()
   const [showCameraMenu, setShowCameraMenu] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [showCameraModal, setShowCameraModal] = useState(false)
@@ -175,18 +177,26 @@ export default function ProfilePage() {
     setShowCameraMenu(false)
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
-      reader.onloadend = () => {
-        setProfileImage(reader.result as string)
+      reader.onloadend = async () => {
+        const imageDataUrl = reader.result as string
+        setProfileImage(imageDataUrl)
+        // Upload to backend
+        try {
+          await updateUser.mutateAsync({ profileImageUrl: imageDataUrl })
+        } catch (error) {
+          console.error('Failed to update profile image:', error)
+          alert('Failed to update profile image')
+        }
       }
       reader.readAsDataURL(file)
     }
   }
 
-  const handleTakePhoto = () => {
+  const handleTakePhoto = async () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas')
       canvas.width = videoRef.current.videoWidth
@@ -197,6 +207,13 @@ export default function ProfilePage() {
         const imageDataUrl = canvas.toDataURL('image/png')
         setProfileImage(imageDataUrl)
         handleCloseCamera()
+        // Upload to backend
+        try {
+          await updateUser.mutateAsync({ profileImageUrl: imageDataUrl })
+        } catch (error) {
+          console.error('Failed to update profile image:', error)
+          alert('Failed to update profile image')
+        }
       }
     }
   }
@@ -248,6 +265,13 @@ export default function ProfilePage() {
       }
     }
   }, [stream])
+
+  // Initialize profile image from user data
+  useEffect(() => {
+    if (user?.profileImage || user?.profileImageUrl) {
+      setProfileImage(user.profileImage || user.profileImageUrl || null)
+    }
+  }, [user])
 
   return (
     <main className="min-h-screen bg-[#1f2632] text-white">
@@ -358,8 +382,12 @@ export default function ProfilePage() {
           )}
 
           <div className="mt-4 text-center">
-            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-white">Leslie Moses</p>
-            <p className="text-sm md:text-base lg:text-lg text-white/70 mt-1">lesliemoses874@gmail.com</p>
+            <p className="text-base md:text-lg lg:text-xl font-semibold tracking-tight text-white">
+              {isLoading ? 'Loading...' : user?.name || 'User'}
+            </p>
+            <p className="text-sm md:text-base lg:text-lg text-white/70 mt-1">
+              {user?.email || ''}
+            </p>
           </div>
 
           {/* list card */}

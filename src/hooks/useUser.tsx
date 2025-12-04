@@ -1,21 +1,33 @@
 // UserContext.tsx
 import baseURL from "@/lib/api/axios";
-import { useMutation, UseMutationResult, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useMutation, UseMutationResult, useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
+import { useRouter, usePathname } from "next/navigation";
 // import { Session } from "next-auth";
 // import { useSession } from "next-auth/react";
 import React, { useContext, createContext, ReactNode } from "react";
 import { RegisterFormData } from "@/lib/validations/register";
 
 export interface IUser {
+  id?: string;
   _id?: string;
   name?: string;
+  firstName?: string;
+  lastName?: string;
   username?: string;
   email?: string;
   password?: string;
   accountType?: string;
+  role?: string;
   profileImage?: string;
+  profileImageUrl?: string;
+  company?: string;
+  emailVerified?: boolean;
   isVerified?: boolean;
+  hasPassword?: boolean; // true for regular accounts, false for OAuth accounts
+  userSettings?: {
+    emailNotifications: boolean;
+    theme: string;
+  };
 }
 
 interface UserContextType {
@@ -23,6 +35,11 @@ interface UserContextType {
   user: IUser | null | undefined;
   isLoading: boolean;
   updateUser: UseMutationResult<IUser, Error, Partial<IUser>, unknown>;
+  changePassword: UseMutationResult<unknown, Error, {currentPassword:string,newPassword:string}, unknown>;
+  deleteAccount: UseMutationResult<unknown, Error, {password?:string, otp?:string}, unknown>;
+  sendDeleteAccountOtp: UseMutationResult<unknown, Error, void, unknown>;
+  getSettings: UseQueryResult<{emailNotifications: boolean; theme: string}, Error>;
+  updateSettings: UseMutationResult<unknown, Error, {emailNotifications?:boolean,theme?:string}, unknown>;
   signUpUser: UseMutationResult<unknown, Error, RegisterFormData, unknown>;
   verifyOtp: UseMutationResult<unknown, Error, {email:string,otp:string}, unknown>;
   resendOtp: UseMutationResult<unknown, Error, {email:string}, unknown>;
@@ -39,7 +56,12 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
+
+  // Public routes where we shouldn't try to fetch user profile
+  const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
+  const isPublicRoute = publicRoutes.some(route => pathname?.startsWith(route));
 
   //* GOOGLE AUTH :
 
@@ -54,24 +76,168 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   //* GET USER PROFILE :
 
-  const { data: user, isLoading } = useQuery<IUser>({
+  const { data: userData, isLoading, error: userError } = useQuery<IUser>({
     queryKey: ["user"],
     queryFn: async () => {
-      const res = await baseURL.get('/profile');
-      return res?.data;
+      try {
+        const res = await baseURL.get('/user/profile');
+        // Backend returns { statusCode, message, data }
+        const user = res?.data?.data || res?.data;
+        return user;
+      } catch (error: unknown) {
+        // If 401, user is not authenticated - this is expected on login/signup pages
+        // Don't log it as an error, just return null
+        const axiosError = error as { response?: { status?: number } }
+        if (axiosError?.response?.status === 401) {
+          return null;
+        }
+        // Only log non-401 errors
+        console.error('Error fetching user profile:', error);
+        throw error;
+      }
     },
+    enabled: !isPublicRoute, // Only fetch user profile if not on a public route
+    retry: 1,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
   });
+
+  // Map backend response to frontend format
+  const user: IUser | null | undefined = userData ? {
+    ...userData,
+    id: userData.id,
+    name: userData.firstName && userData.lastName 
+      ? `${userData.firstName} ${userData.lastName}` 
+      : userData.firstName || userData.lastName || undefined,
+    accountType: userData.role,
+    profileImage: userData.profileImageUrl,
+    isVerified: userData.emailVerified,
+  } : null;
 
   //* UPDATE USER PROFILE :
 
   const updateUser = useMutation({
     mutationFn: async (data: Partial<IUser>) => {
-      const res = await baseURL.put('/profile', data);
+      // Map frontend format to backend format
+      const updateData: Record<string, string> = {};
+      if (data.name) {
+        const nameParts = data.name.trim().split(/\s+/);
+        updateData.firstName = nameParts[0] || '';
+        updateData.lastName = nameParts.slice(1).join(' ') || '';
+      }
+      if (data.firstName !== undefined) updateData.firstName = data.firstName;
+      if (data.lastName !== undefined) updateData.lastName = data.lastName;
+      if (data.email !== undefined) updateData.email = data.email;
+      if (data.profileImage !== undefined) updateData.profileImageUrl = data.profileImage;
+      if (data.profileImageUrl !== undefined) updateData.profileImageUrl = data.profileImageUrl;
+      if (data.company !== undefined) updateData.company = data.company;
+      
+      // Check if there's any data to update
+      if (Object.keys(updateData).length === 0) {
+        console.warn('No data to update');
+        throw new Error('No data provided to update');
+      }
+      
+      console.log('Sending update request to /user/profile with data:', updateData);
+      console.log('Base URL:', baseURL.defaults.baseURL);
+      console.log('Full URL will be:', `${baseURL.defaults.baseURL}/user/profile`);
+      
+      try {
+        const res = await baseURL.put('/user/profile', updateData);
+        console.log('Update response status:', res.status);
+        console.log('Update response data:', res.data);
+        // Backend returns { statusCode, message, data }
+        return res?.data?.data || res?.data;
+      } catch (error: unknown) {
+        const axiosError = error as { response?: { status?: number; data?: { message?: string; data?: string[] } }; message?: string; config?: { url?: string } }
+        console.error('Update user error:', error);
+        console.error('Error status:', axiosError?.response?.status);
+        console.error('Error data:', axiosError?.response?.data);
+        console.error('Error message:', axiosError?.message);
+        console.error('Request URL:', axiosError?.config?.url);
+        const errorMessage = axiosError?.response?.data?.message || axiosError?.response?.data?.data?.[0] || axiosError?.message || 'Failed to update profile';
+        throw new Error(errorMessage);
+      }
+    },
+    onSuccess: () => {
+      console.log('Profile update successful, invalidating queries');
+      // Invalidate and refetch user data
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    },
+    onError: (error) => {
+      console.error('Mutation error:', error);
+    },
+  });
+
+  //* CHANGE PASSWORD :
+
+  const changePassword = useMutation({
+    mutationFn: async (data: {currentPassword: string, newPassword: string}) => {
+      const res = await baseURL.put('/user/password', data);
+      return res?.data;
+    },
+  });
+
+  //* DELETE ACCOUNT :
+
+  const deleteAccount = useMutation({
+    mutationFn: async (data: {password?: string, otp?: string}) => {
+      const res = await baseURL.delete('/user/account', { data });
       return res?.data;
     },
     onSuccess: () => {
-      // Invalidate and refetch user data
-      queryClient.invalidateQueries({ queryKey: ["user"] });
+      // Clear user data and redirect to login
+      queryClient.clear();
+      router.push('/login');
+    },
+  });
+
+  //* SEND DELETE ACCOUNT OTP (for OAuth users):
+
+  const sendDeleteAccountOtp = useMutation({
+    mutationFn: async () => {
+      const res = await baseURL.post('/user/account/delete-otp');
+      return res?.data;
+    },
+  });
+
+  //* GET SETTINGS :
+
+  const getSettings = useQuery<{emailNotifications: boolean; theme: string}>({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      try {
+        const res = await baseURL.get('/user/settings');
+        // Backend returns { statusCode, message, data }
+        return res?.data?.data || res?.data;
+      } catch (error: unknown) {
+        // If 401, user is not authenticated - this is expected on login/signup pages
+        // Don't log it as an error, just return default settings
+        const axiosError = error as { response?: { status?: number } }
+        if (axiosError?.response?.status === 401) {
+          return { emailNotifications: true, theme: 'light' };
+        }
+        // Only log non-401 errors
+        console.error('Error fetching settings:', error);
+        throw error;
+      }
+    },
+    retry: 1,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    enabled: !!userData, // Only fetch settings if user is loaded
+  });
+
+  //* UPDATE SETTINGS :
+
+  const updateSettings = useMutation({
+    mutationFn: async (data: {emailNotifications?: boolean, theme?: string}) => {
+      const res = await baseURL.put('/user/settings', data);
+      return res?.data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch settings
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
   });
  
@@ -135,7 +301,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     //* LOGOUT USER :
     // Navigate to logout endpoint - backend will authenticate via JwtAuthGuard, clear cookies and redirect to /login
     const logout = () => {
-        const apiUrl = baseURL.defaults.baseURL || "http://localhost:3000/api/v1";
+        const apiUrl = baseURL.defaults.baseURL || "http://localhost:8000/api/v1";
         // Navigate to logout endpoint - cookies are sent automatically, backend will redirect to /login
         window.location.href = `${apiUrl}/auth/logout`;
     };
@@ -148,8 +314,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       // }), [session?.user, status]);
 
 
-    return (
-        <UserContext.Provider value={{ googleAuth, user, isLoading, updateUser, signUpUser, verifyOtp,resendOtp,loginUser, forgotPassword, resetPassword, logout }}>
+        return ( 
+        <UserContext.Provider value={{ 
+          googleAuth, 
+          user, 
+          isLoading, 
+          updateUser, 
+          changePassword,
+          deleteAccount,
+          sendDeleteAccountOtp,
+          getSettings,
+          updateSettings,
+          signUpUser, 
+          verifyOtp,
+          resendOtp,
+          loginUser, 
+          forgotPassword, 
+          resetPassword, 
+          logout 
+        }}>
             {children}
         </UserContext.Provider>
     );
