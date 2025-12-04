@@ -8,7 +8,7 @@ import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
 import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
-import { useVoiceStream } from '@/hooks/useVoiceStream';
+// import { useVoiceStream } from '@/hooks/useVoiceStream';
 import { CallModal } from './CamModel';
 import { useUpload } from '@/hooks/useUploadContext';
 
@@ -31,7 +31,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { startStreaming, stopStreaming, isConnected } = useVoiceStream();
+  // const { startStreaming, stopStreaming, isConnected } = useVoiceStream();
   const { uploadFile, uploadMultipleFiles } = useUpload();
   // Cleanup object URLs when component unmounts
   useEffect(() => {
@@ -318,10 +318,10 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
 
   const handleCallingFeature = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!isConnected) {
-      alert("WebSocket not connected yet.");
-      return;
-    }
+    // if (!isConnected) {
+    //   alert("WebSocket not connected yet.");
+    //   return;
+    // }
     setShowCallModal(true);
 
     console.log("Starting voice call...");
@@ -333,7 +333,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const handleEndCall = () => {
     
     console.log("Ending call...");
-    stopStreaming();
+    // stopStreaming();
     setIsCallActive(false);
     setShowCallModal(false)
   };
@@ -613,13 +613,13 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         onClose={() => {
           setShowCallModal(false);
           if (isCallActive) {
-            stopStreaming();
+            // stopStreaming();
             setIsCallActive(false);
           }
         }}
         onStartCall={() => {
           console.log("Starting voice call...");
-          startStreaming(); // ✅ YE YAHAN SAHI HAI
+          // startStreaming(); // ✅ YE YAHAN SAHI HAI
           setIsCallActive(true);
           // Modal open rakhein taake End Call button dikhe
         }}

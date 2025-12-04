@@ -40,8 +40,15 @@ export default function SignUpPage() {
   const selectedRole = watch('role');
   const showCompanyField = selectedRole === UserRole.CIVILIAN;
 
+  useEffect(() => {
+    // Store the current page as 'signin' in sessionStorage
+    sessionStorage.setItem('lastPage', '/signup');
+  }, []);
+
   // Clear company field when role changes away from civilian
   useEffect(() => {
+    // Store the current page as 'signup' in sessionStorage
+    // sessionStorage.setItem('lastPage', '/signup');
     if (selectedRole && selectedRole !== UserRole.CIVILIAN) {
       setValue('company', '');
     }
@@ -89,6 +96,7 @@ export default function SignUpPage() {
   const handleGoogleSignIn = () => {
     // Handle Google sign in
     console.log('Google sign in');
+    router.replace('/form');
   };
 
   const handleSignIn = () => {

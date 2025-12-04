@@ -11,6 +11,7 @@ export default function FormPage() {
   const [progressWidth, setProgressWidth] = useState(0);
   const [showCompanyField, setShowCompanyField] = useState(false);
   const { googleAuth } = useUser();
+
   useEffect(() => {
     // Animate progress bar to 50% when component mounts
     const timer = setTimeout(() => {
@@ -46,6 +47,16 @@ export default function FormPage() {
 
   const isFormValid = role.trim() !== '';
 
+  const handleBackClick = () => {
+    const lastPage = sessionStorage.getItem('lastPage');
+
+    if (lastPage === '/login' || lastPage === '/signup') {
+      router.push(lastPage);
+    } else {
+      router.push('/login');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1A1D26] flex flex-col">
       {/* Navigation Header */}
@@ -55,7 +66,7 @@ export default function FormPage() {
           <div className="flex items-center justify-between">
             {/* Back Button */}
             <button
-              onClick={() => router.back()}
+              onClick={handleBackClick}
               className="bg-[#2C303A] border border-[#4A4E57] rounded-2xl sm:rounded-3xl p-3 sm:p-4 text-[#A0A0A0] hover:text-white hover:bg-[#3A404C] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +96,7 @@ export default function FormPage() {
         {/* Desktop: Only back button in header */}
         <div className="hidden lg:block">
           <button
-            onClick={() => router.back()}
+            onClick={handleBackClick}
             className="bg-[#2C303A] border border-[#4A4E57] rounded-3xl p-4 text-[#A0A0A0] hover:text-white hover:bg-[#3A404C] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

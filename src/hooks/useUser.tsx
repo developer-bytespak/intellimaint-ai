@@ -131,6 +131,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         },
     });
 
+
+
     //* Memoize the context value to prevent unnecessary re-renders
 
       // const contextValue = useMemo<IUserContext>(() => ({

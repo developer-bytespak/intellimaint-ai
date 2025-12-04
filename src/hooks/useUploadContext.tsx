@@ -130,11 +130,11 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             url: data.data.url,
             pathname: data.data.pathname,
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
           const errorMessage =
-            error?.response?.data?.message ||
-            error?.response?.data?.error ||
-            error?.message ||
+            (error as { response?: { data?: { message?: string; error?: string } }; message?: string })?.response?.data?.message ||
+            (error as { response?: { data?: { message?: string; error?: string } }; message?: string })?.response?.data?.error ||
+            (error as { response?: { data?: { message?: string; error?: string } }; message?: string })?.message ||
             'Unknown error occurred';
 
           return {

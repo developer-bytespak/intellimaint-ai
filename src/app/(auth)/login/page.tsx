@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
@@ -14,8 +14,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  useEffect(() => {
+    // Store the current page as 'signin' in sessionStorage
+    sessionStorage.setItem('lastPage', '/login');
+  }, []);
 
-  const { loginUser } = useUser();
+  const { loginUser, googleAuth } = useUser();
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
@@ -46,7 +50,20 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = () => {
-    router.replace('/form');
+    googleAuth.mutate({role:'',company:''},{
+      onSuccess: (data) => {
+        console.log('Google sign in successful:', data);
+        // const response = data as any;
+        // toast.success(response.message);
+        // router.push('/chat');
+      },
+      onError: (error) => {
+        console.error('Google sign in error:', error);
+        const axiosError = error as unknown as IAxiosError;
+        toast.error(axiosError?.response?.data?.message);
+        router.push('/signup');
+      }
+    });
   };
 
   return (

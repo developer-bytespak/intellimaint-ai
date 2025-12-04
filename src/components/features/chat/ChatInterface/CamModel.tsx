@@ -17,19 +17,10 @@ export const CallModal = ({
   isCallActive = false,
   onEndCall 
 }: CallModalProps) => {
-  if (!isOpen) return null;
-
-  // Close modal on backdrop click (only when call is not active)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget && !isCallActive) {
-      onClose();
-    }
-  };
-
   // Close modal on Escape key (only when call is not active)
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isCallActive) {
+      if (e.key === 'Escape' && !isCallActive && isOpen) {
         onClose();
       }
     };
@@ -42,6 +33,15 @@ export const CallModal = ({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose, isCallActive]);
+
+  if (!isOpen) return null;
+
+  // Close modal on backdrop click (only when call is not active)
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget && !isCallActive) {
+      onClose();
+    }
+  };
 
   return (
     <div 
