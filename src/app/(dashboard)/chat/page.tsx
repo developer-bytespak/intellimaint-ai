@@ -24,7 +24,8 @@ function ChatPageContent() {
     setActiveTab,
     deleteChat,
     deletePhoto,
-    deleteDocument
+    deleteDocument,
+    updateMessageUrls
   } = useChat();
 
   const searchParams = useSearchParams();
@@ -208,6 +209,7 @@ function ChatPageContent() {
               activeChat={activeChat} 
               onSendMessage={sendMessage}
               onSendMessageFromWelcome={handleSendMessageFromWelcome}
+              updateMessageUrls={updateMessageUrls}
             />
           )}
         </div>

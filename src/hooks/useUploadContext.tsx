@@ -1,9 +1,10 @@
 'use client';
 
 import { createContext, useContext, ReactNode } from 'react';
-import { useMutation, UseMutationResult } from '@tanstack/react-query';
+import { useMutation, UseMutationResult, useInfiniteQuery, UseInfiniteQueryResult, InfiniteData } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import baseURL from '@/lib/api/axios';
+import { Photo, Document } from '@/types/chat';
 
 export interface UploadResult {
   success: boolean;
@@ -22,9 +23,43 @@ interface UploadResponse {
   };
 }
 
+interface RawPhotoData {
+  id?: string;
+  _id?: string;
+  fileUrl?: string;
+  url?: string;
+  fileName?: string;
+  filename?: string;
+  name?: string;
+  createdAt?: string;
+  date?: string;
+  size?: number;
+}
+
+interface PaginatedImagesData {
+  images: RawPhotoData[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+interface HistoryImagesResponse {
+  statusCode: number;
+  message: string;
+  data: RawPhotoData[] | PaginatedImagesData;
+}
+
+interface HistoryDocumentsResponse {
+  statusCode: number;
+  message: string;
+  data: Document[];
+}
+
 interface UploadContextType {
   uploadFile: UseMutationResult<UploadResult, Error, { file: File; filename?: string }>;
   uploadMultipleFiles: UseMutationResult<UploadResult[], Error, File[]>;
+  useHistoryImages: (enabled?: boolean) => UseInfiniteQueryResult<InfiniteData<Photo[], number>, Error>;
 }
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
@@ -73,11 +108,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast.success('File uploaded successfully');
+        // toast.success('File uploaded successfully');
       }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to upload file');
+      console.error('Error uploading file:', error);
     },
   });
 
@@ -163,8 +199,108 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Fetch history images with infinite scrolling
+  const useHistoryImages = (enabled: boolean = true) => {
+    const PAGE_SIZE = 20; // Number of images per page
+    
+    return useInfiniteQuery<Photo[], Error, InfiniteData<Photo[], number>, readonly unknown[], number>({
+      queryKey: ['history-images'],
+      queryFn: async ({ pageParam = 1 }): Promise<Photo[]> => {
+        try {
+          console.log(`[History Images] Fetching page ${pageParam} from backend...`);
+          
+          // Try paginated endpoint first, fallback to regular endpoint with query params
+          const response = await baseURL.get<HistoryImagesResponse>('/upload/history/images', {
+            params: {
+              page: pageParam,
+              limit: PAGE_SIZE,
+            },
+          });
+          
+          const data = response.data;
+          
+          console.log(`[History Images] Response for page ${pageParam}:`, data);
+          
+          if (data.statusCode !== 200) {
+            throw new Error(data.message || 'Failed to fetch images');
+          }
+
+          let photosArray: RawPhotoData[] = [];
+          let hasMore = false;
+
+          // Handle both paginated and non-paginated responses
+          if (Array.isArray(data.data)) {
+            // Non-paginated response (all images)
+            photosArray = data.data;
+            hasMore = false; // If backend returns all, no pagination
+          } else if (data.data && typeof data.data === 'object' && 'images' in data.data) {
+            // Paginated response
+            const paginatedData = data.data as PaginatedImagesData;
+            photosArray = paginatedData.images || [];
+            hasMore = paginatedData.hasMore || false;
+          } else {
+            console.error('[History Images] Unexpected response format:', data.data);
+            return [];
+          }
+
+          // Transform response to Photo[] format
+          const photos: Photo[] = photosArray.map((item: RawPhotoData, index: number) => {
+            const photo = {
+              id: item.id || item._id || `photo-${pageParam}-${index}-${Date.now()}`,
+              url: item.fileUrl || item.url || '', // Use fileUrl from backend
+              filename: item.fileName || item.filename || item.name || 'image.jpg',
+              date: item.createdAt ? new Date(item.createdAt) : (item.date ? new Date(item.date) : new Date()),
+              size: item.size || 0,
+            };
+            return photo;
+          });
+
+          console.log(`[History Images] Page ${pageParam}: ${photos.length} photos loaded, hasMore: ${hasMore}`);
+          
+          // Only show toast for first page
+          if (pageParam === 1 && photos.length > 0) {
+            toast.success(`Loaded ${photos.length} image(s)`);
+          }
+          
+          return photos;
+        } catch (error: unknown) {
+          const errorMessage = 
+            (error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
+            (error as { response?: { data?: { message?: string } }; message?: string })?.message ||
+            'Failed to fetch images';
+          console.error(`[History Images] Error on page ${pageParam}:`, error);
+          
+          // Only show error toast for first page
+          if (pageParam === 1) {
+            toast.error(errorMessage);
+          }
+          throw error;
+        }
+      },
+      initialPageParam: 1,
+      getNextPageParam: (lastPage: Photo[], allPages: Photo[][], lastPageParam: number) => {
+        // If last page is empty or has fewer items than PAGE_SIZE, no more pages
+        if (lastPage.length < PAGE_SIZE) {
+          return undefined;
+        }
+        // Otherwise, check if backend indicates there are more pages
+        // For now, we'll use length-based detection
+        // Backend can return hasMore flag in response for better control
+        return lastPage.length > 0 ? lastPageParam + 1 : undefined;
+      },
+      enabled,
+      retry: false, // No retries on error
+      refetchOnMount: false, // Don't refetch when component mounts if data exists
+      refetchOnWindowFocus: false, // Don't refetch on window focus
+      refetchOnReconnect: false, // Don't refetch on reconnect
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    });
+  };
+
+ 
+
   return (
-    <UploadContext.Provider value={{ uploadFile, uploadMultipleFiles }}>
+    <UploadContext.Provider value={{ uploadFile, uploadMultipleFiles, useHistoryImages }}>
       {children}
     </UploadContext.Provider>
   );

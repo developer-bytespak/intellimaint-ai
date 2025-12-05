@@ -14,7 +14,7 @@ export function useChat() {
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [photos, setPhotos] = useState<Photo[]>(mockPhotos);
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+  const [documents, setDocuments] = useState<Document[]>(mockDocuments); // Start with empty array, will be populated from API
   const [isMobile, setIsMobile] = useState(false);
   const searchParams = useSearchParams();
 
@@ -78,7 +78,7 @@ export function useChat() {
     setActiveTab('chats');
   };
 
-    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[], chatOverride?: Chat) => {
+    const sendMessage = async (content: string, images?: string[], documents?: MessageDocument[], chatOverride?: Chat, messageIdOverride?: string) => {
     const chatToUse = chatOverride || activeChat;
     if (!chatToUse) return;
 
@@ -87,7 +87,7 @@ export function useChat() {
     const userMessageCount = chatToUse.messages.filter(m => m.role === 'user').length;
 
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: messageIdOverride || Date.now().toString(),
       content,
       role: 'user',
       timestamp: new Date(),
@@ -206,6 +206,49 @@ Try these steps and let me know what happens when you attempt to start it.`;
     }, 1000);
   };
 
+  const updateMessageUrls = (chatId: string, messageId: string, images?: string[], documents?: MessageDocument[]) => {
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId) {
+        const updatedMessages = chat.messages.map(msg => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              images: images !== undefined ? images : msg.images,
+              documents: documents !== undefined ? documents : msg.documents
+            };
+          }
+          return msg;
+        });
+        return {
+          ...chat,
+          messages: updatedMessages
+        };
+      }
+      return chat;
+    }));
+
+    // Also update activeChat if it's the same chat
+    if (activeChat?.id === chatId) {
+      setActiveChat(prev => {
+        if (!prev || prev.id !== chatId) return prev;
+        const updatedMessages = prev.messages.map(msg => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              images: images !== undefined ? images : msg.images,
+              documents: documents !== undefined ? documents : msg.documents
+            };
+          }
+          return msg;
+        });
+        return {
+          ...prev,
+          messages: updatedMessages
+        };
+      });
+    }
+  };
+
   const searchingofSpecificChat = (chatId: string) => {
     const chat = chats.find(c => c.id === chatId);
     if (chat) {
@@ -286,6 +329,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     deleteChat,
     deletePhoto,
     deleteDocument,
-    textToSpeech
+    textToSpeech,
+    updateMessageUrls
   };
 }

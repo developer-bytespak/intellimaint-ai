@@ -66,18 +66,11 @@ export default function RecentHistory({
     )
   })).filter(group => group.photos.length > 0);
 
-  // Handle view photo - find the photo and set it for overlay
-  const handleViewPhoto = (photoId: string) => {
-    // Find the photo in all photo groups
-    for (const group of photoGroups) {
-      const photo = group.photos.find(p => p.id === photoId);
-      if (photo) {
-        setViewingPhoto(photo);
-        break;
-      }
-    }
+  // Handle view photo - set it for overlay
+  const handleViewPhoto = (photo: Photo) => {
+    setViewingPhoto(photo);
     // Also call the original handler if needed
-    onViewPhoto(photoId);
+    onViewPhoto(photo.id);
   };
 
   // Handle delete photo - show confirmation dialog
@@ -520,11 +513,12 @@ export default function RecentHistory({
         )}
       </div>
 
-      {/* Photo Overlay - Constrained to menu bar width */}
+      {/* Photo Overlay - Full Screen */}
       {viewingPhoto && (
         <div 
-          className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[9999] flex items-center justify-center p-4"
           onClick={() => setViewingPhoto(null)}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}
         >
           <div 
             className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-full max-h-full"
@@ -545,7 +539,7 @@ export default function RecentHistory({
             {/* Photo */}
             <div className="p-4">
               <img
-                src={getPhotoImageUrl(viewingPhoto, 0)}
+                src={viewingPhoto.url || getPhotoImageUrl(viewingPhoto, 0)}
                 alt={viewingPhoto.filename || 'Photo'}
                 className="w-full h-auto max-h-[calc(90vh-180px)] object-contain rounded-lg"
                 onError={(e) => {

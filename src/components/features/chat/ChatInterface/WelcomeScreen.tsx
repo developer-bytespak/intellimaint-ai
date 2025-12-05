@@ -10,17 +10,26 @@ import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
 // import { useVoiceStream } from '@/hooks/useVoiceStream';
 import { CallModal } from './CamModel';
-import { useUpload } from '@/hooks/useUploadContext';
+import { useUpload, UploadResult } from '@/hooks/useUploadContext';
+import { toast } from 'react-toastify';
 
+
+interface ImageWithStatus {
+  previewUrl: string; // blob: or data: URL for preview
+  uploadedUrl?: string; // Final uploaded URL
+  status: 'uploading' | 'uploaded' | 'error';
+  file: File;
+}
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
   onSendMessage?: (content: string, images?: string[], documents?: MessageDocument[]) => void;
+  updateMessageUrls?: (chatId: string, messageId: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
-export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScreenProps) {
+export default function WelcomeScreen({ activeChat, onSendMessage, updateMessageUrls }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<ImageWithStatus[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -33,12 +42,13 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
 
   // const { startStreaming, stopStreaming, isConnected } = useVoiceStream();
   const { uploadFile, uploadMultipleFiles } = useUpload();
+  const [isUploading, setIsUploading] = useState(false);
   // Cleanup object URLs when component unmounts
   useEffect(() => {
     return () => {
-      selectedImages.forEach(url => {
-        if (url && !url.startsWith('data:')) {
-          URL.revokeObjectURL(url);
+      selectedImages.forEach(img => {
+        if (img.previewUrl && !img.previewUrl.startsWith('data:')) {
+          URL.revokeObjectURL(img.previewUrl);
         }
       });
       selectedDocuments.forEach(doc => {
@@ -50,26 +60,160 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
+  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() && selectedImages.length === 0 && selectedDocuments.length === 0) return;
+    
+    // Check if any images are still uploading
+    const hasUploadingImages = selectedImages.some(img => img.status === 'uploading');
+    if (hasUploadingImages) return; // Don't send if images are still uploading
+    
+    // Check if any images failed to upload
+    const hasErrorImages = selectedImages.some(img => img.status === 'error');
+    if (hasErrorImages) {
+      toast.error('Some images failed to upload. Please remove them and try again.');
+      return;
+    }
+    
+    if (isUploading) return; // Prevent multiple submissions during upload
+    if (!onSendMessage) return;
 
-    if (onSendMessage) {
-      const imageDataUrls = selectedImages.map(url => {
-        if (url.startsWith('data:')) return url;
-        return url;
-      });
+    // Store values before clearing
+    const messageContent = inputValue.trim();
+    const imagesToProcess = [...selectedImages];
+    const documentsToProcess = [...selectedDocuments];
+    
+    // Immediately clear input and selected files to go directly to chat
+    setInputValue('');
+    setSelectedImages([]);
+    setSelectedDocuments([]);
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '24px';
+    }
 
-      onSendMessage(inputValue.trim(), imageDataUrls, selectedDocuments.length > 0 ? selectedDocuments : undefined);
-      setInputValue('');
-      setSelectedImages([]);
-      setSelectedDocuments([]);
+    const chatId = activeChat?.id || '';
+    
+    // Get uploaded image URLs (they should all be uploaded by now)
+    const uploadedImageUrls = imagesToProcess
+      .filter(img => img.status === 'uploaded' && img.uploadedUrl)
+      .map(img => img.uploadedUrl!);
+    
+    // Immediately send message with uploaded URLs
+    onSendMessage(messageContent, uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined, documentsToProcess.length > 0 ? documentsToProcess : undefined);
+    
+    // Upload documents that haven't been uploaded yet (in background)
+    setIsUploading(true);
+    
+    // Background upload for documents - don't await, let it happen in background
+    (async () => {
+      try {
+        // Upload documents that haven't been uploaded yet
+        const documentsToUpload: File[] = [];
+        const documentUrlMap: Map<string, File> = new Map();
+        
+        documentsToProcess.forEach((doc) => {
+          if (doc.url.startsWith('blob:') && doc.file) {
+            documentsToUpload.push(doc.file);
+            documentUrlMap.set(doc.url, doc.file);
+          }
+        });
 
-      // Reset textarea height
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.height = '24px';
+        let finalDocuments = documentsToProcess;
+        if (documentsToUpload.length > 0) {
+          const uploadResults = await uploadMultipleFiles.mutateAsync(documentsToUpload);
+
+          // Update document URLs
+          finalDocuments = documentsToProcess.map((doc) => {
+            if (doc.url.startsWith('blob:')) {
+              const fileIndex = documentsToUpload.findIndex(f => f === doc.file);
+              if (fileIndex !== -1 && uploadResults[fileIndex]?.success && uploadResults[fileIndex]?.url) {
+                URL.revokeObjectURL(doc.url);
+                return {
+                  ...doc,
+                  url: uploadResults[fileIndex].url!,
+                };
+              }
+            }
+            return doc;
+          });
+        }
+
+        // Find the message ID by matching content and timestamp (find last user message with matching content)
+        // Use a small delay to ensure message is added to state
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Get updated chat from activeChat (it should be updated by now)
+        // Find the message that matches our content
+        const userMessages = activeChat?.messages?.filter(m => m.role === 'user') || [];
+        const matchingMessage = userMessages.find(m => 
+          m.content === messageContent && 
+          m.images?.length === uploadedImageUrls.length
+        ) || userMessages[userMessages.length - 1]; // Fallback to last user message
+        
+        // Update message with uploaded URLs after upload completes
+        if (updateMessageUrls && chatId && matchingMessage?.id) {
+          updateMessageUrls(chatId, matchingMessage.id, uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined, finalDocuments.length > 0 ? finalDocuments : undefined);
+        }
+      } catch (error) {
+        console.error('Error uploading files:', error);
+        // toast.error('Failed to upload files. Please try again.');
+      } finally {
+        setIsUploading(false);
       }
+    })();
+  };
+  
+  // Helper function to upload a single image file
+  const uploadImageFile = async (image: ImageWithStatus, getUpdatedImages: (prev: ImageWithStatus[]) => ImageWithStatus[]) => {
+    try {
+      const result = await uploadFile.mutateAsync({ file: image.file });
+      
+      if (result.success && result.url) {
+        // Update the image status to uploaded
+        setSelectedImages(prev => {
+          const updated = prev.map(img => 
+            img.previewUrl === image.previewUrl
+              ? { ...img, uploadedUrl: result.url!, status: 'uploaded' as const }
+              : img
+          );
+          return getUpdatedImages(updated);
+        });
+        
+        // Revoke the blob URL since we now have the uploaded URL
+        if (image.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(image.previewUrl);
+        }
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image. Removing from list...');
+      
+      // Automatically remove the image after a short delay to show error state
+      setTimeout(() => {
+        setSelectedImages(prev => {
+          const updated = prev.filter(img => img.previewUrl !== image.previewUrl);
+          // Cleanup blob URL
+          if (image.previewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(image.previewUrl);
+          }
+          return getUpdatedImages(updated);
+        });
+      }, 2000); // Remove after 2 seconds (user can see the error)
+      
+      // Immediately set error status so user sees error indicator
+      setSelectedImages(prev => {
+        const updated = prev.map(img => 
+          img.previewUrl === image.previewUrl
+            ? { ...img, status: 'error' as const }
+            : img
+        );
+        return getUpdatedImages(updated);
+      });
     }
   };
 
@@ -86,40 +230,40 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   };
 
   const handleCapturePhoto = async (url: string) => {
-    // If it's a data URL from camera, convert to File and upload
+    // If it's a data URL from camera, convert to File for immediate upload
     if (url.startsWith('data:')) {
       try {
         const response = await fetch(url);
         const blob = await response.blob();
         const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
         
-        // Add temporary URL for preview
-        setSelectedImages(prev => [...prev, url].slice(0, 10));
+        // Create a blob URL for preview
+        const blobUrl = URL.createObjectURL(file);
         
-        // Upload to blob using TanStack Query
-        uploadFile.mutate({ file }, {
-          onSuccess: (result) => {
-            if (result.success && result.url) {
-              // Replace data URL with blob URL
-              setSelectedImages(prev => {
-                const updated = [...prev];
-                const index = updated.findIndex(u => u === url);
-                if (index !== -1) {
-                  updated[index] = result.url!;
-                }
-                return updated;
-              });
-            }
-          },
-        });
+        // Add image with uploading status
+        const newImage: ImageWithStatus = {
+          previewUrl: blobUrl,
+          status: 'uploading',
+          file,
+        };
+        
+        setSelectedImages(prev => [...prev, newImage].slice(0, 10));
+        
+        // Upload immediately
+        uploadImageFile(newImage, prev => [...prev].slice(0, 10));
       } catch (error) {
         console.error('Error processing camera photo:', error);
-        // Fallback: just add the data URL
-        setSelectedImages(prev => [...prev, url].slice(0, 10));
+        toast.error('Failed to process camera photo');
       }
     } else {
-      // Already a blob URL or external URL
-      setSelectedImages(prev => [...prev, url].slice(0, 10));
+      // Already a blob URL or external URL - treat as already uploaded
+      const alreadyUploadedImage: ImageWithStatus = {
+        previewUrl: url,
+        uploadedUrl: url,
+        status: 'uploaded' as const,
+        file: new File([], 'image.jpg', { type: 'image/jpeg' }),
+      };
+      setSelectedImages(prev => [...prev, alreadyUploadedImage].slice(0, 10));
     }
   };
 
@@ -141,59 +285,40 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
-    const imageFiles: File[] = [];
-    const tempUrls: string[] = [];
+    const newImages: ImageWithStatus[] = [];
     
-    // First, create temporary URLs for preview
+    // Create temporary blob URLs for preview and upload immediately
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
-        imageFiles.push(file);
-        const url = URL.createObjectURL(file);
-        tempUrls.push(url);
+        const blobUrl = URL.createObjectURL(file);
+        
+        const newImage: ImageWithStatus = {
+          previewUrl: blobUrl,
+          status: 'uploading',
+          file,
+        };
+        
+        newImages.push(newImage);
       }
     }
     
-    if (imageFiles.length === 0) {
+    if (newImages.length === 0) {
       e.target.value = '';
       return;
     }
     
-    // Add temporary URLs for immediate preview
-    setSelectedImages(prev => [...prev, ...tempUrls].slice(0, 10));
+    // Add images with uploading status for immediate preview
+    setSelectedImages(prev => {
+      const updated = [...prev, ...newImages].slice(0, 10);
+      return updated;
+    });
+    
     e.target.value = '';
     
-    // Upload files to blob storage using TanStack Query
-    uploadMultipleFiles.mutate(imageFiles, {
-      onSuccess: (uploadResults) => {
-        // Replace temporary URLs with blob URLs
-        setSelectedImages(prev => {
-          const updated = [...prev];
-          
-          uploadResults.forEach((result, index) => {
-            if (result.success && result.url) {
-              // Find the corresponding temp URL and replace it
-              const tempUrlIndex = updated.findIndex(url => 
-                url === tempUrls[index] || url.startsWith('blob:')
-              );
-              if (tempUrlIndex !== -1) {
-                // Revoke the old object URL
-                URL.revokeObjectURL(updated[tempUrlIndex]);
-                updated[tempUrlIndex] = result.url!;
-              }
-            } else {
-              // Upload failed - remove the temp URL
-              const tempUrlIndex = updated.findIndex(url => url === tempUrls[index]);
-              if (tempUrlIndex !== -1) {
-                URL.revokeObjectURL(updated[tempUrlIndex]);
-                updated.splice(tempUrlIndex, 1);
-              }
-            }
-          });
-          
-          return updated;
-        });
-      },
+    // Upload all images immediately
+    newImages.forEach((image) => {
+      uploadImageFile(image, prev => prev);
     });
   };
 
@@ -201,15 +326,13 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
-    const documentFiles: { file: File; type: 'PDF' | 'DOC' }[] = [];
     const tempDocuments: MessageDocument[] = [];
     
-    // First, create temporary documents for preview
+    // Create temporary documents with blob URLs for preview
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type === 'application/pdf') {
         const url = URL.createObjectURL(file);
-        documentFiles.push({ file, type: 'PDF' });
         tempDocuments.push({ file, url, type: 'PDF' });
       } else if (
         file.type === 'application/msword' ||
@@ -218,61 +341,27 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         file.name.endsWith('.docx')
       ) {
         const url = URL.createObjectURL(file);
-        documentFiles.push({ file, type: 'DOC' });
         tempDocuments.push({ file, url, type: 'DOC' });
       }
     }
     
-    if (documentFiles.length === 0) {
+    if (tempDocuments.length === 0) {
       e.target.value = '';
       return;
     }
     
-    // Add temporary documents for immediate preview
+    // Add temporary documents for immediate preview (will be uploaded on send)
     setSelectedDocuments(prev => [...prev, ...tempDocuments].slice(0, 5));
     e.target.value = '';
     
-    // Upload files to blob storage using TanStack Query
-    const filesToUpload = documentFiles.map(({ file }) => file);
-    uploadMultipleFiles.mutate(filesToUpload, {
-      onSuccess: (uploadResults) => {
-        // Replace temporary URLs with blob URLs
-        setSelectedDocuments(prev => {
-          const updated = [...prev];
-          
-          uploadResults.forEach((result, index) => {
-            if (result.success && result.url) {
-              // Find the corresponding temp document and update it
-              const tempDocIndex = updated.findIndex(doc => 
-                doc.file === documentFiles[index].file
-              );
-              if (tempDocIndex !== -1) {
-                // Revoke the old object URL
-                URL.revokeObjectURL(updated[tempDocIndex].url);
-                updated[tempDocIndex] = {
-                  ...updated[tempDocIndex],
-                  url: result.url!,
-                };
-              }
-            } else {
-              // Upload failed - remove the temp document
-              const tempDocIndex = updated.findIndex(doc => doc.file === documentFiles[index].file);
-              if (tempDocIndex !== -1) {
-                URL.revokeObjectURL(updated[tempDocIndex].url);
-                updated.splice(tempDocIndex, 1);
-              }
-            }
-          });
-          
-          return updated;
-        });
-      },
-    });
+    // DO NOT upload immediately - files will be uploaded when user clicks send
   };
 
   const removeImageAt = (index: number) => {
-    const url = selectedImages[index];
-    URL.revokeObjectURL(url);
+    const image = selectedImages[index];
+    if (image && image.previewUrl && image.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(image.previewUrl);
+    }
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -416,7 +505,8 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
           <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-2 sm:px-3 md:px-4 py-2 sm:py-3 flex flex-col w-full overflow-visible box-border">
             {/* Attachment Preview - Shows uploaded images and documents */}
             <AttachmentPreview
-              images={selectedImages}
+              images={selectedImages.map(img => img.previewUrl)}
+              imagesWithStatus={selectedImages}
               documents={selectedDocuments}
               onRemoveImage={removeImageAt}
               onRemoveDocument={removeDocumentAt}
@@ -461,8 +551,16 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     handleSubmit(e);
                   }
                 }}
-                placeholder={isSending ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
-                disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
+                placeholder={
+                  isSending 
+                    ? "Transcribing audio..." 
+                    : (audioRecorder.isRecording || audioRecorder.audioUrl) 
+                    ? "Recording audio..." 
+                    : selectedImages.some(img => img.status === 'uploading')
+                    ? "Uploading images..."
+                    : "Ask Intellimaint AI."
+                }
+                disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || selectedImages.some(img => img.status === 'uploading')}
                 rows={1}
                 className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-xs sm:text-sm md:text-base resize-none overflow-y-hidden max-h-[200px] pr-1 sm:pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
@@ -552,8 +650,8 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                 {(inputValue.trim() || selectedImages.length > 0 || selectedDocuments.length > 0) ? (
                   <button
                     type="submit"
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
-                    className={`p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || selectedImages.some(img => img.status === 'uploading')}
+                    className={`p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || selectedImages.some(img => img.status === 'uploading')) ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     title="Send message"
                     onClick={(e) => {
@@ -645,12 +743,12 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
 
           {/* Image */}
           <img
-            src={selectedImages[viewingImageIndex]}
+            src={selectedImages[viewingImageIndex].previewUrl}
             alt={`preview-${viewingImageIndex}`}
             className="max-w-[85%] max-h-[75vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
             onError={(e) => {
-              console.error('Failed to load image:', selectedImages[viewingImageIndex]);
+              console.error('Failed to load image:', selectedImages[viewingImageIndex].previewUrl);
               e.currentTarget.style.display = 'none';
             }}
           />

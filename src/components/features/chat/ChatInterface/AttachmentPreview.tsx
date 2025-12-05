@@ -5,8 +5,16 @@
 
 import { MessageDocument } from '@/types/chat';
 
+interface ImageWithStatus {
+  previewUrl: string;
+  uploadedUrl?: string;
+  status: 'uploading' | 'uploaded' | 'error';
+  file: File;
+}
+
 interface AttachmentPreviewProps {
   images: string[];
+  imagesWithStatus?: ImageWithStatus[];
   documents: MessageDocument[];
   onRemoveImage: (index: number) => void;
   onRemoveDocument: (index: number) => void;
@@ -15,6 +23,7 @@ interface AttachmentPreviewProps {
 
 export default function AttachmentPreview({
   images,
+  imagesWithStatus,
   documents,
   onRemoveImage,
   onRemoveDocument,
@@ -25,27 +34,50 @@ export default function AttachmentPreview({
       {images.length > 0 && (
         <div className="w-full max-w-full mb-3 box-border">
           <div className="flex flex-wrap gap-2 max-w-full">
-            {images.map((src, index) => (
-              <div key={index} className="flex flex-col items-end w-16">
-                <button 
-                  type="button" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveImage(index);
-                  }} 
-                  className="z-20 bg-[#1f2632] border border-[#3a4a5a] text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#3a4a5a] transition-colors -mb-4 -mr-1"
-                >
-                  ×
-                </button>
-                <div 
-                  className="w-16 h-16 rounded-lg overflow-hidden border border-[#3a4a5a] cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => onViewImage && onViewImage(index)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`preview-${index}`} className="w-full h-full object-cover" />
+            {images.map((src, index) => {
+              const imageStatus = imagesWithStatus?.[index];
+              const isUploading = imageStatus?.status === 'uploading';
+              const isError = imageStatus?.status === 'error';
+              
+              return (
+                <div key={index} className="flex flex-col items-end w-16 relative">
+                  <button 
+                    type="button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveImage(index);
+                    }} 
+                    disabled={isUploading}
+                    className={`z-20 bg-[#1f2632] border border-[#3a4a5a] text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#3a4a5a] transition-colors -mb-4 -mr-1 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    ×
+                  </button>
+                  <div 
+                    className="w-16 h-16 rounded-lg overflow-hidden border border-[#3a4a5a] cursor-pointer hover:opacity-90 transition-opacity relative"
+                    onClick={() => !isUploading && onViewImage && onViewImage(index)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`preview-${index}`} className="w-full h-full object-cover" />
+                    
+                    {/* Loader overlay when uploading */}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                    
+                    {/* Error indicator */}
+                    {isError && (
+                      <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

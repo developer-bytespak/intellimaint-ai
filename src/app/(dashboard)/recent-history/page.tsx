@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { Chat, TabType, Photo, Document as ChatDocument } from '@/types/chat';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
@@ -23,6 +24,11 @@ function RecentHistoryContent() {
   const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto, documents, deleteDocument } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Debug: Log when viewingPhoto changes
+  useEffect(() => {
+    console.log('viewingPhoto state changed:', viewingPhoto);
+  }, [viewingPhoto]);
 
   const addParams = (params: string) => {
     router.push(`/recent-history?recent-history=${params}`);
@@ -61,7 +67,6 @@ function RecentHistoryContent() {
     doc.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Handle view document - find the document and set it for overlay
   const handleViewDocument = (documentId: string) => {
     // Find the document in the documents array
     const document = documents.find(doc => doc.id === documentId);
@@ -96,16 +101,15 @@ function RecentHistoryContent() {
     setShowDeleteDocumentConfirm(false);
   };
 
-  // Handle view photo - find the photo and set it for overlay
-  const handleViewPhoto = (photoId: string) => {
-    // Find the photo in all photo groups
-    for (const group of photoGroups) {
-      const photo = group.photos.find(p => p.id === photoId);
-      if (photo) {
-        setViewingPhoto(photo);
-        break;
-      }
-    }
+  // Handle view photo - receive photo object directly
+  const handleViewPhoto = (photo: Photo) => {
+    console.log('handleViewPhoto called with:', photo);
+    console.log('Setting viewingPhoto state...');
+    setViewingPhoto(photo);
+    // Force a re-render check
+    setTimeout(() => {
+      console.log('viewingPhoto state after set:', viewingPhoto);
+    }, 100);
   };
 
   // Handle delete photo - show confirmation dialog
@@ -751,9 +755,9 @@ function RecentHistoryContent() {
         {activeTab === 'photos' && (
           <div className="pb-4">
             <PhotosGrid
-              photoGroups={filteredPhotoGroups}
               onDeletePhoto={handleDeletePhoto}
               onViewPhoto={handleViewPhoto}
+              enabled={activeTab === 'photos'}
             />
           </div>
         )}
@@ -804,11 +808,24 @@ function RecentHistoryContent() {
         </div>
       )}
 
-      {/* Photo Overlay - Constrained to menu bar width */}
-      {viewingPhoto && (
+      {/* Photo Overlay - Full Screen - Using Portal */}
+      {typeof window !== 'undefined' && viewingPhoto && createPortal(
         <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setViewingPhoto(null)}
+          className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[9999] flex items-center justify-center p-4"
+          onClick={() => {
+            console.log('Closing photo modal');
+            setViewingPhoto(null);
+          }}
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            width: '100vw', 
+            height: '100vh',
+            zIndex: 9999
+          }}
         >
           <div 
             className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-full max-h-full"
@@ -829,10 +846,12 @@ function RecentHistoryContent() {
             {/* Photo */}
             <div className="p-4">
               <img
-                src={getPhotoImageUrl(viewingPhoto, 0)}
+                src={viewingPhoto.url || getPhotoImageUrl(viewingPhoto, 0)}
                 alt={viewingPhoto.filename || 'Photo'}
                 className="w-full h-auto max-h-[calc(90vh-180px)] object-contain rounded-lg"
+                onLoad={() => console.log('Image loaded successfully:', viewingPhoto.url)}
                 onError={(e) => {
+                  console.error('Image failed to load:', viewingPhoto.url);
                   const target = e.target as HTMLImageElement;
                   const photoSeed = parseInt(viewingPhoto.id.replace(/\D/g, '')) || 0;
                   const fallbackId = ((photoSeed + 100) % 1000) + 1;
@@ -866,7 +885,8 @@ function RecentHistoryContent() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Dialog */}

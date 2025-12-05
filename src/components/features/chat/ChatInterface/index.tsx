@@ -9,10 +9,11 @@ interface ChatInterfaceProps {
   activeChat: Chat | null;
   onSendMessage: (content: string, images?: string[], documents?: MessageDocument[]) => void;
   onSendMessageFromWelcome?: (content: string, images?: string[], documents?: MessageDocument[]) => void;
+  updateMessageUrls?: (chatId: string, messageId: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
-export default function ChatInterface({ activeChat, onSendMessage, onSendMessageFromWelcome }: ChatInterfaceProps) {
+export default function ChatInterface({ activeChat, onSendMessage, onSendMessageFromWelcome, updateMessageUrls }: ChatInterfaceProps) {
   // Always show WelcomeScreen, but pass activeChat so it can show messages when chat exists
-  return <WelcomeScreen activeChat={activeChat} onSendMessage={onSendMessageFromWelcome || onSendMessage} />;
+  return <WelcomeScreen activeChat={activeChat} onSendMessage={onSendMessageFromWelcome || onSendMessage} updateMessageUrls={updateMessageUrls} />;
 }
 
