@@ -1,16 +1,47 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Document } from '@/types/chat';
 
 interface DocumentsListProps {
   documents: Document[];
   onViewDocument: (documentId: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoading?: boolean;
 }
 
 export default function DocumentsList({
   documents,
-  onViewDocument
+  onViewDocument,
+  onLoadMore,
+  hasMore = false,
+  isLoading = false
 }: DocumentsListProps) {
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading && onLoadMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, isLoading, onLoadMore]);
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
       day: 'numeric', 
@@ -44,6 +75,15 @@ export default function DocumentsList({
           </div>
         ))}
       </div>
+      
+      {/* Infinite scroll trigger */}
+      {hasMore && (
+        <div ref={observerTarget} className="py-4 flex justify-center">
+          {isLoading && (
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

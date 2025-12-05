@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Chat } from '@/types/chat';
 
 interface ChatsListProps {
@@ -8,6 +9,9 @@ interface ChatsListProps {
   onChatSelect: (chat: Chat) => void;
   onCreateNewChat: () => void;
   onDeleteChat: (chatId: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoading?: boolean;
 }
 
 export default function ChatsList({
@@ -15,8 +19,35 @@ export default function ChatsList({
   activeChat,
   onChatSelect,
   onCreateNewChat,
-  onDeleteChat
+  onDeleteChat,
+  onLoadMore,
+  hasMore = false,
+  isLoading = false
 }: ChatsListProps) {
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading && onLoadMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, isLoading, onLoadMore]);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -65,6 +96,15 @@ export default function ChatsList({
           </div>
         ))}
       </div>
+      
+      {/* Infinite scroll trigger */}
+      {hasMore && (
+        <div ref={observerTarget} className="py-4 flex justify-center">
+          {isLoading && (
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

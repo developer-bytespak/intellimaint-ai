@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, Suspense, useEffect } from 'react';
-import { Chat, MessageDocument } from '@/types/chat';
+import { Chat, MessageDocument, Document } from '@/types/chat';
 import { useChat } from '@/hooks/useChat';
 import { useUser } from '@/hooks/useUser';
+import { useDocuments, useRepository } from '@/hooks/useRepository';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
@@ -25,13 +26,72 @@ function ChatPageContent() {
     setActiveTab,
     deleteChat,
     deletePhoto,
-    deleteDocument
+    deleteDocument,
+    loadMoreChats,
+    hasMoreChats,
+    isLoadingMoreChats
   } = useChat();
 
   const { logout } = useUser();
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [repositoryPage, setRepositoryPage] = useState(1);
+  const [allRepositoryDocuments, setAllRepositoryDocuments] = useState<Document[]>([]);
+  const [hasMoreDocuments, setHasMoreDocuments] = useState(true);
+
+  const { deleteDocument: deleteRepositoryDocument } = useRepository();
+  
+  // Fetch repository documents with pagination (10 per page)
+  const { data: repositoryDocumentsData, isLoading: isLoadingRepositoryDocuments } = useDocuments(repositoryPage, 10);
+  
+  // Transform and accumulate repository documents
+  useEffect(() => {
+    if (!repositoryDocumentsData?.documents) return;
+    
+    const newDocuments = repositoryDocumentsData.documents
+      .filter(doc => doc.status === 'ready') // Only show ready documents (all are PDFs since upload enforces PDF-only)
+      .map((repoDoc) => {
+        // Format file size
+        const formatFileSize = (bytes: number): string => {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        return {
+          id: repoDoc.id,
+          title: repoDoc.fileName,
+          type: 'PDF' as const,
+          size: formatFileSize(repoDoc.fileSize),
+          date: new Date(repoDoc.uploadedAt),
+          url: repoDoc.fileUrl,
+        };
+      });
+
+    if (repositoryPage === 1) {
+      // First page - replace all documents
+      setAllRepositoryDocuments(newDocuments);
+    } else {
+      // Subsequent pages - append new documents (avoid duplicates)
+      setAllRepositoryDocuments(prev => {
+        const existingIds = new Set(prev.map(doc => doc.id));
+        const newDocs = newDocuments.filter(doc => !existingIds.has(doc.id));
+        return [...prev, ...newDocs];
+      });
+    }
+
+    // Check if there are more pages
+    const pagination = repositoryDocumentsData.pagination;
+    setHasMoreDocuments(pagination && pagination.page < pagination.totalPages);
+  }, [repositoryDocumentsData, repositoryPage]);
+
+  // Load more documents function
+  const loadMoreDocuments = () => {
+    if (!isLoadingRepositoryDocuments && hasMoreDocuments) {
+      setRepositoryPage(prev => prev + 1);
+    }
+  };
 
   // Close sidebar if coming from recent-history page with closeSidebar parameter
   useEffect(() => {
@@ -40,7 +100,7 @@ function ChatPageContent() {
       setIsSidebarOpen(false);
       // Create new chat when coming from recent-history
       if (!activeChat) {
-        createNewChat();
+        createNewChat().catch(console.error);
       }
     }
   }, [searchParams, createNewChat, activeChat]);
@@ -58,17 +118,17 @@ function ChatPageContent() {
   };
 
   const handleCreateNewChat = () => {
-    createNewChat();
+    createNewChat().catch(console.error);
     // Close sidebar on both mobile and desktop when creating new chat
     setCurrentView('chat');
     setIsSidebarOpen(false);
   };
 
-  const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
+  const handleSendMessageFromWelcome = async (content: string, images?: string[], documents?: MessageDocument[]) => {
     // Create new chat first if no active chat (without redirect)
     if (!activeChat) {
       // Create new chat without redirecting and get the new chat object
-      const newChat = createNewChat(true); // Pass true to skip redirect
+      const newChat = await createNewChat(true); // Pass true to skip redirect
       // Use the new chat directly to send message immediately
       if (newChat) {
         sendMessage(content, images, documents, newChat);
@@ -86,13 +146,40 @@ function ChatPageContent() {
     console.log('View photo:', photoId);
   };
 
-  const handleDeleteDocument = (documentId: string) => {
+  const handleDeleteDocument = async (documentId: string) => {
+    // Check if it's a repository document
+    const repoDoc = allRepositoryDocuments.find(doc => doc.id === documentId);
+    if (repoDoc) {
+      // Delete repository document
+      try {
+        await deleteRepositoryDocument.mutateAsync(documentId);
+        // Remove from local state
+        setAllRepositoryDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      } catch (error) {
+        console.error('Failed to delete repository document:', error);
+      }
+      return;
+    }
+    
+    // Otherwise, it's a chat document - use existing logic
     deleteDocument(documentId);
   };
 
   const handleViewDocument = (documentId: string) => {
-    console.log('View document:', documentId);
-    // TODO: Implement document viewing (open in new tab or overlay)
+    // Find the document in repository documents or chat documents
+    const repoDoc = allRepositoryDocuments.find(doc => doc.id === documentId);
+    const chatDoc = documents.find(doc => doc.id === documentId);
+    const doc = repoDoc || chatDoc;
+    
+    if (doc) {
+      // Open document in new tab
+      if (doc.url && doc.url.startsWith('http')) {
+        window.open(doc.url, '_blank');
+      } else {
+        // For chat documents without URL, use existing logic
+        console.log('View document:', documentId);
+      }
+    }
   };
 
   const toggleSidebar = () => {
@@ -133,7 +220,7 @@ function ChatPageContent() {
                 chats={chats}
                 activeChat={activeChat}
                 photoGroups={photoGroups}
-                documents={documents}
+                documents={allRepositoryDocuments.length > 0 ? allRepositoryDocuments : documents}
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 onChatSelect={handleChatSelect}
@@ -143,6 +230,12 @@ function ChatPageContent() {
                 onViewPhoto={handleViewPhoto}
                 onDeleteDocument={handleDeleteDocument}
                 onViewDocument={handleViewDocument}
+                onLoadMoreDocuments={loadMoreDocuments}
+                hasMoreDocuments={hasMoreDocuments}
+                isLoadingDocuments={isLoadingRepositoryDocuments}
+                onLoadMoreChats={loadMoreChats}
+                hasMoreChats={hasMoreChats}
+                isLoadingChats={isLoadingMoreChats}
               />
             </div>
             {/* Logout Button at bottom of sidebar */}
