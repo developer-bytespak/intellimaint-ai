@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "react-toastify"
 import { useUser } from "@/hooks/useUser"
 
 function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
@@ -130,11 +131,12 @@ function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, isLoading, updateUser } = useUser()
+  const { user, isLoading, updateUser, uploadProfileImage, deleteProfileImage } = useUser()
   const [showCameraMenu, setShowCameraMenu] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [showCameraModal, setShowCameraModal] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -168,7 +170,7 @@ export default function ProfilePage() {
       setShowCameraModal(true)
     } catch (error) {
       console.error('Error accessing camera:', error)
-      alert('Unable to access camera. Please check your permissions.')
+      toast.error('Unable to access camera. Please check your permissions.')
     }
   }
 
@@ -179,20 +181,49 @@ export default function ProfilePage() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = async () => {
-        const imageDataUrl = reader.result as string
-        setProfileImage(imageDataUrl)
-        // Upload to backend
+    if (!file) return
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please select a valid image file (JPEG, PNG, GIF, or WebP)')
+      return
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      toast.error('Image size must be less than 10MB')
+      return
+    }
+
+    setIsUploadingImage(true)
+    try {
+      // Delete old image if exists
+      const currentImageUrl = user?.profileImage || user?.profileImageUrl
+      if (currentImageUrl && currentImageUrl.includes('blob.vercel-storage.com')) {
         try {
-          await updateUser.mutateAsync({ profileImageUrl: imageDataUrl })
+          await deleteProfileImage.mutateAsync(currentImageUrl)
         } catch (error) {
-          console.error('Failed to update profile image:', error)
-          alert('Failed to update profile image')
+          console.warn('Failed to delete old image:', error)
+          // Continue with upload even if delete fails
         }
       }
-      reader.readAsDataURL(file)
+
+      // Upload new image
+      const result = await uploadProfileImage.mutateAsync(file)
+      setProfileImage(result.url)
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      toast.success('Profile image updated successfully')
+    } catch (error) {
+      console.error('Failed to update profile image:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile image')
+    } finally {
+      setIsUploadingImage(false)
     }
   }
 
@@ -204,17 +235,78 @@ export default function ProfilePage() {
       const ctx = canvas.getContext('2d')
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0)
-        const imageDataUrl = canvas.toDataURL('image/png')
-        setProfileImage(imageDataUrl)
         handleCloseCamera()
-        // Upload to backend
+        
+        setIsUploadingImage(true)
         try {
-          await updateUser.mutateAsync({ profileImageUrl: imageDataUrl })
+          // Convert canvas to blob
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              setIsUploadingImage(false)
+              toast.error('Failed to capture image')
+              return
+            }
+
+            try {
+              // Delete old image if exists
+              const currentImageUrl = user?.profileImage || user?.profileImageUrl
+              if (currentImageUrl && currentImageUrl.includes('blob.vercel-storage.com')) {
+                try {
+                  await deleteProfileImage.mutateAsync(currentImageUrl)
+                } catch (error) {
+                  console.warn('Failed to delete old image:', error)
+                  // Continue with upload even if delete fails
+                }
+              }
+
+              // Convert blob to File
+              const file = new File([blob], 'captured-image.png', { type: 'image/png' })
+              
+              // Upload new image
+              const result = await uploadProfileImage.mutateAsync(file)
+              setProfileImage(result.url)
+              toast.success('Profile image updated successfully')
+            } catch (error) {
+              console.error('Failed to update profile image:', error)
+              toast.error(error instanceof Error ? error.message : 'Failed to update profile image')
+            } finally {
+              setIsUploadingImage(false)
+            }
+          }, 'image/png')
         } catch (error) {
-          console.error('Failed to update profile image:', error)
-          alert('Failed to update profile image')
+          console.error('Failed to process captured image:', error)
+          toast.error('Failed to process captured image')
+          setIsUploadingImage(false)
         }
       }
+    }
+  }
+
+  const handleDeleteProfileImage = async () => {
+    const currentImageUrl = user?.profileImage || user?.profileImageUrl || profileImage
+    if (!currentImageUrl || currentImageUrl === '/images/img1.png') {
+      toast.info('No profile image to delete')
+      return
+    }
+
+    if (!confirm('Are you sure you want to remove your profile image?')) {
+      return
+    }
+
+    try {
+      // Only delete from Vercel Blob if it's a Vercel Blob URL
+      if (currentImageUrl.includes('blob.vercel-storage.com')) {
+        await deleteProfileImage.mutateAsync(currentImageUrl)
+      } else {
+        // For non-Vercel Blob URLs (e.g., base64), just remove from profile
+        await updateUser.mutateAsync({ profileImageUrl: '' })
+      }
+      // Update local state immediately
+      setProfileImage(null)
+      toast.success('Profile image removed successfully')
+    } catch (error) {
+      console.error('Failed to delete profile image:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to delete profile image')
     }
   }
 
@@ -266,10 +358,17 @@ export default function ProfilePage() {
     }
   }, [stream])
 
-  // Initialize profile image from user data
+  // Initialize profile image from user data and update when user changes
   useEffect(() => {
     if (user?.profileImage || user?.profileImageUrl) {
-      setProfileImage(user.profileImage || user.profileImageUrl || null)
+      const imageUrl = user.profileImage || user.profileImageUrl
+      if (imageUrl && imageUrl !== '/images/img1.png') {
+        setProfileImage(imageUrl)
+      } else {
+        setProfileImage(null)
+      }
+    } else {
+      setProfileImage(null)
     }
   }, [user])
 
@@ -294,7 +393,11 @@ export default function ProfilePage() {
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
           <div className="relative mx-auto h-28 w-28 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-full bg-white/10 backdrop-blur-sm border-4 border-white shadow-xl camera-menu-container">
             <div className="h-full w-full rounded-full overflow-hidden">
-              {profileImage ? (
+              {isUploadingImage ? (
+                <div className="h-full w-full flex items-center justify-center bg-white/5">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : profileImage ? (
                 <img
                   src={profileImage}
                   alt="Profile avatar"
@@ -310,15 +413,34 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={handleCameraClick}
-              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white/10 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10"
+              disabled={isUploadingImage}
+              className="absolute bottom-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white/10 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Change profile picture"
             >
               <IconCamera className="h-4 w-4" />
             </button>
             
+            {/* Delete button - visible when image exists (not default placeholder) */}
+            {((user?.profileImage || user?.profileImageUrl || profileImage) && 
+              (user?.profileImage !== '/images/img1.png' && user?.profileImageUrl !== '/images/img1.png' && profileImage !== '/images/img1.png')) && 
+              !isUploadingImage && (
+              <button
+                type="button"
+                onClick={handleDeleteProfileImage}
+                disabled={deleteProfileImage.isPending}
+                className="absolute top-1.5 right-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-white/10 h-7 w-7 shadow-lg hover:scale-110 transition-transform z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Remove profile picture"
+                title="Remove profile picture"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            
             {/* Camera menu dropdown */}
-            {showCameraMenu && (
-              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl border border-gray-400 dark:border-gray-600 py-2 min-w-[160px] z-20">
+            {showCameraMenu && !isUploadingImage && (
+              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl border border-gray-400 dark:border-gray-600 py-2 min-w-[180px] z-20">
                 <button
                   type="button"
                   onClick={handleCaptureImage}
@@ -335,6 +457,23 @@ export default function ProfilePage() {
                   <IconFolder className="h-4 w-4" />
                   Upload from Media
                 </button>
+                {((user?.profileImage || user?.profileImageUrl || profileImage) && 
+                  (user?.profileImage !== '/images/img1.png' && user?.profileImageUrl !== '/images/img1.png' && profileImage !== '/images/img1.png')) && (
+                  <>
+                    <div className="border-t border-gray-400 dark:border-gray-600 my-1"></div>
+                    <button
+                      type="button"
+                      onClick={handleDeleteProfileImage}
+                      disabled={deleteProfileImage.isPending}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Remove Image
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -342,9 +481,10 @@ export default function ProfilePage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
               className="hidden"
               onChange={handleFileChange}
+              disabled={isUploadingImage}
             />
           </div>
 
@@ -427,3 +567,4 @@ export default function ProfilePage() {
     </main>
   )
 }
+

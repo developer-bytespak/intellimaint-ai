@@ -46,6 +46,8 @@ interface UserContextType {
   loginUser: UseMutationResult<unknown, Error, {email:string,password:string}, unknown>;
   forgotPassword: UseMutationResult<unknown, Error, {email:string}, unknown>;
   resetPassword: UseMutationResult<unknown, Error, {email:string,otp:string,newPassword:string}, unknown>;
+  uploadProfileImage: UseMutationResult<{url: string, pathname: string}, Error, File, unknown>;
+  deleteProfileImage: UseMutationResult<{success: boolean, message: string}, Error, string, unknown>;
   logout: () => void;
 }
 
@@ -61,7 +63,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
-  const isPublicRoute = publicRoutes.some(route => pathname?.startsWith(route));
+  const isPublicRoute = pathname ? publicRoutes.some(route => pathname.startsWith(route)) : false;
 
   //* GOOGLE AUTH :
 
@@ -69,7 +71,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     mutationFn: async ({role,company}:{role:string,company:string}) => {
       const data = {role,company};
       console.log(data)
-      const res = router.push(`${baseURL.defaults.baseURL}/auth/google?role=${role}&company=${company}`);
+      const apiUrl = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
+      const res = router.push(`${apiUrl}/auth/google?role=${role}&company=${company}`);
       console.log(res)
     },
   });
@@ -96,7 +99,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
     },
-    enabled: !isPublicRoute, // Only fetch user profile if not on a public route
+    enabled: !!pathname && !isPublicRoute, // Only fetch user profile if pathname is available and not on a public route
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
@@ -298,12 +301,74 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         },
     });
 
+    //* UPLOAD PROFILE IMAGE :
+
+    const uploadProfileImage = useMutation({
+        mutationFn: async (file: File) => {
+            if (!userData?.id) {
+                throw new Error('User ID not available');
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('userId', userData.id);
+
+            const res = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.error || 'Failed to upload image');
+            }
+
+            const data = await res.json();
+            return data;
+        },
+        onSuccess: async (data) => {
+            // Update user profile with new image URL
+            await updateUser.mutateAsync({ profileImageUrl: data.url });
+        },
+    });
+
+    //* DELETE PROFILE IMAGE :
+
+    const deleteProfileImage = useMutation({
+        mutationFn: async (imageUrl: string) => {
+            const res = await fetch(`/api/delete-image?url=${encodeURIComponent(imageUrl)}`, {
+                method: 'DELETE',
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.error || 'Failed to delete image');
+            }
+
+            const data = await res.json();
+            return data;
+        },
+        onSuccess: async () => {
+            // Remove image URL from user profile
+            await updateUser.mutateAsync({ profileImageUrl: '' });
+            // Invalidate user query to refresh the UI immediately
+            queryClient.invalidateQueries({ queryKey: ["user"] });
+        },
+    });
+
     //* LOGOUT USER :
-    // Navigate to logout endpoint - backend will authenticate via JwtAuthGuard, clear cookies and redirect to /login
-    const logout = () => {
-        const apiUrl = baseURL.defaults.baseURL || "http://localhost:8000/api/v1";
-        // Navigate to logout endpoint - cookies are sent automatically, backend will redirect to /login
-        window.location.href = `${apiUrl}/auth/logout`;
+    // Call logout endpoint - backend will clear cookies and redirect to /login
+    const logout = async () => {
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
+            // Call logout endpoint - cookies are sent automatically, backend will redirect to /login
+            window.location.href = `${apiUrl}/auth/logout`;
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Fallback: clear client-side and redirect manually
+            queryClient.clear();
+            router.push('/login');
+        }
     };
 
     //* Memoize the context value to prevent unnecessary re-renders
@@ -330,7 +395,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           resendOtp,
           loginUser, 
           forgotPassword, 
-          resetPassword, 
+          resetPassword,
+          uploadProfileImage,
+          deleteProfileImage,
           logout 
         }}>
             {children}
