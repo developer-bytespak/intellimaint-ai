@@ -15,6 +15,7 @@ interface RecentHistoryProps {
   onTabChange: (tab: TabType) => void;
   onChatSelect: (chat: Chat) => void;
   onCreateNewChat: () => void;
+  onUpdateChat?: (chatId: string, updates: { title?: string }) => Promise<Chat | void>;
   onDeleteChat: (chatId: string) => void;
   onDeletePhoto: (photoId: string) => void;
   onViewPhoto: (photoId: string) => void;
@@ -37,6 +38,7 @@ export default function RecentHistory({
   onTabChange,
   onChatSelect,
   onCreateNewChat,
+  onUpdateChat,
   onDeleteChat,
   onDeletePhoto,
   onViewPhoto,
@@ -514,6 +516,7 @@ export default function RecentHistory({
               activeChat={activeChat}
               onChatSelect={onChatSelect}
               onCreateNewChat={onCreateNewChat}
+              onUpdateChat={onUpdateChat}
               onDeleteChat={handleDeleteChat}
               onLoadMore={onLoadMoreChats}
               hasMore={hasMoreChats}

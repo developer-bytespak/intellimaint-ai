@@ -24,6 +24,7 @@ function ChatPageContent() {
     selectChat,
     sendMessage,
     setActiveTab,
+    updateChat,
     deleteChat,
     deletePhoto,
     deleteDocument,
@@ -100,7 +101,7 @@ function ChatPageContent() {
       setIsSidebarOpen(false);
       // Create new chat when coming from recent-history
       if (!activeChat) {
-        createNewChat().catch(console.error);
+        createNewChat();
       }
     }
   }, [searchParams, createNewChat, activeChat]);
@@ -118,21 +119,19 @@ function ChatPageContent() {
   };
 
   const handleCreateNewChat = () => {
-    createNewChat().catch(console.error);
+    createNewChat();
     // Close sidebar on both mobile and desktop when creating new chat
     setCurrentView('chat');
     setIsSidebarOpen(false);
   };
 
-  const handleSendMessageFromWelcome = async (content: string, images?: string[], documents?: MessageDocument[]) => {
+  const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
     // Create new chat first if no active chat (without redirect)
     if (!activeChat) {
       // Create new chat without redirecting and get the new chat object
-      const newChat = await createNewChat(true); // Pass true to skip redirect
+      const newChat = createNewChat(true); // Pass true to skip redirect
       // Use the new chat directly to send message immediately
-      if (newChat) {
-        sendMessage(content, images, documents, newChat);
-      }
+      sendMessage(content, images, documents, newChat);
     } else {
       sendMessage(content, images, documents);
     }
@@ -225,6 +224,7 @@ function ChatPageContent() {
                 onTabChange={handleTabChange}
                 onChatSelect={handleChatSelect}
                 onCreateNewChat={handleCreateNewChat}
+                onUpdateChat={updateChat}
                 onDeleteChat={deleteChat}
                 onDeletePhoto={handleDeletePhoto}
                 onViewPhoto={handleViewPhoto}

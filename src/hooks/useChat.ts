@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { CONFIG } from '@/constants/config';
 import { chatApi } from '@/lib/api/chatApi';
+import { useUser } from '@/hooks/useUser';
 
 const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
 
@@ -25,6 +26,62 @@ export function useChat() {
   const searchParams = useSearchParams();
 
   const router = useRouter();
+  const { user } = useUser();
+
+  // Helper function to convert blob URL or data URL to File
+  const urlToFile = async (url: string, filename: string): Promise<File> => {
+    if (url.startsWith('data:')) {
+      // Data URL (base64)
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new File([blob], filename, { type: blob.type });
+    } else if (url.startsWith('blob:')) {
+      // Blob URL
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new File([blob], filename, { type: blob.type });
+    } else {
+      // Already a permanent URL, return as-is (shouldn't happen but handle it)
+      throw new Error('URL is already a permanent URL');
+    }
+  };
+
+  // Helper function to upload images to storage
+  const uploadImages = useCallback(async (imageUrls: string[]): Promise<string[]> => {
+    if (!user?.id) {
+      throw new Error('User ID not available');
+    }
+
+    const uploadPromises = imageUrls.map(async (url, index) => {
+      // If it's already a permanent URL (starts with http/https), return as-is
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+
+      // Convert to File
+      const file = await urlToFile(url, `chat-image-${Date.now()}-${index}.jpg`);
+
+      // Upload to storage
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user.id!);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload image');
+      }
+
+      const data = await response.json();
+      return data.url; // Return permanent URL
+    });
+
+    return Promise.all(uploadPromises);
+  }, [user?.id]);
 
   // Check if mobile view
   useEffect(() => {
@@ -90,68 +147,89 @@ export function useChat() {
   // Check URL params and set active chat from URL
   useEffect(() => {
     const chatId = searchParams.get('chat');
-    if (chatId && chats.length > 0) {
-      const chat = chats.find(c => c.id === chatId);
-      if (chat) {
-        // If chat is already loaded, use it
-        setActiveChat(chat);
-      } else {
-        // If chat is not in the list, fetch it (might be a deep link)
-        const loadChat = async () => {
-          try {
-            const fetchedChat = await chatApi.getSession(chatId);
-            setActiveChat(fetchedChat);
-            // Add to chats list if not already there
-            setChats(prev => {
-              const exists = prev.find(c => c.id === fetchedChat.id);
-              if (!exists) {
-                return [fetchedChat, ...prev];
-              }
-              return prev;
-            });
-          } catch (err: unknown) {
-            console.error('Error loading chat session:', err);
-            // If chat doesn't exist or access denied, clear the URL param
-            router.push('/chat');
-          }
-        };
-        loadChat();
+    if (chatId && chatId !== '') {
+      // Only load from URL if there's a valid chat ID (not empty)
+      // Don't override if we already have an active chat with empty ID (new chat)
+      if (activeChat && (!activeChat.id || activeChat.id === '')) {
+        // We have a new chat active, don't override it
+        return;
       }
-    } else if (!chatId && activeChat) {
-      // If URL param is cleared but we have an active chat, keep it
-      // Don't clear activeChat here
+      
+      if (chats.length > 0) {
+        const chat = chats.find(c => c.id === chatId);
+        if (chat) {
+          // If chat is already loaded, use it (only if it's different from current)
+          if (activeChat?.id !== chatId) {
+            setActiveChat(chat);
+          }
+        } else {
+          // If chat is not in the list, fetch it (might be a deep link)
+          const loadChat = async () => {
+            try {
+              const fetchedChat = await chatApi.getSession(chatId);
+              setActiveChat(fetchedChat);
+              // Add to chats list if not already there
+              setChats(prev => {
+                const exists = prev.find(c => c.id === fetchedChat.id);
+                if (!exists) {
+                  return [fetchedChat, ...prev];
+                }
+                return prev;
+              });
+            } catch (err: unknown) {
+              console.error('Error loading chat session:', err);
+              // If chat doesn't exist or access denied, clear the URL param
+              router.push('/chat');
+            }
+          };
+          loadChat();
+        }
+      }
+    } else if (!chatId && activeChat && activeChat.id && activeChat.id !== '') {
+      // URL has no chat param but we have an active chat with ID
+      // This shouldn't happen, but if it does, keep the active chat
     }
+    // If no chatId in URL and we have an active chat with no ID, that's fine (new chat)
   }, [searchParams, chats, router, activeChat]);
 
-  const createNewChat = useCallback(async (skipRedirect = false): Promise<Chat | null> => {
-    try {
-      setError(null);
-      // Remove any existing empty chats (chats with no messages) from local state
-      setChats(prev => prev.filter(chat => chat.messages.length > 0));
-      
-      const newChat = await chatApi.createSession();
-      
-      setChats(prev => [newChat, ...prev]);
-      setActiveChat(newChat);
-      
-      if (!skipRedirect) {
-        router.push(`/chat?chat=${newChat.id}`);
-      }
-      setActiveTab('chats');
-      return newChat;
-    } catch (err: unknown) {
-      console.error('Error creating chat session:', err);
-      const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(errorMessage || 'Failed to create chat session');
-      return null;
+  const createNewChat = useCallback((skipRedirect: boolean = false): Chat => {
+    // Create local chat state only (no API call, no ID, no URL change)
+    // Session will be created when first message is sent
+    const newChat: Chat = {
+      id: '', // Empty ID - will be set when session is created
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    // Remove any existing empty chats (chats with no ID or no messages)
+    setChats(prev => prev.filter(chat => chat.id && chat.messages.length > 0));
+    
+    setChats(prev => [newChat, ...prev]);
+    setActiveChat(newChat);
+    setActiveTab('chats');
+    
+    // Clear URL to prevent useEffect from loading old chat
+    if (!skipRedirect) {
+      router.push('/chat');
     }
+    
+    return newChat;
   }, [router]);
 
   const selectChat = useCallback(async (chat: Chat) => {
     try {
       setError(null);
-      // Clean up any empty chats when selecting a new chat
-      setChats(prev => prev.filter(c => c.messages.length > 0 || c.id === chat.id));
+      // Clean up any empty chats when selecting a real chat
+      setChats(prev => prev.filter(c => (c.id && c.id !== '') || c.id === chat.id));
+      
+      // If it's a new chat (no ID), just set it as active without fetching
+      if (!chat.id || chat.id === '') {
+        setActiveChat(chat);
+        setActiveTab('chats');
+        return;
+      }
       
       // Fetch full chat session with all messages
       const fullChat = await chatApi.getSession(chat.id);
@@ -177,45 +255,105 @@ export function useChat() {
   ) => {
     const chatToUse = chatOverride || activeChat;
     if (!chatToUse) {
-      // If no active chat, create a new one first
-      const newChat = await createNewChat(true);
-      if (!newChat) return;
+      // If no active chat, create a new one first (local only)
+      const newChat = createNewChat();
       return sendMessage(content, images, documents, newChat);
     }
 
     try {
       setError(null);
 
-      // Create message via API (only images are supported)
-      const newMessage = await chatApi.createMessage(chatToUse.id, {
-        content,
-        images,
-      });
-
-      // Update local state optimistically
-      const updatedChat = {
-        ...chatToUse,
-        messages: [...chatToUse.messages, newMessage],
-        updatedAt: new Date(),
-      };
-
-      // Update title if it was auto-generated (first message)
-      if (chatToUse.title === 'New Chat' && chatToUse.messages.length === 0) {
-        updatedChat.title = content.length > 50 ? content.substring(0, 50) + '...' : content;
+      // Upload images to storage first to get permanent URLs
+      let permanentImageUrls: string[] = [];
+      if (images && images.length > 0) {
+        try {
+          permanentImageUrls = await uploadImages(images);
+        } catch (uploadError) {
+          console.error('Error uploading images:', uploadError);
+          setError('Failed to upload images. Please try again.');
+          throw uploadError;
+        }
       }
 
+      // Check if this is a new chat (empty ID means it hasn't been saved to backend yet)
+      const isNewChat = !chatToUse.id || chatToUse.id === '';
+
+      // Create optimistic message for immediate display
+      const optimisticMessage: Message = {
+        id: `temp-msg-${Date.now()}`,
+        content,
+        role: 'user',
+        timestamp: new Date(),
+        images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
+      };
+
+      // Update local state optimistically (show message immediately)
+      const optimisticChat = {
+        ...chatToUse,
+        messages: [...chatToUse.messages, optimisticMessage],
+        updatedAt: new Date(),
+        title: chatToUse.title === 'New Chat' && chatToUse.messages.length === 0
+          ? (content.length > 50 ? content.substring(0, 50) + '...' : content)
+          : chatToUse.title,
+      };
+
       setChats(prev => prev.map(chat => 
-        chat.id === chatToUse.id ? updatedChat : chat
+        chat.id === chatToUse.id ? optimisticChat : chat
       ));
-      setActiveChat(updatedChat);
+      setActiveChat(optimisticChat);
+
+      // Create message via API (creates session if new chat)
+      let createdChat: Chat;
+      let createdMessage: Message;
+
+      if (isNewChat) {
+        // Create session + message in one call
+        const result = await chatApi.createMessageWithSession({
+          content,
+          images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
+        });
+        createdChat = result.chat;
+        createdMessage = result.message;
+      } else {
+        // Create message in existing session
+        createdMessage = await chatApi.createMessage(chatToUse.id, {
+          content,
+          images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
+        });
+        // Fetch updated session to get latest state
+        createdChat = await chatApi.getSession(chatToUse.id);
+      }
+
+      // Replace optimistic update with real data from API
+      const finalChat = {
+        ...createdChat,
+        messages: createdChat.messages,
+      };
+
+      // If this was a new chat (empty ID), replace it with the real chat from API
+      if (isNewChat) {
+        // Remove any chats with empty ID and add the new one with real ID
+        setChats(prev => {
+          const filtered = prev.filter(chat => chat.id && chat.id !== '');
+          return [finalChat, ...filtered];
+        });
+        // Update URL with real chat ID (first time URL is set)
+        router.push(`/chat?chat=${finalChat.id}`);
+      } else {
+        // Just update the existing chat
+        setChats(prev => prev.map(chat => 
+          chat.id === chatToUse.id ? finalChat : chat
+        ));
+      }
+      setActiveChat(finalChat);
 
       // Simulate AI response (this will be replaced with actual AI service later)
       setTimeout(() => {
         let aiResponse: Message;
 
-        const hasUserImages = images && images.length > 0;
+        const hasUserImages = permanentImageUrls.length > 0;
         const hasVoiceMessage = documents && documents.some(doc => doc.type === 'AUDIO');
-        const userMessageCount = updatedChat.messages.filter(m => m.role === 'user').length;
+        const userMessageCount = finalChat.messages.filter(m => m.role === 'user').length;
         
         const voiceResponse = `Technical Troubleshooting Mode (Advanced Users / Experts)
 ✔ Check these internal systems:
@@ -279,16 +417,16 @@ Try these steps and let me know what happens when you attempt to start it.`;
           };
         }
 
-        const finalChat = {
-          ...updatedChat,
-          messages: [...updatedChat.messages, aiResponse],
+        const chatWithAiResponse = {
+          ...finalChat,
+          messages: [...finalChat.messages, aiResponse],
           updatedAt: new Date()
         };
 
         setChats(prev => prev.map(chat => 
-          chat.id === chatToUse.id ? finalChat : chat
+          chat.id === finalChat.id ? chatWithAiResponse : chat
         ));
-        setActiveChat(finalChat);
+        setActiveChat(chatWithAiResponse);
       }, 1000);
     } catch (err: unknown) {
       console.error('Error sending message:', err);
@@ -325,6 +463,28 @@ Try these steps and let me know what happens when you attempt to start it.`;
   const cleanupEmptyChats = useCallback(() => {
     setChats(prev => prev.filter(chat => chat.messages.length > 0));
   }, []);
+
+  const updateChat = useCallback(async (chatId: string, updates: { title?: string; status?: 'active' | 'archived' | 'deleted' }) => {
+    try {
+      setError(null);
+      const updatedChat = await chatApi.updateSession(chatId, updates);
+      
+      // Update the chat in the list
+      setChats(prev => prev.map(chat => chat.id === chatId ? updatedChat : chat));
+      
+      // Update active chat if it's the one being updated
+      if (activeChat?.id === chatId) {
+        setActiveChat(updatedChat);
+      }
+      
+      return updatedChat;
+    } catch (err: unknown) {
+      console.error('Error updating chat:', err);
+      const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(errorMessage || 'Failed to update chat session');
+      throw err;
+    }
+  }, [activeChat]);
 
   const deleteChat = useCallback(async (chatId: string) => {
     try {
@@ -403,6 +563,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     setActiveTab,
     searchingofSpecificChat,
     cleanupEmptyChats,
+    updateChat,
     deleteChat,
     deletePhoto,
     deleteDocument,

@@ -38,11 +38,6 @@ interface ListSessionsResponse {
   };
 }
 
-interface CreateSessionDto {
-  title?: string;
-  equipmentContext?: string[];
-}
-
 interface UpdateSessionDto {
   title?: string;
   status?: 'active' | 'archived' | 'deleted';
@@ -88,12 +83,6 @@ function transformMessageToMessage(message: ApiChatMessage): Message {
 }
 
 export const chatApi = {
-  // Create a new chat session
-  createSession: async (dto?: CreateSessionDto): Promise<Chat> => {
-    const response = await baseURL.post<{ data: ApiChatSession }>('/chat/sessions', dto || {});
-    return transformSessionToChat(response.data.data);
-  },
-
   // List all chat sessions for the current user
   listSessions: async (query?: { page?: number; limit?: number; status?: string }): Promise<{
     chats: Chat[];
@@ -137,5 +126,20 @@ export const chatApi = {
       dto,
     );
     return transformMessageToMessage(response.data.data);
+  },
+
+  // Create a new message with a new session (for first message)
+  createMessageWithSession: async (dto: CreateMessageDto): Promise<{
+    chat: Chat;
+    message: Message;
+  }> => {
+    const response = await baseURL.post<{ data: { session: ApiChatSession; message: ApiChatMessage } }>(
+      '/chat/messages',
+      dto,
+    );
+    return {
+      chat: transformSessionToChat(response.data.data.session),
+      message: transformMessageToMessage(response.data.data.message),
+    };
   },
 };
