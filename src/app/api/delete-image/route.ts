@@ -21,8 +21,17 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Get blob token
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      return NextResponse.json(
+        { error: 'Blob storage token not configured' },
+        { status: 500 }
+      );
+    }
+
     // Delete from Vercel Blob
-    await del(url);
+    await del(url, { token: blobToken });
 
     return NextResponse.json({
       success: true,
