@@ -63,7 +63,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
-  const isPublicRoute = pathname ? publicRoutes.some(route => pathname.startsWith(route)) : false;
+  const isPublicRoute = pathname ? (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) : true;
 
   //* GOOGLE AUTH :
 

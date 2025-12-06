@@ -43,12 +43,26 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split('.').pop() || 'jpg';
-    const filename = `profile-images/${userId}/${timestamp}-${randomString}.${fileExtension}`;
+    
+    // Check if this is for chat (check if filename contains 'chat-image')
+    const isChatImage = file.name.includes('chat-image');
+    const folder = isChatImage ? 'chat-images' : 'profile-images';
+    const filename = `${folder}/${userId}/${timestamp}-${randomString}.${fileExtension}`;
+
+    // Get blob token
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!blobToken) {
+      return NextResponse.json(
+        { error: 'Blob storage token not configured' },
+        { status: 500 }
+      );
+    }
 
     // Upload to Vercel Blob
     const blob = await put(filename, file, {
       access: 'public',
       contentType: file.type,
+      token: blobToken,
     });
 
     return NextResponse.json({
