@@ -29,6 +29,21 @@ export default function LoginPage() {
         console.log('Login successful:', data);
         const response = data as IAxiosResponse;
         toast.success(response.message);
+        // Set a lightweight frontend cookie so Next.js middleware (running on Vercel)
+        // can detect that the user is authenticated. The backend should still
+        // set the httpOnly cookie for API requests; this client cookie is only
+        // used for routing decisions in middleware.
+        try {
+          // cookie applies to the frontend domain (Vercel). Use SameSite=None and Secure in prod.
+          const cookieValue = 'true';
+          const maxAge = 60 * 60 * 24 * 7; // 7 days
+          const sameSite = 'None';
+          const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+          document.cookie = `local_access=${cookieValue}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+        } catch (err) {
+          console.warn('Failed to set local_access cookie:', err);
+        }
+
         router.push('/chat');
       },
       onError: (error) => {
