@@ -7,19 +7,31 @@ import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
+import { useUpload, UploadResult } from '@/hooks/useUploadContext';
+import { toast } from 'react-toastify';
 
 interface MessageInputProps {
   onSendMessage: (content: string, images?: string[], documents?: MessageDocument[]) => void;
 }
 
+interface ImageWithStatus {
+  previewUrl: string; // blob: or data: URL for preview
+  uploadedUrl?: string; // Final uploaded URL
+  status: 'uploading' | 'uploaded' | 'error';
+  file: File;
+}
+
 export default function MessageInput({ onSendMessage }: MessageInputProps) {
   const [inputValue, setInputValue] = useState('');
   const [showPinMenu, setShowPinMenu] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<ImageWithStatus[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const { uploadFile, uploadMultipleFiles } = useUpload();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -38,9 +50,9 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
   // Cleanup object URLs when component unmounts
   useEffect(() => {
     return () => {
-      selectedImages.forEach(url => {
-        if (url && !url.startsWith('data:')) {
-          URL.revokeObjectURL(url);
+      selectedImages.forEach(img => {
+        if (img.previewUrl && !img.previewUrl.startsWith('data:')) {
+          URL.revokeObjectURL(img.previewUrl);
         }
       });
       selectedDocuments.forEach(doc => {
@@ -52,19 +64,80 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() && selectedImages.length === 0 && selectedDocuments.length === 0) return;
     
-    const imageDataUrls = selectedImages.map(url => {
-      if (url.startsWith('data:')) return url;
-      return url;
-    });
+    // Check if any images are still uploading
+    const hasUploadingImages = selectedImages.some(img => img.status === 'uploading');
+    if (hasUploadingImages) return; // Don't send if images are still uploading
     
-    onSendMessage(inputValue.trim(), imageDataUrls, selectedDocuments.length > 0 ? selectedDocuments : undefined);
+    // Check if any images failed to upload
+    const hasErrorImages = selectedImages.some(img => img.status === 'error');
+    if (hasErrorImages) {
+      toast.error('Some images failed to upload. Please remove them and try again.');
+      return;
+    }
+    
+    if (isUploading) return; // Prevent multiple submissions during upload
+    
+    // Store values before clearing
+    const messageContent = inputValue.trim();
+    const imagesToProcess = [...selectedImages];
+    const documentsToProcess = [...selectedDocuments];
+    
+    // Immediately clear input and selected files to go directly to chat
     setInputValue('');
     setSelectedImages([]);
     setSelectedDocuments([]);
+    
+    setIsUploading(true);
+    
+    try {
+      // Get uploaded image URLs (they should all be uploaded by now)
+      const uploadedImageUrls = imagesToProcess
+        .filter(img => img.status === 'uploaded' && img.uploadedUrl)
+        .map(img => img.uploadedUrl!);
+
+      // Upload documents that haven't been uploaded yet
+      const documentsToUpload: File[] = [];
+      const documentUrlMap: Map<string, File> = new Map();
+      
+      documentsToProcess.forEach((doc) => {
+        if (doc.url.startsWith('blob:') && doc.file) {
+          documentsToUpload.push(doc.file);
+          documentUrlMap.set(doc.url, doc.file);
+        }
+      });
+
+      let finalDocuments = documentsToProcess;
+      if (documentsToUpload.length > 0) {
+        const uploadResults = await uploadMultipleFiles.mutateAsync(documentsToUpload);
+
+        // Update document URLs
+        finalDocuments = documentsToProcess.map((doc) => {
+          if (doc.url.startsWith('blob:')) {
+            const fileIndex = documentsToUpload.findIndex(f => f === doc.file);
+            if (fileIndex !== -1 && uploadResults[fileIndex]?.success && uploadResults[fileIndex]?.url) {
+              URL.revokeObjectURL(doc.url);
+              return {
+                ...doc,
+                url: uploadResults[fileIndex].url!,
+              };
+            }
+          }
+          return doc;
+        });
+      }
+
+      // Now send the message with uploaded URLs
+      onSendMessage(messageContent, uploadedImageUrls, finalDocuments.length > 0 ? finalDocuments : undefined);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      toast.error('Failed to upload files. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleOpenGallery = () => {
@@ -79,34 +152,135 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
     setShowCamera(true);
   };
 
-  const handleCapturePhoto = (url: string) => {
-    setSelectedImages(prev => [...prev, url].slice(0, 10));
+  const handleCapturePhoto = async (url: string) => {
+    // If it's a data URL from camera, convert to File for immediate upload
+    if (url.startsWith('data:')) {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        
+        // Create a blob URL for preview
+        const blobUrl = URL.createObjectURL(file);
+        
+        // Add image with uploading status
+        const newImage: ImageWithStatus = {
+          previewUrl: blobUrl,
+          status: 'uploading',
+          file,
+        };
+        
+        setSelectedImages(prev => [...prev, newImage].slice(0, 10));
+        
+        // Upload immediately
+        uploadImageFile(newImage, prev => [...prev].slice(0, 10));
+      } catch (error) {
+        console.error('Error processing camera photo:', error);
+        toast.error('Failed to process camera photo');
+      }
+    } else {
+      // Already a blob URL or external URL - treat as already uploaded
+      const alreadyUploadedImage: ImageWithStatus = {
+        previewUrl: url,
+        uploadedUrl: url,
+        status: 'uploaded' as const,
+        file: new File([], 'image.jpg', { type: 'image/jpeg' }),
+      };
+      setSelectedImages(prev => [...prev, alreadyUploadedImage].slice(0, 10));
+    }
+  };
+  
+  // Helper function to upload a single image file
+  const uploadImageFile = async (image: ImageWithStatus, getUpdatedImages: (prev: ImageWithStatus[]) => ImageWithStatus[]) => {
+    try {
+      const result = await uploadFile.mutateAsync({ file: image.file });
+      
+      if (result.success && result.url) {
+        // Update the image status to uploaded
+        setSelectedImages(prev => {
+          const updated = prev.map(img => 
+            img.previewUrl === image.previewUrl
+              ? { ...img, uploadedUrl: result.url!, status: 'uploaded' as const }
+              : img
+          );
+          return getUpdatedImages(updated);
+        });
+        
+        // Revoke the blob URL since we now have the uploaded URL
+        if (image.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(image.previewUrl);
+        }
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      // Update the image status to error
+      setSelectedImages(prev => {
+        const updated = prev.map(img => 
+          img.previewUrl === image.previewUrl
+            ? { ...img, status: 'error' as const }
+            : img
+        );
+        return getUpdatedImages(updated);
+      });
+      toast.error('Failed to upload image. Please try again.');
+    }
   };
 
-  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newUrls: string[] = [];
+    
+    const newImages: ImageWithStatus[] = [];
+    
+    // Create temporary blob URLs for preview and upload immediately
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        newUrls.push(url);
+        const blobUrl = URL.createObjectURL(file);
+        
+        const newImage: ImageWithStatus = {
+          previewUrl: blobUrl,
+          status: 'uploading',
+          file,
+        };
+        
+        newImages.push(newImage);
       }
     }
-    setSelectedImages(prev => [...prev, ...newUrls].slice(0, 10));
+    
+    if (newImages.length === 0) {
+      e.target.value = '';
+      return;
+    }
+    
+    // Add images with uploading status for immediate preview
+    setSelectedImages(prev => {
+      const updated = [...prev, ...newImages].slice(0, 10);
+      return updated;
+    });
+    
     e.target.value = '';
+    
+    // Upload all images immediately
+    newImages.forEach((image) => {
+      uploadImageFile(image, prev => prev);
+    });
   };
 
-  const handleDocumentFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newDocuments: MessageDocument[] = [];
+    
+    const tempDocuments: MessageDocument[] = [];
+    
+    // Create temporary documents with blob URLs for preview
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type === 'application/pdf') {
         const url = URL.createObjectURL(file);
-        newDocuments.push({ file, url, type: 'PDF' });
+        tempDocuments.push({ file, url, type: 'PDF' });
       } else if (
         file.type === 'application/msword' ||
         file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -114,16 +288,27 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
         file.name.endsWith('.docx')
       ) {
         const url = URL.createObjectURL(file);
-        newDocuments.push({ file, url, type: 'DOC' });
+        tempDocuments.push({ file, url, type: 'DOC' });
       }
     }
-    setSelectedDocuments(prev => [...prev, ...newDocuments].slice(0, 5));
+    
+    if (tempDocuments.length === 0) {
+      e.target.value = '';
+      return;
+    }
+    
+    // Add temporary documents for immediate preview (will be uploaded on send)
+    setSelectedDocuments(prev => [...prev, ...tempDocuments].slice(0, 5));
     e.target.value = '';
+    
+    // DO NOT upload immediately - files will be uploaded when user clicks send
   };
 
   const removeImageAt = (index: number) => {
-    const url = selectedImages[index];
-    URL.revokeObjectURL(url);
+    const image = selectedImages[index];
+    if (image && image.previewUrl && image.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(image.previewUrl);
+    }
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -169,7 +354,8 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
       {...audioRecorder}
       inputValue={inputValue}
       setInputValue={setInputValue}
-      selectedImages={selectedImages}
+      selectedImages={selectedImages.map(img => img.previewUrl)}
+      selectedImagesWithStatus={selectedImages}
       selectedDocuments={selectedDocuments}
       showPinMenu={showPinMenu}
       setShowPinMenu={setShowPinMenu}
@@ -187,6 +373,7 @@ export default function MessageInput({ onSendMessage }: MessageInputProps) {
       removeImageAt={removeImageAt}
       removeDocumentAt={removeDocumentAt}
       isSending={isSending}
+      uploading={uploadFile.isPending || uploadMultipleFiles.isPending}
     />
   );
 }
@@ -203,6 +390,7 @@ function MessageInputContent({
   inputValue,
   setInputValue,
   selectedImages,
+  selectedImagesWithStatus,
   selectedDocuments,
   showPinMenu,
   setShowPinMenu,
@@ -220,6 +408,7 @@ function MessageInputContent({
   removeImageAt,
   removeDocumentAt,
   isSending,
+  uploading,
 }: {
   isRecording: boolean;
   recordingTime: number;
@@ -232,6 +421,7 @@ function MessageInputContent({
   inputValue: string;
   setInputValue: (value: string) => void;
   selectedImages: string[];
+  selectedImagesWithStatus: ImageWithStatus[];
   selectedDocuments: MessageDocument[];
   showPinMenu: boolean;
   setShowPinMenu: (show: boolean) => void;
@@ -249,10 +439,20 @@ function MessageInputContent({
   removeImageAt: (index: number) => void;
   removeDocumentAt: (index: number) => void;
   isSending: boolean;
+  uploading: boolean;
 }) {
   const isAudioActive = isRecording || !!audioUrl;
-  const isDisabled = isAudioActive || isSending;
+  const hasUploadingImages = selectedImagesWithStatus.some(img => img.status === 'uploading');
+  const isDisabled = isAudioActive || isSending || uploading || hasUploadingImages;
   // Wrapper function - yeh handleSendAudio ko wrap karta hai
+
+    const handleCallingFeature = (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      console.log("chal")
+    setShowPinMenu(false)
+
+    alert('Calling feature is not implemented yet.');
+  }
 
 
   return (
@@ -263,6 +463,7 @@ function MessageInputContent({
           {/* // TODO: User Show Image and Document Preview before sending the message ; */}
             <AttachmentPreview
               images={selectedImages}
+              imagesWithStatus={selectedImagesWithStatus}
               documents={selectedDocuments}
               onRemoveImage={removeImageAt}
               onRemoveDocument={removeDocumentAt}
@@ -283,20 +484,28 @@ function MessageInputContent({
               />}
             </div>
             
-            {/* Input Field - Disabled when audio is active or sending */}
+            {/* Input Field - Disabled when audio is active or sending or images uploading */}
             <div className="relative mb-3">
               <input
                 type="text"
                 value={inputValue || ''}
                 onChange={(e) => setInputValue(e.target.value || '')}
-                placeholder={isSending ? "Transcribing audio..." : isAudioActive ? "Recording audio..." : "Ask Intellimaint AI."}
+                placeholder={
+                  isSending 
+                    ? "Transcribing audio..." 
+                    : isAudioActive 
+                    ? "Recording audio..." 
+                    : hasUploadingImages
+                    ? "Uploading images..."
+                    : "Ask Intellimaint AI."
+                }
                 disabled={isDisabled}
                 className={`w-full max-w-full bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base py-2 pr-8 overflow-hidden text-ellipsis box-border ${
                   isDisabled ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               />
-              {/* Loader on right end when sending */}
-              {isSending && (
+              {/* Loader on right end when sending or uploading images */}
+              {(isSending || hasUploadingImages) && (
                 <div className="absolute right-2 top-1/2 -translate-y-1/2">
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                 </div>
@@ -333,11 +542,14 @@ function MessageInputContent({
                     </svg>
                   </button>
 
+                  {/* Phone Icon Mobile */}
+
                   <button
                     type="button"
                     disabled={isSending}
                     className={`p-2 hover:bg-[#3a4a5a] hover:text-white rounded-lg transition-all duration-200 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title="Call"
+                    onClick={() => alert('Calling feature is not implemented yet.')}
                   >
                     <svg className="w-5 h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -414,18 +626,20 @@ function MessageInputContent({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                         </button>
+
+                        {/* Phone Icon Desktop */}
                         
-                        <button
+                        {/* <button
                           type="button"
                           disabled={isSending}
                           className={`p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200 ${isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          onClick={() => setShowPinMenu(false)}
+                          onClick={(e) => {alert('Calling feature is not implemented yet.')}}
                           title="Call"
                         >
                           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
-                        </button>
+                        </button> */}
                         
                         <button
                           type="button"

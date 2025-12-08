@@ -544,6 +544,52 @@ Try these steps and let me know what happens when you attempt to start it.`;
     }
   };
 
+  const updateMessageUrls = useCallback((
+    chatId: string,
+    messageId: string,
+    images?: string[],
+    documents?: MessageDocument[]
+  ) => {
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId) {
+        return {
+          ...chat,
+          messages: chat.messages.map(msg => {
+            if (msg.id === messageId) {
+              return {
+                ...msg,
+                images: images || msg.images,
+                documents: documents || msg.documents,
+              };
+            }
+            return msg;
+          }),
+        };
+      }
+      return chat;
+    }));
+
+    // Update active chat if it's the one being updated
+    if (activeChat?.id === chatId) {
+      setActiveChat(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          messages: prev.messages.map(msg => {
+            if (msg.id === messageId) {
+              return {
+                ...msg,
+                images: images || msg.images,
+                documents: documents || msg.documents,
+              };
+            }
+            return msg;
+          }),
+        };
+      });
+    }
+  }, [activeChat]);
+
   const photoGroups = getPhotoGroups(photos);
 
   return {
@@ -568,6 +614,7 @@ Try these steps and let me know what happens when you attempt to start it.`;
     deletePhoto,
     deleteDocument,
     loadMoreChats,
-    textToSpeech
+    textToSpeech,
+    updateMessageUrls
   };
 }

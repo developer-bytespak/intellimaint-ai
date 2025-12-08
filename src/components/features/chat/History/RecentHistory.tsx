@@ -15,18 +15,11 @@ interface RecentHistoryProps {
   onTabChange: (tab: TabType) => void;
   onChatSelect: (chat: Chat) => void;
   onCreateNewChat: () => void;
-  onUpdateChat?: (chatId: string, updates: { title?: string }) => Promise<Chat | void>;
   onDeleteChat: (chatId: string) => void;
   onDeletePhoto: (photoId: string) => void;
   onViewPhoto: (photoId: string) => void;
   onDeleteDocument: (documentId: string) => void;
   onViewDocument: (documentId: string) => void;
-  onLoadMoreDocuments?: () => void;
-  hasMoreDocuments?: boolean;
-  isLoadingDocuments?: boolean;
-  onLoadMoreChats?: () => void;
-  hasMoreChats?: boolean;
-  isLoadingChats?: boolean;
 }
 
 export default function RecentHistory({
@@ -38,18 +31,11 @@ export default function RecentHistory({
   onTabChange,
   onChatSelect,
   onCreateNewChat,
-  onUpdateChat,
   onDeleteChat,
   onDeletePhoto,
   onViewPhoto,
   onDeleteDocument,
-  onViewDocument,
-  onLoadMoreDocuments,
-  hasMoreDocuments = false,
-  isLoadingDocuments = false,
-  onLoadMoreChats,
-  hasMoreChats = false,
-  isLoadingChats = false
+  onViewDocument
 }: RecentHistoryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
@@ -80,18 +66,11 @@ export default function RecentHistory({
     )
   })).filter(group => group.photos.length > 0);
 
-  // Handle view photo - find the photo and set it for overlay
-  const handleViewPhoto = (photoId: string) => {
-    // Find the photo in all photo groups
-    for (const group of photoGroups) {
-      const photo = group.photos.find(p => p.id === photoId);
-      if (photo) {
-        setViewingPhoto(photo);
-        break;
-      }
-    }
+  // Handle view photo - set it for overlay
+  const handleViewPhoto = (photo: Photo) => {
+    setViewingPhoto(photo);
     // Also call the original handler if needed
-    onViewPhoto(photoId);
+    onViewPhoto(photo.id);
   };
 
   // Handle delete photo - show confirmation dialog
@@ -146,13 +125,6 @@ export default function RecentHistory({
     // Find the document in the documents array
     const document = documents.find(doc => doc.id === documentId);
     if (document) {
-      // If document has a full URL (repository document), let parent handle it
-      if (document.url && document.url.startsWith('http')) {
-        // Repository document - let parent component handle overlay in main area
-        onViewDocument(documentId);
-        return;
-      }
-      // Otherwise, show overlay for chat documents in sidebar
       setViewingDocument(document);
     }
     // Also call the original handler if needed
@@ -446,7 +418,7 @@ export default function RecentHistory({
   };
 
   return (
-    <div className="bg-[#1f2632] text-white flex flex-col h-full min-h-0">
+    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="px-4 py-4 bg-transparent flex-shrink-0">
         <h1 className="text-lg font-bold text-center text-white">Recent History</h1>
@@ -516,11 +488,7 @@ export default function RecentHistory({
               activeChat={activeChat}
               onChatSelect={onChatSelect}
               onCreateNewChat={onCreateNewChat}
-              onUpdateChat={onUpdateChat}
               onDeleteChat={handleDeleteChat}
-              onLoadMore={onLoadMoreChats}
-              hasMore={hasMoreChats}
-              isLoading={isLoadingChats}
             />
           </div>
         )}
@@ -540,19 +508,17 @@ export default function RecentHistory({
             <DocumentsList
               documents={filteredDocuments}
               onViewDocument={handleViewDocument}
-              onLoadMore={onLoadMoreDocuments}
-              hasMore={hasMoreDocuments}
-              isLoading={isLoadingDocuments}
             />
           </div>
         )}
       </div>
 
-      {/* Photo Overlay - Constrained to menu bar width */}
+      {/* Photo Overlay - Full Screen */}
       {viewingPhoto && (
         <div 
-          className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[9999] flex items-center justify-center p-4"
           onClick={() => setViewingPhoto(null)}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}
         >
           <div 
             className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-full max-h-full"
@@ -573,7 +539,7 @@ export default function RecentHistory({
             {/* Photo */}
             <div className="p-4">
               <img
-                src={getPhotoImageUrl(viewingPhoto, 0)}
+                src={viewingPhoto.url || getPhotoImageUrl(viewingPhoto, 0)}
                 alt={viewingPhoto.filename || 'Photo'}
                 className="w-full h-auto max-h-[calc(90vh-180px)] object-contain rounded-lg"
                 onError={(e) => {
@@ -700,114 +666,75 @@ export default function RecentHistory({
               </div>
 
               {/* Document Content Preview */}
-              <div className="bg-[#2a3441] rounded-lg p-6 min-h-[400px] max-h-[calc(90vh-300px)] overflow-hidden flex flex-col">
-                {viewingDocument.url && viewingDocument.url.startsWith('http') ? (
-                  // Repository document - show PDF in iframe
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex-1 bg-black rounded-lg overflow-hidden">
-                      <iframe
-                        src={`${viewingDocument.url}#toolbar=1`}
-                        className="w-full h-full min-h-[500px]"
-                        title={viewingDocument.title}
-                      />
+              <div className="bg-[#2a3441] rounded-lg p-6 min-h-[400px] max-h-[calc(90vh-300px)] overflow-y-auto">
+                {(() => {
+                  const docContent = getDocumentContent(viewingDocument);
+                  return (
+                    <div className="space-y-4">
+                      <div className="border-b border-[#3a4a5a] pb-3">
+                        <h4 className="text-white text-lg font-semibold mb-2">{docContent.title}</h4>
+                      </div>
+                      <div className="text-white text-sm leading-relaxed space-y-2">
+                        {docContent.content.map((line, index) => {
+                          if (line.startsWith('**') && line.endsWith('**')) {
+                            // Bold text
+                            const text = line.slice(2, -2);
+                            return (
+                              <p key={index} className="font-semibold text-base mt-4 mb-2">
+                                {text}
+                              </p>
+                            );
+                          } else if (line.startsWith('•') || line.startsWith('☐') || line.startsWith('✓') || line.startsWith('⚠')) {
+                            // List item
+                            return (
+                              <p key={index} className="ml-4 text-gray-300">
+                                {line}
+                              </p>
+                            );
+                          } else if (line.trim() === '') {
+                            // Empty line
+                            return <div key={index} className="h-2" />;
+                          } else {
+                            // Regular text
+                            return (
+                              <p key={index} className="text-gray-300">
+                                {line}
+                              </p>
+                            );
+                          }
+                        })}
+                      </div>
+                      <div className="mt-6 pt-4 border-t border-[#3a4a5a]">
+                        <button
+                          onClick={() => {
+                            // Create a blob with dummy content based on document type
+                            const docContent = getDocumentContent(viewingDocument);
+                            const content = docContent.content.join('\n');
+                            const blob = new Blob([content], { 
+                              type: viewingDocument.type === 'PDF' ? 'application/pdf' : 
+                                    viewingDocument.type === 'PPT' ? 'application/vnd.ms-powerpoint' : 
+                                    'application/msword' 
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `${viewingDocument.title}.${viewingDocument.type.toLowerCase()}`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download Document
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-[#3a4a5a] flex items-center justify-between">
-                      <a
-                        href={viewingDocument.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        Open in New Tab
-                      </a>
-                      <a
-                        href={viewingDocument.url}
-                        download={viewingDocument.title}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors duration-200"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  // Chat document - show mock content
-                  <div className="overflow-y-auto">
-                    {(() => {
-                      const docContent = getDocumentContent(viewingDocument);
-                      return (
-                        <div className="space-y-4">
-                          <div className="border-b border-[#3a4a5a] pb-3">
-                            <h4 className="text-white text-lg font-semibold mb-2">{docContent.title}</h4>
-                          </div>
-                          <div className="text-white text-sm leading-relaxed space-y-2">
-                            {docContent.content.map((line, index) => {
-                              if (line.startsWith('**') && line.endsWith('**')) {
-                                // Bold text
-                                const text = line.slice(2, -2);
-                                return (
-                                  <p key={index} className="font-semibold text-base mt-4 mb-2">
-                                    {text}
-                                  </p>
-                                );
-                              } else if (line.startsWith('•') || line.startsWith('☐') || line.startsWith('✓') || line.startsWith('⚠')) {
-                                // List item
-                                return (
-                                  <p key={index} className="ml-4 text-gray-300">
-                                    {line}
-                                  </p>
-                                );
-                              } else if (line.trim() === '') {
-                                // Empty line
-                                return <div key={index} className="h-2" />;
-                              } else {
-                                // Regular text
-                                return (
-                                  <p key={index} className="text-gray-300">
-                                    {line}
-                                  </p>
-                                );
-                              }
-                            })}
-                          </div>
-                          <div className="mt-6 pt-4 border-t border-[#3a4a5a]">
-                            <button
-                              onClick={() => {
-                                // Create a blob with dummy content based on document type
-                                const docContent = getDocumentContent(viewingDocument);
-                                const content = docContent.content.join('\n');
-                                const blob = new Blob([content], { 
-                                  type: viewingDocument.type === 'PDF' ? 'application/pdf' : 
-                                        viewingDocument.type === 'PPT' ? 'application/vnd.ms-powerpoint' : 
-                                        'application/msword' 
-                                });
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `${viewingDocument.title}.${viewingDocument.type.toLowerCase()}`;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(url);
-                              }}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Download Document
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -884,4 +811,3 @@ export default function RecentHistory({
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 'use client';
 
+import { UploadProvider } from '@/hooks/useUploadContext';
 import { UserProvider } from '@/hooks/useUser';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -22,6 +23,7 @@ export function ProvidersContext({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
+        <UploadProvider>
         {children}
         <ToastContainer
           position="bottom-right"
@@ -36,6 +38,7 @@ export function ProvidersContext({ children }: { children: React.ReactNode }) {
           theme="dark"
           toastClassName="custom-toast"
         />
+        </UploadProvider>
       </UserProvider>
     </QueryClientProvider>
   );
