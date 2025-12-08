@@ -1,5 +1,5 @@
 // UserContext.tsx
-import baseURL from "@/lib/api/axios";
+import baseURL, { API_BASE } from "@/lib/api/axios";
 import { useMutation, UseMutationResult, useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 // import { Session } from "next-auth";
@@ -71,8 +71,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     mutationFn: async ({role,company}:{role:string,company:string}) => {
       const data = {role,company};
       console.log(data)
-      const apiUrl = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
-      const res = router.push(`${apiUrl}/auth/google?role=${role}&company=${company}`);
+      const res = router.push(`${API_BASE}/auth/google?role=${role}&company=${company}`);
       console.log(res)
     },
   });
@@ -360,9 +359,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Call logout endpoint - backend will clear cookies and redirect to /login
     const logout = async () => {
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
             // Call logout endpoint - cookies are sent automatically, backend will redirect to /login
-            window.location.href = `${apiUrl}/auth/logout`;
+              window.location.href = `${API_BASE}/auth/logout`;
         } catch (error) {
             console.error('Logout error:', error);
             // Fallback: clear client-side and redirect manually

@@ -1,11 +1,20 @@
 import axios from "axios";
 
-// Prefer environment variable `NEXT_PUBLIC_NEST_URL` when available,
-// otherwise fall back to the local development backend.
-const API_BASE_URL = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
+// Normalize base URL so it ALWAYS points to the API base that includes `/api/v1`.
+// If NEXT_PUBLIC_NEST_URL already contains `/api/v1`, we use it as-is (trim trailing slash).
+// Otherwise we append `/api/v1` to the provided origin or fallback local host.
+const rawEnv = process.env.NEXT_PUBLIC_NEST_URL || "";
+function buildApiBase(raw: string) {
+  const trimmed = raw.replace(/\/$/, '');
+  if (trimmed === '') return 'http://localhost:3000/api/v1';
+  if (trimmed.includes('/api/v1')) return trimmed.replace(/\/$/, '');
+  return `${trimmed}/api/v1`;
+}
+
+export const API_BASE = buildApiBase(rawEnv);
 
 const baseURL = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",

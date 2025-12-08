@@ -1,8 +1,9 @@
 import { put } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { API_BASE } from '@/lib/api/axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_NEST_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = API_BASE;
 
 export async function POST(request: NextRequest) {
   try {
