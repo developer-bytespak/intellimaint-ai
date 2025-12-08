@@ -78,7 +78,7 @@ export default function LoginPage() {
         {/* Login Form */}
         <div className="w-full max-w-sm sm:max-w-md space-y-6">
           {/* Email Field */}
-          <form >
+          <form onSubmit={(e) => e.preventDefault()}>
           <div>
             <label
              htmlFor="email"
@@ -161,7 +161,7 @@ export default function LoginPage() {
 
           {/* Sign In Button */}
           <button 
-          type="submit"
+          type="button"
             onClick={handleSignIn}
             disabled={loginUser.isPending}
             className="w-full bg-[#2196F3] text-white font-semibold py-3 rounded-3xl hover:bg-blue-600 transition-colors"
