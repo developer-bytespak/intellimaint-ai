@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
     // Get blob token
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     if (!blobToken) {
