@@ -1,4 +1,3 @@
-import { put } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -58,7 +57,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob (dynamic import so build doesn't fail if package is missing)
+    const { put } = await import('@vercel/blob');
     const blob = await put(filename, file, {
       access: 'public',
       contentType: file.type,

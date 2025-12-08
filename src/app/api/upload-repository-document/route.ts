@@ -1,4 +1,3 @@
-import { put } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { API_BASE } from '@/lib/api/axios';
@@ -80,7 +79,8 @@ export async function POST(request: NextRequest) {
     const fileExtension = file.name.split('.').pop() || 'pdf';
     const filename = `repositories/${userId}/${timestamp}-${randomString}.${fileExtension}`;
 
-    // Upload to Vercel Blob
+    // Upload to Vercel Blob (dynamic import)
+    const { put } = await import('@vercel/blob');
     const blob = await put(filename, file, {
       access: 'public',
       contentType: file.type,

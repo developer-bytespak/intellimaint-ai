@@ -1,4 +1,3 @@
-import { del } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function DELETE(request: NextRequest) {
@@ -30,7 +29,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete from Vercel Blob
+    // Delete from Vercel Blob (dynamic import)
+    const { del } = await import('@vercel/blob');
     await del(url, { token: blobToken });
 
     return NextResponse.json({

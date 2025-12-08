@@ -248,14 +248,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const signUpUser = useMutation({
         mutationFn: async (data: RegisterFormData) => {
             console.log(data)
-            // your signup logic here
-            // Clear the frontend cookie used by middleware before redirecting
-            try {
-              document.cookie = 'local_access=; Path=/; Max-Age=0; SameSite=None;';
-            } catch (e) {
-              // ignore in non-browser contexts
-            }
-            window.location.href = `${apiUrl}/auth/logout`;
+            // signup logic
+            const res = await baseURL.post('/auth/register', data);
             return res?.data;
         },
     });
