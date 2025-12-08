@@ -96,9 +96,17 @@ export const chatApi = {
     const response = await baseURL.get<{ data: ListSessionsResponse }>('/chat/sessions', {
       params: query,
     });
+    // Defensive checks: ensure the backend returned the expected shape
+    const body = response?.data?.data as ListSessionsResponse | undefined;
+    if (!body || !Array.isArray(body.sessions)) {
+      console.error('Unexpected listSessions response shape:', response);
+      // Throw a clear error so callers can handle it instead of crashing on undefined
+      throw new Error('Invalid response from listSessions: missing sessions');
+    }
+
     return {
-      chats: response.data.data.sessions.map(transformSessionToChat),
-      pagination: response.data.data.pagination,
+      chats: body.sessions.map(transformSessionToChat),
+      pagination: body.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 },
     };
   },
 

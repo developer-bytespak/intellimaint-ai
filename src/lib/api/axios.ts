@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// Prefer environment variable `NEXT_PUBLIC_NEST_URL` when available,
+// otherwise fall back to the local development backend.
+const API_BASE_URL = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
+
 const baseURL = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_NEST_URL! || "http://localhost:3000/api/v1",
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
