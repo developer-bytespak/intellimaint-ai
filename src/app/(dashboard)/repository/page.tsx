@@ -85,7 +85,8 @@ export default function RepositoryPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { uploadDocument, deleteDocument,extractDocument } = useRepository()
+  const uploadTriggeredRef = useRef<boolean>(false)
+  const { uploadDocument, deleteDocument, extractDocument, getFileForJob, clearFileForJob } = useRepository()
   
   // Fetch documents from API with pagination (10 per page)
   const { data: documentsData, isLoading: isLoadingDocuments } = useDocuments(currentPage, 10)
@@ -98,10 +99,16 @@ export default function RepositoryPage() {
     if (typeof window !== 'undefined') {
       const storedJobId = sessionStorage.getItem(STORAGE_KEY)
       const storedFileName = sessionStorage.getItem(`${STORAGE_KEY}-filename`)
+      const storedUploadTriggered = sessionStorage.getItem(`${STORAGE_KEY}-uploadTriggered`)
+      
       if (storedJobId) {
         setActiveJobId(storedJobId)
         if (storedFileName) {
           setFileName(storedFileName)
+        }
+        // Restore upload trigger state
+        if (storedUploadTriggered === 'true') {
+          uploadTriggeredRef.current = true
         }
       }
     }
@@ -109,19 +116,23 @@ export default function RepositoryPage() {
   
   // Track extraction progress at the top level (hooks must be called at top level)
   const { data: extractionProgress, error: extractionError } = useExtractionProgress(activeJobId, !!activeJobId)
-
+  if(extractionProgress?.status === "completed"){
+    console.log('extractionProgress', extractionProgress.data);
+  }
   // Calculate progress percentage (handle both decimal 0-1 and percentage 0-100 formats)
-  const progressPercentage = extractionProgress?.progress !== undefined
-    ? Math.round(extractionProgress.progress > 1 ? extractionProgress.progress : extractionProgress.progress * 100)
-    : extractionProgress?.percentage !== undefined
-    ? Math.round(extractionProgress.percentage > 1 ? extractionProgress.percentage : extractionProgress.percentage * 100)
-    : extractionProgress?.status === 'completed' 
-    ? 100 
-    : extractionProgress?.status === 'failed' 
-    ? 0 
-    : activeJobId && !extractionProgress
-    ? 0 // Starting, show 0%
-    : 0
+  const progressPercentage = Math.min(100, Math.max(0, 
+    extractionProgress?.progress !== undefined
+      ? Math.round(extractionProgress.progress > 1 ? extractionProgress.progress : extractionProgress.progress * 100)
+      : extractionProgress?.percentage !== undefined
+      ? Math.round(extractionProgress.percentage > 1 ? extractionProgress.percentage : extractionProgress.percentage * 100)
+      : extractionProgress?.status === 'completed' 
+      ? 100 
+      : extractionProgress?.status === 'failed' 
+      ? 0 
+      : activeJobId && !extractionProgress
+      ? 0 // Starting, show 0%
+      : 0
+  ))
 
   // Show error toast if extraction fails
   useEffect(() => {
@@ -136,33 +147,79 @@ export default function RepositoryPage() {
     }
   }, [extractionError])
 
-  // Clear active job ID when extraction completes or fails
+  // When extraction completes, automatically upload the document
   useEffect(() => {
-    if (extractionProgress?.status === 'completed') {
-      toast.success('Document extraction completed successfully!')
-      // Clear after a short delay to allow UI to show final state
-      const timer = setTimeout(() => {
+    if (extractionProgress?.status === 'completed' && !uploadTriggeredRef.current && activeJobId) {
+      // Mark as triggered to prevent multiple uploads
+      uploadTriggeredRef.current = true
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`${STORAGE_KEY}-uploadTriggered`, 'true')
+      }
+      
+      // Get the original file that was extracted (from global storage)
+      const fileToUpload = getFileForJob(activeJobId)
+      
+      if (fileToUpload) {
+        // Automatically trigger uploadDocument mutation
+        uploadDocument.mutate(fileToUpload, {
+          onSuccess: () => {
+            // Clear job ID and file references after successful upload
+            setActiveJobId(null)
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem(STORAGE_KEY)
+              sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+            }
+            setFileName('')
+            clearFileForJob(activeJobId)
+            uploadTriggeredRef.current = false
+          },
+          onError: () => {
+            // Keep job ID on error so user can see what happened
+            // Clear after a delay
+            setTimeout(() => {
+              setActiveJobId(null)
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem(STORAGE_KEY)
+                sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+                sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+              }
+              setFileName('')
+              clearFileForJob(activeJobId)
+              uploadTriggeredRef.current = false
+            }, 3000)
+          },
+        })
+      } else {
+        // If no file found, just clear the job ID
+        console.warn('No file found to upload after extraction completion')
         setActiveJobId(null)
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem(STORAGE_KEY)
           sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+          sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
         }
         setFileName('')
-      }, 2000)
-      return () => clearTimeout(timer)
+        clearFileForJob(activeJobId)
+        uploadTriggeredRef.current = false
+      }
     } else if (extractionProgress?.status === 'failed') {
       toast.error('Document extraction failed. Please try again.')
+      const failedJobId = activeJobId
       setActiveJobId(null)
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem(STORAGE_KEY)
         sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+        sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
       }
       setFileName('')
+      clearFileForJob(failedJobId)
+      uploadTriggeredRef.current = false
     }
-  }, [extractionProgress?.status])
+  }, [extractionProgress?.status, uploadDocument, activeJobId, getFileForJob, clearFileForJob])
 
   // Show progress modal if extraction is in progress
-  const isExtracting = activeJobId && 
+  const isExtracting = !!activeJobId && 
     extractionProgress?.status !== 'completed' && 
     extractionProgress?.status !== 'failed' &&
     !extractionError
@@ -241,18 +298,22 @@ export default function RepositoryPage() {
 
           // Upload to server (which handles blob upload and DB save)
           const extractionJobId = await extractDocument.mutateAsync(item.file)
-          console.log('extractionJobId', extractionJobId);
+          // console.log('extractionJobId', extractionJobId);
+          // Reset upload trigger flag for new extraction
+          uploadTriggeredRef.current = false
           // Set the active job ID to track progress (hook will automatically start polling)
           if (extractionJobId?.job_id) {
             setActiveJobId(extractionJobId.job_id)
             setFileName(item.name)
+            // File is already stored in global storage by extractDocument mutation
             // Store in sessionStorage for persistence across navigation (clears on tab close)
             if (typeof window !== 'undefined') {
               sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
               sessionStorage.setItem(`${STORAGE_KEY}-filename`, item.name)
+              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`) // Reset for new extraction
             }
           }
-          // await uploadDocument.mutateAsync(item.file)
+          // Note: uploadDocument will be automatically called when extraction completes
 
           // Simulate progress: 30-100% (completing)
           for (let progress = 30; progress <= 100; progress += 10) {
@@ -280,12 +341,6 @@ export default function RepositoryPage() {
       // Clear selected files and switch to repository view
       // Note: Don't clear activeJobId here - extraction might still be in progress
       // It will be cleared automatically when extraction completes or fails
-      setTimeout(() => {
-        setSelectedFiles([])
-        toast.success('Files uploaded successfully!')
-        setView('repository')
-        setCurrentPage(1) // Reset to first page after upload
-      }, 500)
     } catch (error) {
       console.error('Upload error:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to upload files')
@@ -363,54 +418,6 @@ export default function RepositoryPage() {
 
   return (
     <main className="min-h-screen bg-[#1f2632] text-white">
-      {/* Progress Modal with Blur Background */}
-      {isExtracting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Blur Background */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-          
-          {/* Progress Modal */}
-          <div className="relative z-10 bg-[#1f2632] border border-white/20 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-            <div className="text-center mb-6">
-              <h3 className="text-xl font-semibold text-white mb-2">
-                Extracting Document
-              </h3>
-              <p className="text-white/70 text-sm truncate" title={fileName}>
-                {fileName || 'Processing...'}
-              </p>
-            </div>
-            
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-white/70 text-sm">Progress</span>
-                <span className="text-white font-semibold text-sm">
-                  {progressPercentage}%
-                </span>
-              </div>
-              
-              {/* Progress Bar Container */}
-              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-300 ease-out rounded-full"
-                  style={{ width: `${progressPercentage}%` }}
-                />
-              </div>
-            </div>
-            
-            {/* Status Text */}
-            <div className="text-center">
-              <p className="text-white/50 text-xs">
-                {extractionProgress?.status === 'processing' 
-                  ? 'Processing your document...' 
-                  : extractionProgress?.status === 'extracting'
-                  ? 'Extracting content...'
-                  : 'Please wait...'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
@@ -460,8 +467,12 @@ export default function RepositoryPage() {
           {view === 'upload' ? (
             <>
               {/* Upload Grid */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="relative mb-6">
+                <div className="grid grid-cols-3 gap-3">
                 {slots.map(({ index, file }) => {
+                  // Check if this file is being extracted
+                  const isThisFileExtracting = isExtracting && file && file.name === fileName
+                  
                   if (file) {
                     // Render filled slot with file
                     return (
@@ -469,6 +480,60 @@ export default function RepositoryPage() {
                         key={file.id}
                         className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 border-white/10"
                       >
+                        {/* Progress Overlay - Only on this specific file block */}
+                        {isThisFileExtracting && (
+                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
+                            {/* Circular Progress Bar */}
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="relative w-24 h-24 flex items-center justify-center mb-2">
+                                {/* Background Circle */}
+                                <svg 
+                                  className="transform -rotate-90 w-full h-full" 
+                                  viewBox="0 0 100 100"
+                                  style={{ width: '96px', height: '96px' }}
+                                >
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    stroke="rgba(255, 255, 255, 0.1)"
+                                    strokeWidth="8"
+                                    fill="none"
+                                  />
+                                  {/* Progress Circle */}
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    stroke="#22c55e"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    className="transition-all duration-1000 ease-out"
+                                    style={{
+                                      strokeDasharray: '282.743',
+                                      strokeDashoffset: `${282.743 * (1 - progressPercentage / 100)}`
+                                    }}
+                                  />
+                                </svg>
+                                {/* Percentage Text */}
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <span className="text-2xl font-bold text-green-500">
+                                    {progressPercentage}%
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Status Text */}
+                              <p className="text-white/70 text-xs text-center px-2">
+                                {extractionProgress?.status === 'processing' 
+                                  ? 'Processing...' 
+                                  : extractionProgress?.status === 'extracting'
+                                  ? 'Extracting...'
+                                  : 'Please wait...'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                         {/* PDF icon */}
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-4">
                           <svg className="w-12 h-12 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -486,7 +551,7 @@ export default function RepositoryPage() {
                             e.stopPropagation()
                             removeSelectedFile(file.id)
                           }}
-                          className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-10"
+                          className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-50"
                           aria-label="Remove file"
                         >
                           <IconX className="h-4 w-4 text-white" />
@@ -514,6 +579,7 @@ export default function RepositoryPage() {
                     )
                   }
                 })}
+                </div>
               </div>
 
               {/* Send Button */}
