@@ -54,7 +54,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userData = await userResponse.json();
+    let userData;
+    try {
+      const contentType = userResponse.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        userData = await userResponse.json();
+      } else {
+        console.error('User profile response is not JSON:', await userResponse.text());
+        return NextResponse.json(
+          { error: 'Invalid response from authentication service' },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('Error parsing user profile response:', error);
+      return NextResponse.json(
+        { error: 'Failed to parse authentication response' },
+        { status: 500 }
+      );
+    }
     const userId = userData?.data?.id || userData?.id;
 
     if (!userId) {
@@ -64,6 +82,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
     // Get blob token
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     if (!blobToken) {
@@ -72,6 +91,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    console.log('blobToken', blobToken);
 
     // Generate unique filename
     const timestamp = Date.now();
@@ -86,6 +107,8 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
       token: blobToken,
     });
+
+    console.log('blob', blob);
 
     // Save document metadata to backend
     const documentResponse = await fetch(`${API_BASE_URL}/repository/documents`, {
@@ -114,14 +137,44 @@ export async function POST(request: NextRequest) {
         console.error('Failed to delete blob after DB save failure:', deleteError);
       }
 
-      const errorData = await documentResponse.json().catch(() => ({}));
+      let errorData: { message?: string; error?: string } = {};
+      try {
+        const contentType = documentResponse.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await documentResponse.json();
+        } else {
+          const text = await documentResponse.text();
+          console.error('Document save response is not JSON:', text);
+        }
+      } catch (error) {
+        console.error('Error parsing document save error response:', error);
+      }
       return NextResponse.json(
-        { error: errorData.message || 'Failed to save document metadata' },
+        { error: errorData.message || errorData.error || 'Failed to save document metadata' },
         { status: documentResponse.status }
       );
     }
 
-    const documentData = await documentResponse.json();
+    let documentData;
+    try {
+      const contentType = documentResponse.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        documentData = await documentResponse.json();
+      } else {
+        const text = await documentResponse.text();
+        console.error('Document save response is not JSON:', text);
+        return NextResponse.json(
+          { error: 'Invalid response from document service' },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('Error parsing document save response:', error);
+      return NextResponse.json(
+        { error: 'Failed to parse document save response' },
+        { status: 500 }
+      );
+    }
     const document = documentData?.data?.documents?.[0] || documentData?.documents?.[0];
 
     return NextResponse.json({

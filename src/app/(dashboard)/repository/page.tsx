@@ -1,10 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
-import { useRepository, useDocuments, RepositoryDocument } from "@/hooks/useRepository"
+import { useRepository, useDocuments, RepositoryDocument, useExtractionProgress, backgroundProcessingManager } from "@/hooks/useRepository"
+import { useQueryClient } from '@tanstack/react-query'
 
 // Icon Components
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
@@ -75,19 +76,494 @@ interface UploadedItem {
   blobPath?: string
 }
 
+const STORAGE_KEY = 'repository-extraction-job-id' // Using sessionStorage so it clears on tab close
+const STORAGE_QUEUE_KEY = 'repository-processing-queue' // Store processing queue metadata
+const STORAGE_SELECTED_FILES_KEY = 'repository-selected-files' // Store selected files metadata
+
 export default function RepositoryPage() {
   const router = useRouter()
   const [view, setView] = useState<'upload' | 'repository'>('upload')
   const [selectedFiles, setSelectedFiles] = useState<UploadedItem[]>([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [fileName, setFileName] = useState<string>('')
+  const [processingQueue, setProcessingQueue] = useState<UploadedItem[]>([])
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const [isUploading, setIsUploading] = useState(false) // Track upload status
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { uploadDocument, deleteDocument } = useRepository()
+  const uploadTriggeredRef = useRef<boolean>(false)
+  const processNextFileRef = useRef<(() => Promise<void>) | null>(null)
+  const isInitialMountRef = useRef(true)
+  const { uploadDocument, deleteDocument, extractDocument, getFileForJob, clearFileForJob, storeFileByFileId, getFileByFileId } = useRepository()
+  const queryClient = useQueryClient()
   
   // Fetch documents from API with pagination (10 per page)
   const { data: documentsData, isLoading: isLoadingDocuments } = useDocuments(currentPage, 10)
   const uploadedItems: RepositoryDocument[] = documentsData?.documents || []
   const pagination = documentsData?.pagination
   const totalPages = pagination?.totalPages || 1
+  
+  // Restore state from sessionStorage on mount and resume background polling
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Restore job ID and file name
+      const storedJobId = sessionStorage.getItem(STORAGE_KEY)
+      const storedFileName = sessionStorage.getItem(`${STORAGE_KEY}-filename`)
+      const storedUploadTriggered = sessionStorage.getItem(`${STORAGE_KEY}-uploadTriggered`)
+      
+      if (storedJobId) {
+        setActiveJobId(storedJobId)
+        if (storedFileName) {
+          setFileName(storedFileName)
+        }
+        // Restore upload trigger state
+        if (storedUploadTriggered === 'true') {
+          uploadTriggeredRef.current = true
+        }
+      }
+      
+      // Restore processing queue and file objects
+      const restoreQueueWithFiles = async () => {
+        try {
+          const storedQueue = sessionStorage.getItem(STORAGE_QUEUE_KEY)
+          if (storedQueue) {
+            const queueMetadata: Array<{id: string, name: string, size: number}> = JSON.parse(storedQueue)
+            
+            // Restore files from storage
+            const restoredQueuePromises = queueMetadata.map(async (meta) => {
+              // Try to restore file from storage
+              const restoredFile = await getFileByFileId(meta.id)
+              
+              return {
+                id: meta.id,
+                name: meta.name,
+                size: meta.size,
+                file: restoredFile || new File([], meta.name, { type: 'application/pdf' }),
+                uploadProgress: 0,
+                isUploading: false,
+              }
+            })
+            
+            const restoredQueue = await Promise.all(restoredQueuePromises)
+            setProcessingQueue(restoredQueue)
+            
+            // If no active job ID but queue has files, start processing first file
+            // This handles reload scenario where extraction completed but next file needs processing
+            if (!storedJobId && restoredQueue.length > 0 && isInitialMountRef.current) {
+              // Wait a bit for state to settle, then process next file
+              setTimeout(() => {
+                setIsProcessingQueue(false) // Ensure processing flag is false
+                processNextFileRef.current?.()
+              }, 1500)
+            } else {
+              setIsProcessingQueue(restoredQueue.length > 0)
+            }
+            
+            // Mark that initial mount is complete
+            isInitialMountRef.current = false
+          }
+        } catch (e) {
+          console.error('Error restoring queue:', e)
+        }
+      }
+      
+      restoreQueueWithFiles()
+      
+      // Restore selected files (file metadata only)
+      try {
+        const storedSelectedFiles = sessionStorage.getItem(STORAGE_SELECTED_FILES_KEY)
+        if (storedSelectedFiles) {
+          const filesMetadata: Array<{id: string, name: string, size: number}> = JSON.parse(storedSelectedFiles)
+          // Create placeholder UploadedItem objects for UI display
+          const restoredFiles: UploadedItem[] = filesMetadata.map(meta => ({
+            id: meta.id,
+            name: meta.name,
+            size: meta.size,
+            // Create a dummy File object for UI
+            file: new File([], meta.name, { type: 'application/pdf' }),
+            uploadProgress: 0,
+            isUploading: false,
+          }))
+          setSelectedFiles(restoredFiles)
+        }
+      } catch (e) {
+        console.error('Error restoring selected files:', e)
+      }
+      
+      // Resume background polling for all active jobs
+      backgroundProcessingManager.setQueryClient(queryClient)
+      
+      // If we have an active job ID, immediately restore progress from storage
+      if (storedJobId) {
+        // First restore from sessionStorage for immediate display (synchronous)
+        const cachedProgress = backgroundProcessingManager.getProgressFromStorage(storedJobId)
+        if (cachedProgress && queryClient) {
+          queryClient.setQueryData(['extraction-progress', storedJobId], cachedProgress)
+        }
+        
+        // Then fetch fresh progress from API (async)
+        backgroundProcessingManager.fetchCurrentProgress(storedJobId).then(() => {
+          // Then resume polling
+          backgroundProcessingManager.resumeAllPolling()
+        })
+      } else {
+        // No active job, just resume polling for any other active jobs
+        backgroundProcessingManager.resumeAllPolling()
+      }
+    }
+  }, [queryClient])
+  
+  // Track extraction progress at the top level (hooks must be called at top level)
+  const { data: extractionProgress, error: extractionError } = useExtractionProgress(activeJobId, !!activeJobId)
+  const [, forceUpdate] = useState(0)
+  
+  // Subscribe to cache updates to force re-render when background manager updates progress
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      // Only update for extraction-progress queries
+      if (event?.query?.queryKey?.[0] === 'extraction-progress') {
+        forceUpdate(prev => prev + 1)
+      }
+    })
+    return () => unsubscribe()
+  }, [queryClient])
+  
+  if(extractionProgress?.status === "completed"){
+    console.log('extractionProgress', extractionProgress.data);
+  }
+  // Calculate progress percentage (handle both decimal 0-1 and percentage 0-100 formats)
+  const progressPercentage = Math.min(100, Math.max(0, 
+    extractionProgress?.progress !== undefined
+      ? Math.round(extractionProgress.progress > 1 ? extractionProgress.progress : extractionProgress.progress * 100)
+      : extractionProgress?.percentage !== undefined
+      ? Math.round(extractionProgress.percentage > 1 ? extractionProgress.percentage : extractionProgress.percentage * 100)
+      : extractionProgress?.status === 'completed' 
+      ? 100 
+      : extractionProgress?.status === 'failed' 
+      ? 0 
+      : activeJobId && !extractionProgress
+      ? 0 // Starting, show 0%
+      : 0
+  ))
+
+  // Show error toast if extraction fails
+  useEffect(() => {
+    if (extractionError) {
+      toast.error('Extraction failed. Please try again.')
+      // Clear job ID on error
+      setActiveJobId(null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+      }
+    }
+  }, [extractionError])
+
+  // Process next file from queue
+  const processNextFile = useCallback(async () => {
+    if (isProcessingQueue) {
+      return
+    }
+
+    setProcessingQueue(prev => {
+      if (prev.length === 0) {
+        setIsProcessingQueue(false)
+        return prev
+      }
+
+      const nextFile = prev[0]
+      setIsProcessingQueue(true)
+
+      // Start extraction for this file
+      uploadTriggeredRef.current = false
+      
+      // Save queue metadata to sessionStorage
+      if (typeof window !== 'undefined') {
+        const queueMetadata = prev.map(f => ({ id: f.id, name: f.name, size: f.size }))
+        sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+      }
+      
+      // Check if file is a placeholder (reload scenario) and restore it
+      const isPlaceholder = nextFile.file.size === 0
+      
+      if (isPlaceholder) {
+        // File object is placeholder, restore from storage
+        getFileByFileId(nextFile.id).then(restoredFile => {
+          if (restoredFile) {
+            // Update queue with restored file
+            setProcessingQueue(current => {
+              const updatedQueue = current.map(f => 
+                f.id === nextFile.id ? { ...f, file: restoredFile } : f
+              )
+              // Update sessionStorage
+              if (typeof window !== 'undefined') {
+                const queueMetadata = updatedQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+                sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+              }
+              return updatedQueue
+            })
+            
+            // Start processing with restored file
+            setIsProcessingQueue(true)
+            uploadTriggeredRef.current = false
+            extractDocument.mutateAsync(restoredFile)
+              .then((extractionJobId) => {
+                if (extractionJobId?.job_id) {
+                  setActiveJobId(extractionJobId.job_id)
+                  setFileName(nextFile.name)
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
+                    sessionStorage.setItem(`${STORAGE_KEY}-filename`, nextFile.name)
+                    sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+                  }
+                }
+              })
+              .catch((error) => {
+                console.error(`Error processing ${nextFile.name}:`, error)
+                toast.error(`Failed to process ${nextFile.name}`)
+                setProcessingQueue(current => current.slice(1))
+                setIsProcessingQueue(false)
+                setTimeout(() => processNextFileRef.current?.(), 500)
+              })
+          } else {
+            // File not found in storage, skip this file
+            console.warn('File not found in storage, skipping:', nextFile.name)
+            setProcessingQueue(current => {
+              const newQueue = current.slice(1)
+              if (typeof window !== 'undefined') {
+                if (newQueue.length > 0) {
+                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+                } else {
+                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
+                }
+              }
+              return newQueue
+            })
+            setIsProcessingQueue(false)
+            setTimeout(() => processNextFileRef.current?.(), 500)
+          }
+        })
+        return prev
+      }
+      
+      extractDocument.mutateAsync(nextFile.file)
+        .then((extractionJobId) => {
+          if (extractionJobId?.job_id) {
+            setActiveJobId(extractionJobId.job_id)
+            setFileName(nextFile.name)
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
+              sessionStorage.setItem(`${STORAGE_KEY}-filename`, nextFile.name)
+              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+            }
+          }
+        })
+        .catch((error) => {
+          console.error(`Error processing ${nextFile.name}:`, error)
+          toast.error(`Failed to process ${nextFile.name}`)
+          setProcessingQueue(current => current.slice(1))
+          setIsProcessingQueue(false)
+          // Process next file
+          setTimeout(() => processNextFileRef.current?.(), 500)
+        })
+
+      return prev
+    })
+  }, [isProcessingQueue, extractDocument])
+
+  // Store processNextFile in ref
+  useEffect(() => {
+    processNextFileRef.current = processNextFile
+  }, [processNextFile])
+
+  // When extraction completes, automatically upload the document
+  useEffect(() => {
+    if (extractionProgress?.status === 'completed' && !uploadTriggeredRef.current && activeJobId) {
+      // Mark as triggered to prevent multiple uploads
+      uploadTriggeredRef.current = true
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`${STORAGE_KEY}-uploadTriggered`, 'true')
+      }
+      
+      // Get the original file that was extracted (from global storage or blob)
+      getFileForJob(activeJobId).then(fileToUpload => {
+        if (fileToUpload) {
+          // Set uploading status
+          setIsUploading(true)
+          
+          // Automatically trigger uploadDocument mutation
+          uploadDocument.mutate(fileToUpload, {
+          onSuccess: () => {
+            // Upload completed successfully
+            setIsUploading(false)
+            // Remove current file from queue
+            setProcessingQueue(prev => {
+              const newQueue = prev.slice(1)
+              // Update queue in sessionStorage
+              if (typeof window !== 'undefined') {
+                if (newQueue.length > 0) {
+                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+                } else {
+                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
+                }
+              }
+              
+              // Clear job ID and file references after successful upload
+              const completedJobId = activeJobId
+              setActiveJobId(null)
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem(STORAGE_KEY)
+                sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+                sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+              }
+              setFileName('')
+              clearFileForJob(completedJobId)
+              // Stop background polling for completed job
+              if (completedJobId) {
+                backgroundProcessingManager.stopPolling(completedJobId)
+              }
+              uploadTriggeredRef.current = false
+              setIsProcessingQueue(false)
+
+              // Process next file in queue after upload completes
+              if (newQueue.length > 0) {
+                setTimeout(() => {
+                  // Reset processing state and process next file
+                  setIsProcessingQueue(false)
+                  processNextFileRef.current?.()
+                }, 500)
+              }
+              
+              return newQueue
+            })
+          },
+          onError: () => {
+            // Upload failed
+            setIsUploading(false)
+            
+            // Remove failed file from queue
+            setProcessingQueue(prev => {
+              const newQueue = prev.slice(1)
+              // Update queue in sessionStorage
+              if (typeof window !== 'undefined') {
+                if (newQueue.length > 0) {
+                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+                } else {
+                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
+                }
+              }
+              return newQueue
+            })
+            
+            // Clear after a delay
+            setTimeout(() => {
+              const failedJobId = activeJobId
+              setActiveJobId(null)
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem(STORAGE_KEY)
+                sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+                sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+              }
+              setFileName('')
+              clearFileForJob(failedJobId)
+              // Stop background polling for failed job
+              if (failedJobId) {
+                backgroundProcessingManager.stopPolling(failedJobId)
+              }
+              uploadTriggeredRef.current = false
+              setIsProcessingQueue(false)
+
+              // Process next file
+              processNextFileRef.current?.()
+            }, 3000)
+          },
+          })
+        } else {
+          // If no file found, just clear the job ID
+          console.warn('No file found to upload after extraction completion')
+          const noFileJobId = activeJobId
+        setProcessingQueue(prev => {
+          const newQueue = prev.slice(1)
+          // Update queue in sessionStorage
+          if (typeof window !== 'undefined') {
+            if (newQueue.length > 0) {
+              const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+              sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+            } else {
+              sessionStorage.removeItem(STORAGE_QUEUE_KEY)
+            }
+          }
+          return newQueue
+        })
+        setActiveJobId(null)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(STORAGE_KEY)
+          sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+          sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+        }
+        setFileName('')
+        clearFileForJob(noFileJobId)
+        // Stop background polling
+        if (noFileJobId) {
+          backgroundProcessingManager.stopPolling(noFileJobId)
+        }
+        uploadTriggeredRef.current = false
+        setIsProcessingQueue(false)
+
+        // Process next file
+        setTimeout(() => processNextFileRef.current?.(), 500)
+        }
+      })
+    } else if (extractionProgress?.status === 'failed') {
+      toast.error('Document extraction failed. Please try again.')
+      const failedJobId = activeJobId
+      
+      // Remove failed file from queue
+      setProcessingQueue(prev => {
+        const newQueue = prev.slice(1)
+        // Update queue in sessionStorage
+        if (typeof window !== 'undefined') {
+          if (newQueue.length > 0) {
+            const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+            sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
+          } else {
+            sessionStorage.removeItem(STORAGE_QUEUE_KEY)
+          }
+        }
+        return newQueue
+      })
+      
+      setActiveJobId(null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
+        sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+      }
+      setFileName('')
+      clearFileForJob(failedJobId)
+      // Stop background polling for failed job
+      if (failedJobId) {
+        backgroundProcessingManager.stopPolling(failedJobId)
+      }
+      uploadTriggeredRef.current = false
+      setIsProcessingQueue(false)
+
+      // Process next file
+      setTimeout(() => processNextFileRef.current?.(), 500)
+    }
+  }, [extractionProgress?.status, uploadDocument, activeJobId, getFileForJob, clearFileForJob, processingQueue, isProcessingQueue])
+
+  // Show progress modal if extraction is in progress OR upload is in progress
+  // Also show if we have activeJobId even if extractionProgress is not loaded yet (reload scenario)
+  const isExtracting = !!activeJobId && (
+    !extractionProgress || (
+      extractionProgress?.status !== 'completed' && 
+      extractionProgress?.status !== 'failed'
+    )
+  ) && !extractionError || isUploading
 
   const handleBack = () => {
     router.back()
@@ -117,14 +593,18 @@ export default function RepositoryPage() {
         continue
       }
 
+      const fileId = Date.now().toString() + '-' + i
       newItems.push({
-        id: Date.now().toString() + '-' + i,
+        id: fileId,
         file,
         name: file.name,
         size: file.size,
         uploadProgress: 0,
         isUploading: false,
       })
+      
+      // Store file by file ID for queue restoration
+      storeFileByFileId(fileId, file)
     }
 
     setSelectedFiles(prev => [...prev, ...newItems])
@@ -133,6 +613,8 @@ export default function RepositoryPage() {
 
   const removeSelectedFile = (id: string) => {
     setSelectedFiles(prev => prev.filter(item => item.id !== id))
+    // Also remove from queue if present
+    setProcessingQueue(prev => prev.filter(item => item.id !== id))
   }
 
   const handleSend = async () => {
@@ -142,65 +624,52 @@ export default function RepositoryPage() {
     }
 
     try {
-      // Set all files to uploading state
-      const itemsWithProgress = selectedFiles.map(item => ({
-        ...item,
-        isUploading: true,
-        uploadProgress: 0,
-      }))
-      setSelectedFiles(itemsWithProgress)
-
-      // Upload files one by one with progress tracking
-      const uploadPromises = selectedFiles.map(async (item) => {
-        try {
-          // Simulate progress: 0-30% (starting upload)
-          for (let progress = 0; progress <= 30; progress += 10) {
-            await new Promise(resolve => setTimeout(resolve, 50))
-            setSelectedFiles(prev => 
-              prev.map(p => p.id === item.id ? { ...p, uploadProgress: progress } : p)
-            )
-          }
-
-          // Upload to server (which handles blob upload and DB save)
-          await uploadDocument.mutateAsync(item.file)
-
-          // Simulate progress: 30-100% (completing)
-          for (let progress = 30; progress <= 100; progress += 10) {
-            await new Promise(resolve => setTimeout(resolve, 30))
-            setSelectedFiles(prev => 
-              prev.map(p => p.id === item.id ? { ...p, uploadProgress: progress } : p)
-            )
-          }
-
-          return true
-        } catch (error) {
-          console.error(`Error uploading ${item.name}:`, error)
-          throw error
+      // Add all files to processing queue
+      const filesToQueue = [...selectedFiles]
+      setProcessingQueue(prev => {
+        const newQueue = [...prev, ...filesToQueue]
+        // Save queue metadata to sessionStorage
+        if (typeof window !== 'undefined') {
+          const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
+          sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
         }
+        return newQueue
       })
+      
+      // Save selected files metadata
+      if (typeof window !== 'undefined') {
+        const filesMetadata = selectedFiles.map(f => ({ id: f.id, name: f.name, size: f.size }))
+        sessionStorage.setItem(STORAGE_SELECTED_FILES_KEY, JSON.stringify(filesMetadata))
+      }
+      
+      // Start processing first file immediately if not already processing
+      if (!isProcessingQueue && filesToQueue.length > 0) {
+        const firstFile = filesToQueue[0]
+        setIsProcessingQueue(true)
+        
+        try {
+          uploadTriggeredRef.current = false
+          const extractionJobId = await extractDocument.mutateAsync(firstFile.file)
 
-      // Wait for all uploads to complete
-      await Promise.all(uploadPromises)
-
-      // Mark all as complete
-      setSelectedFiles(prev => 
-        prev.map(p => ({ ...p, isUploading: false, uploadProgress: 100 }))
-      )
-
-      // Clear selected files and switch to repository view
-      setTimeout(() => {
-        setSelectedFiles([])
-        toast.success('Files uploaded successfully!')
-        setView('repository')
-        setCurrentPage(1) // Reset to first page after upload
-      }, 500)
+          if (extractionJobId?.job_id) {
+            setActiveJobId(extractionJobId.job_id)
+            setFileName(firstFile.name)
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
+              sessionStorage.setItem(`${STORAGE_KEY}-filename`, firstFile.name)
+              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing ${firstFile.name}:`, error)
+          toast.error(`Failed to process ${firstFile.name}`)
+          setProcessingQueue(prev => prev.slice(1))
+          setIsProcessingQueue(false)
+        }
+      }
     } catch (error) {
       console.error('Upload error:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to upload files')
-      // Reset uploading state
-      setSelectedFiles(prev => 
-        prev.map(p => ({ ...p, isUploading: false, uploadProgress: 0 }))
-      )
+      toast.error(error instanceof Error ? error.message : 'Failed to queue files')
     }
   }
 
@@ -255,16 +724,26 @@ export default function RepositoryPage() {
   }
 
 
+  // Combine selectedFiles and processingQueue to show all files (including those in queue)
+  const allFilesToShow = [...selectedFiles]
+  // Add files from queue that aren't in selectedFiles
+  processingQueue.forEach(queueFile => {
+    if (!allFilesToShow.find(f => f.id === queueFile.id)) {
+      allFilesToShow.push(queueFile)
+    }
+  })
+  
   // Generate grid slots - show filled slots + empty slots (minimum 6, extends as needed)
   const minSlots = 6
-  const maxSlots = Math.max(minSlots, Math.ceil(selectedFiles.length / 3) * 3)
+  const maxSlots = Math.max(minSlots, Math.ceil(allFilesToShow.length / 3) * 3)
   const slots = Array.from({ length: maxSlots }, (_, index) => {
-    const file = selectedFiles[index]
+    const file = allFilesToShow[index]
     return { index, file }
   })
 
   return (
     <main className="min-h-screen bg-[#1f2632] text-white">
+
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
         <div className="flex items-center gap-2 pt-6 pb-6">
@@ -313,8 +792,14 @@ export default function RepositoryPage() {
           {view === 'upload' ? (
             <>
               {/* Upload Grid */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="relative mb-6">
+                <div className="grid grid-cols-3 gap-3">
                 {slots.map(({ index, file }) => {
+                  // Check if this file is being extracted or uploading
+                  const isThisFileExtracting = (isExtracting || isUploading) && file && file.name === fileName
+                  const isInQueue = file && processingQueue.some(q => q.id === file.id)
+                  const isCurrentProcessing = isInQueue && processingQueue[0]?.id === file.id && isThisFileExtracting
+                  
                   if (file) {
                     // Render filled slot with file
                     return (
@@ -322,6 +807,73 @@ export default function RepositoryPage() {
                         key={file.id}
                         className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 border-white/10"
                       >
+                        {/* Progress Overlay - Only on currently processing file */}
+                        {isCurrentProcessing && (
+                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
+                            {/* Circular Progress Bar */}
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="relative w-24 h-24 flex items-center justify-center mb-2">
+                                {/* Background Circle */}
+                                <svg 
+                                  className="transform -rotate-90 w-full h-full" 
+                                  viewBox="0 0 100 100"
+                                  style={{ width: '96px', height: '96px' }}
+                                >
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    stroke="rgba(255, 255, 255, 0.1)"
+                                    strokeWidth="8"
+                                    fill="none"
+                                  />
+                                  {/* Progress Circle */}
+                                  <circle
+                                    cx="50"
+                                    cy="50"
+                                    r="45"
+                                    stroke="#22c55e"
+                                    strokeWidth="8"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    className="transition-all duration-1000 ease-out"
+                                    style={{
+                                      strokeDasharray: '282.743',
+                                      strokeDashoffset: `${282.743 * (1 - (isUploading ? 100 : progressPercentage) / 100)}`
+                                    }}
+                                  />
+                                </svg>
+                                {/* Percentage Text */}
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <span className="text-2xl font-bold text-green-500">
+                                    {isUploading ? 100 : progressPercentage}%
+                                  </span>
+                                </div>
+                              </div>
+                              {/* Status Text */}
+                              <p className="text-white/70 text-xs text-center px-2">
+                                {isUploading
+                                  ? 'Uploading...'
+                                  : extractionProgress?.status === 'processing' 
+                                  ? 'Processing...' 
+                                  : extractionProgress?.status === 'extracting'
+                                  ? 'Extracting...'
+                                  : extractionProgress?.status === 'completed'
+                                  ? 'Uploading...'
+                                  : 'Please wait...'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {/* Waiting Overlay - For files in queue but not currently processing */}
+                        {isInQueue && !isCurrentProcessing && (
+                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mb-2"></div>
+                              <p className="text-white/70 text-xs text-center px-2">Waiting...</p>
+                            </div>
+                          </div>
+                        )}
                         {/* PDF icon */}
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-4">
                           <svg className="w-12 h-12 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -337,21 +889,17 @@ export default function RepositoryPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            removeSelectedFile(file.id)
+                            // Don't allow removal if currently processing
+                            if (!isCurrentProcessing) {
+                              removeSelectedFile(file.id)
+                            }
                           }}
-                          className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-10"
+                          className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-50 disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label="Remove file"
+                          disabled={isCurrentProcessing}
                         >
                           <IconX className="h-4 w-4 text-white" />
                         </button>
-                        {file.isUploading && (
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                            <div
-                              className="h-full bg-blue-500 transition-all duration-300"
-                              style={{ width: `${file.uploadProgress}%` }}
-                            />
-                          </div>
-                        )}
                       </div>
                     )
                   } else {
@@ -367,15 +915,16 @@ export default function RepositoryPage() {
                     )
                   }
                 })}
+                </div>
               </div>
 
               {/* Send Button */}
               <button
                 onClick={handleSend}
-                disabled={selectedFiles.length === 0 || selectedFiles.some(f => f.isUploading)}
+                disabled={selectedFiles.length === 0 || isProcessingQueue}
                 className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed text-white font-medium py-4 rounded-xl transition-colors shadow-lg mt-6"
               >
-                {selectedFiles.some(f => f.isUploading) ? 'Uploading...' : 'Send'}
+                {isProcessingQueue ? 'Processing...' : 'Send'}
               </button>
 
               {/* Hidden file input */}
