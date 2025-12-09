@@ -46,3 +46,11 @@ export interface PhotoGroup {
 }
 
 export type TabType = 'chats' | 'photos' | 'documents';
+
+export interface ImageUploadState {
+  previewUrl: string; // Blob URL for preview
+  uploadedUrl?: string; // Permanent URL after upload
+  status: 'uploading' | 'completed' | 'error';
+  progress?: number; // 0-100
+  error?: string;
+}

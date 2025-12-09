@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { MessageDocument, Chat } from '@/types/chat';
+import { MessageDocument, Chat, ImageUploadState } from '@/types/chat';
 import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
 import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
+import { useUser } from '@/hooks/useUser';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -16,7 +17,7 @@ interface WelcomeScreenProps {
 
 export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [imageUploadStates, setImageUploadStates] = useState<ImageUploadState[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -24,13 +25,14 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { user } = useUser();
 
   // Cleanup object URLs when component unmounts
   useEffect(() => {
     return () => {
-      selectedImages.forEach(url => {
-        if (url && !url.startsWith('data:')) {
-          URL.revokeObjectURL(url);
+      imageUploadStates.forEach(state => {
+        if (state.previewUrl && !state.previewUrl.startsWith('data:') && !state.previewUrl.startsWith('http')) {
+          URL.revokeObjectURL(state.previewUrl);
         }
       });
       selectedDocuments.forEach(doc => {
@@ -42,19 +44,24 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Check if any image is still uploading
+  const isUploading = imageUploadStates.some(state => state.status === 'uploading');
+  
   const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
-    if (!inputValue.trim() && selectedImages.length === 0 && selectedDocuments.length === 0) return;
+    // Don't allow sending if images are still uploading
+    if (isUploading) return;
+    if (!inputValue.trim() && imageUploadStates.length === 0 && selectedDocuments.length === 0) return;
     
     if (onSendMessage) {
-      const imageDataUrls = selectedImages.map(url => {
-        if (url.startsWith('data:')) return url;
-        return url;
-      });
+      // Use uploaded URLs, fallback to preview URLs if upload failed
+      const imageUrls = imageUploadStates.map(state => 
+        state.uploadedUrl || state.previewUrl
+      );
       
-      onSendMessage(inputValue.trim(), imageDataUrls, selectedDocuments.length > 0 ? selectedDocuments : undefined);
+      onSendMessage(inputValue.trim(), imageUrls.length > 0 ? imageUrls : undefined, selectedDocuments.length > 0 ? selectedDocuments : undefined);
       setInputValue('');
-      setSelectedImages([]);
+      setImageUploadStates([]);
       setSelectedDocuments([]);
       
       // Reset textarea height
@@ -78,7 +85,93 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   };
 
   const handleCapturePhoto = (url: string) => {
-    setSelectedImages(prev => [...prev, url].slice(0, 10));
+    // Create upload state and start uploading immediately
+    const newState: ImageUploadState = {
+      previewUrl: url,
+      status: 'uploading',
+      progress: undefined, // Don't show 0%, wait for actual progress
+    };
+    setImageUploadStates(prev => {
+      const updated = [...prev, newState].slice(0, 10);
+      // Start uploading with the correct index
+      const index = updated.length - 1;
+      setTimeout(() => uploadImage(url, index), 0);
+      return updated;
+    });
+  };
+
+  // Upload image immediately when selected
+  const uploadImage = async (previewUrl: string, index: number) => {
+    if (!user?.id) {
+      console.error('User ID not available for image upload');
+      setImageUploadStates(prev => prev.map((state, i) => 
+        i === index ? { ...state, status: 'error', error: 'User not authenticated' } : state
+      ));
+      return;
+    }
+
+    try {
+      // Convert blob URL to File
+      const response = await fetch(previewUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `chat-image-${Date.now()}-${index}.jpg`, { type: blob.type });
+
+      // Create FormData
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('userId', user.id);
+
+      // Upload with progress tracking
+      const xhr = new XMLHttpRequest();
+      let hasProgress = false;
+      
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && e.total > 0) {
+          hasProgress = true;
+          const progress = Math.round((e.loaded / e.total) * 100);
+          // Only update if progress is meaningful (avoid showing 100% immediately)
+          if (progress > 0 && progress < 100) {
+            setImageUploadStates(prev => prev.map((state, i) => 
+              i === index ? { ...state, progress } : state
+            ));
+          }
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          // Only set progress to 100 if we actually tracked progress, otherwise remove it
+          setImageUploadStates(prev => prev.map((state, i) => 
+            i === index ? { 
+              ...state, 
+              uploadedUrl: data.url, 
+              status: 'completed',
+              progress: hasProgress ? 100 : undefined
+            } : state
+          ));
+        } else {
+          const error = JSON.parse(xhr.responseText);
+          setImageUploadStates(prev => prev.map((state, i) => 
+            i === index ? { ...state, status: 'error', error: error.error || 'Upload failed' } : state
+          ));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        setImageUploadStates(prev => prev.map((state, i) => 
+          i === index ? { ...state, status: 'error', error: 'Network error' } : state
+        ));
+      });
+
+      xhr.open('POST', '/api/upload-image');
+      xhr.send(formData);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setImageUploadStates(prev => prev.map((state, i) => 
+        i === index ? { ...state, status: 'error', error: 'Failed to upload image' } : state
+      ));
+    }
   };
 
   // Close dropdown when clicking outside
@@ -98,15 +191,33 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newUrls: string[] = [];
-    for (let i = 0; i < files.length; i++) {
+    
+    const currentLength = imageUploadStates.length;
+    const newStates: ImageUploadState[] = [];
+    
+    for (let i = 0; i < files.length && (currentLength + newStates.length) < 10; i++) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        newUrls.push(url);
+        const previewUrl = URL.createObjectURL(file);
+        const newState: ImageUploadState = {
+          previewUrl,
+          status: 'uploading',
+          progress: undefined, // Don't show 0%, wait for actual progress
+        };
+        newStates.push(newState);
       }
     }
-    setSelectedImages(prev => [...prev, ...newUrls].slice(0, 10));
+    
+    setImageUploadStates(prev => {
+      const updated = [...prev, ...newStates].slice(0, 10);
+      // Start uploading each new image with correct indices
+      newStates.forEach((state, offset) => {
+        const index = currentLength + offset;
+        setTimeout(() => uploadImage(state.previewUrl, index), 0);
+      });
+      return updated;
+    });
+    
     e.target.value = '';
   };
 
@@ -134,9 +245,11 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   };
 
   const removeImageAt = (index: number) => {
-    const url = selectedImages[index];
-    URL.revokeObjectURL(url);
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    const state = imageUploadStates[index];
+    if (state.previewUrl && !state.previewUrl.startsWith('data:') && !state.previewUrl.startsWith('http')) {
+      URL.revokeObjectURL(state.previewUrl);
+    }
+    setImageUploadStates(prev => prev.filter((_, i) => i !== index));
   };
 
   const removeDocumentAt = (index: number) => {
@@ -254,7 +367,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
           <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-2 sm:px-3 md:px-4 py-2 sm:py-3 flex flex-col w-full overflow-visible box-border">
             {/* Attachment Preview - Shows uploaded images and documents */}
             <AttachmentPreview
-              images={selectedImages}
+              imageUploadStates={imageUploadStates}
               documents={selectedDocuments}
               onRemoveImage={removeImageAt}
               onRemoveDocument={removeDocumentAt}
@@ -385,14 +498,18 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                 </div>
                 
                 {/* Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
-                {(inputValue.trim() || selectedImages.length > 0 || selectedDocuments.length > 0) ? (
+                {(inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? (
                   <button
                     type="submit"
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
-                    className={`p-1.5 sm:p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors duration-200 ${
+                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isUploading}
+                    className={`p-1.5 sm:p-2 rounded-lg transition-colors duration-200 ${
+                      isUploading 
+                        ? 'bg-gray-500 cursor-not-allowed opacity-50' 
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    } ${
                       (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
-                    title="Send message"
+                    title={isUploading ? 'Uploading images...' : 'Send message'}
                     onClick={(e) => {
                       e.preventDefault();
                       handleSubmit(e);
@@ -445,7 +562,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
       />
 
       {/* Image Overlay */}
-      {viewingImageIndex !== null && selectedImages[viewingImageIndex] && (
+      {viewingImageIndex !== null && imageUploadStates[viewingImageIndex] && (
         <div 
           className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
           onClick={() => setViewingImageIndex(null)}
@@ -463,12 +580,12 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
 
           {/* Image */}
           <img
-            src={selectedImages[viewingImageIndex]}
+            src={imageUploadStates[viewingImageIndex].previewUrl}
             alt={`preview-${viewingImageIndex}`}
             className="max-w-[85%] max-h-[75vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
             onError={(e) => {
-              console.error('Failed to load image:', selectedImages[viewingImageIndex]);
+              console.error('Failed to load image:', imageUploadStates[viewingImageIndex].previewUrl);
               e.currentTarget.style.display = 'none';
             }}
           />

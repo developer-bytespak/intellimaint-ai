@@ -1,12 +1,10 @@
 'use client';
 
-
-// TODO: User Show Image and Document Preview before sending the message ;
-
-import { MessageDocument } from '@/types/chat';
+import { MessageDocument, ImageUploadState } from '@/types/chat';
 
 interface AttachmentPreviewProps {
-  images: string[];
+  imageUploadStates?: ImageUploadState[];
+  images?: string[]; // Keep for backward compatibility
   documents: MessageDocument[];
   onRemoveImage: (index: number) => void;
   onRemoveDocument: (index: number) => void;
@@ -14,38 +12,71 @@ interface AttachmentPreviewProps {
 }
 
 export default function AttachmentPreview({
+  imageUploadStates,
   images,
   documents,
   onRemoveImage,
   onRemoveDocument,
   onViewImage
 }: AttachmentPreviewProps) {
+  // Support both new imageUploadStates and legacy images array
+  const displayImages: ImageUploadState[] = imageUploadStates || (images?.map(url => ({ previewUrl: url, status: 'completed' as const })) || []);
+  
   return (
     <>
-      {images.length > 0 && (
+      {displayImages.length > 0 && (
         <div className="w-full max-w-full mb-3 box-border">
           <div className="flex flex-wrap gap-2 max-w-full">
-            {images.map((src, index) => (
-              <div key={index} className="flex flex-col items-end w-16">
-                <button 
-                  type="button" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveImage(index);
-                  }} 
-                  className="z-20 bg-[#1f2632] border border-[#3a4a5a] text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#3a4a5a] transition-colors -mb-4 -mr-1"
-                >
-                  ×
-                </button>
-                <div 
-                  className="w-16 h-16 rounded-lg overflow-hidden border border-[#3a4a5a] cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => onViewImage && onViewImage(index)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`preview-${index}`} className="w-full h-full object-cover" />
+            {displayImages.map((imageState, index) => {
+              const src = imageState.previewUrl;
+              const isUploading = imageState.status === 'uploading';
+              const isError = imageState.status === 'error';
+              const progress = 'progress' in imageState ? imageState.progress : undefined;
+              
+              return (
+                <div key={index} className="flex flex-col items-end w-16 relative">
+                  <button 
+                    type="button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveImage(index);
+                    }} 
+                    className="z-20 bg-[#1f2632] border border-[#3a4a5a] text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#3a4a5a] transition-colors -mb-4 -mr-1"
+                  >
+                    ×
+                  </button>
+                  <div 
+                    className={`w-16 h-16 rounded-lg overflow-hidden border ${
+                      isError ? 'border-red-500' : 'border-[#3a4a5a]'
+                    } ${!isUploading ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''} relative`}
+                    onClick={() => !isUploading && onViewImage && onViewImage(index)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`preview-${index}`} className="w-full h-full object-cover" />
+                    
+                    {/* Loading Overlay */}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mb-1"></div>
+                        {/* Only show progress if it's defined and between 1-99% */}
+                        {progress !== undefined && progress > 0 && progress < 100 && (
+                          <span className="text-white text-xs">{progress}%</span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Error Overlay */}
+                    {isError && (
+                      <div className="absolute inset-0 bg-red-500/50 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -316,12 +316,25 @@ export function useChat() {
         createdMessage = result.message;
       } else {
         // Create message in existing session
-        createdMessage = await chatApi.createMessage(chatToUse.id, {
+        const messageResult = await chatApi.createMessage(chatToUse.id, {
           content,
           images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
         });
-        // Fetch updated session to get latest state
-        createdChat = await chatApi.getSession(chatToUse.id);
+        createdMessage = messageResult.userMessage;
+        
+        // Use the returned messages to update the chat instead of fetching
+        // Add both user and assistant messages to the existing chat
+        const updatedMessages = [
+          ...chatToUse.messages,
+          messageResult.userMessage,
+          messageResult.assistantMessage,
+        ];
+        
+        createdChat = {
+          ...chatToUse,
+          messages: updatedMessages,
+          updatedAt: new Date(),
+        };
       }
 
       // Replace optimistic update with real data from API
@@ -346,92 +359,30 @@ export function useChat() {
         ));
       }
       setActiveChat(finalChat);
-
-      // Simulate AI response (this will be replaced with actual AI service later)
-      setTimeout(() => {
-        let aiResponse: Message;
-
-        const hasUserImages = permanentImageUrls.length > 0;
-        const hasVoiceMessage = documents && documents.some(doc => doc.type === 'AUDIO');
-        const userMessageCount = finalChat.messages.filter(m => m.role === 'user').length;
-        
-        const voiceResponse = `Technical Troubleshooting Mode (Advanced Users / Experts)
-✔ Check these internal systems:
-
-🔧 Fuse Box & Relays → Replace blown fuses
-
-🔧 Fuel Filters & Injectors → Clogged diesel flow causes failure
-
-🔧 Air Filter → Remove dust, improves combustion
-
-🔧 Starter Motor Relay/Wiring → Use multimeter to test
-
-⚙ ECU / Control Panel Error Reset:
-
-Hold the RESET + STOP buttons together for 10 seconds
-
-Release and restart the generator
-✔ If generator shows error again → may indicate sensor failure (oil temp, crankshaft, alternator).`;
-        
-        const firstResponse = `There are several common reasons why a generator won't start after sitting idle. Let me help you troubleshoot this step by step.
-
-1. **Fuel Issues**: Old or contaminated fuel can cause starting problems. Check if the fuel is fresh (less than 6 months old).
-
-2. **Battery Problems**: If your generator has an electric start, the battery might be dead or weak. Check the battery voltage.
-
-3. **Oil Level**: Ensure the oil level is adequate and not contaminated.
-
-Can you tell me what type of generator you have and how long it's been sitting?`;
-
-        const secondResponse = `For the Honda EU2200i, the most likely culprit is the fuel system. This generator is sensitive to fuel quality. Here's what to check:
-
-1. **Fuel Stabilizer**: Did you add fuel stabilizer before storing it?
-2. **Fuel Valve**: Make sure the fuel valve is in the "ON" position
-3. **Choke**: Set the choke to "CLOSED" for cold starts
-4. **Prime the Carburetor**: Pull the starter cord 3-4 times with the choke closed
-
-Try these steps and let me know what happens when you attempt to start it.`;
-
-        if (hasVoiceMessage) {
-          aiResponse = {
-            id: (Date.now() + 1).toString(),
-            content: voiceResponse,
-            role: 'assistant',
-            timestamp: new Date()
-          };
-        } else if (userMessageCount < 2) {
-          const responseText = userMessageCount === 0 ? firstResponse : secondResponse;
-          aiResponse = {
-            id: (Date.now() + 1).toString(),
-            content: responseText,
-            role: 'assistant',
-            timestamp: new Date(),
-            images: hasUserImages ? ['/images/img1.png', '/images/img2.png'] : undefined
-          };
-        } else {
-          aiResponse = {
-            id: (Date.now() + 1).toString(),
-            content: 'I understand your question about generator troubleshooting. Let me help you with that. Can you provide more details about the specific issue you\'re experiencing?',
-            role: 'assistant',
-            timestamp: new Date()
-          };
-        }
-
-        const chatWithAiResponse = {
-          ...finalChat,
-          messages: [...finalChat.messages, aiResponse],
-          updatedAt: new Date()
-        };
-
-        setChats(prev => prev.map(chat => 
-          chat.id === finalChat.id ? chatWithAiResponse : chat
-        ));
-        setActiveChat(chatWithAiResponse);
-      }, 1000);
     } catch (err: unknown) {
       console.error('Error sending message:', err);
-      const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(errorMessage || 'Failed to send message');
+      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const errorMessage = axiosError?.response?.data?.message;
+      
+      // Handle 401 Unauthorized - token might have expired
+      if (axiosError?.response?.status === 401) {
+        setError('Your session has expired. Please refresh the page and try again.');
+        // Optionally redirect to login or refresh token
+        if (typeof window !== 'undefined') {
+          // You might want to trigger a token refresh here or redirect to login
+          console.warn('Authentication failed - session may have expired');
+        }
+      } else {
+        setError(errorMessage || 'Failed to send message');
+      }
+      
+      // Revert optimistic update on error
+      if (chatToUse) {
+        setChats(prev => prev.map(chat => 
+          chat.id === chatToUse.id ? chatToUse : chat
+        ));
+        setActiveChat(chatToUse);
+      }
     }
   }, [activeChat, createNewChat]);
 

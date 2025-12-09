@@ -128,12 +128,18 @@ export const chatApi = {
   },
 
   // Create a new message in a session
-  createMessage: async (sessionId: string, dto: CreateMessageDto): Promise<Message> => {
-    const response = await baseURL.post<{ data: ApiChatMessage }>(
+  createMessage: async (sessionId: string, dto: CreateMessageDto): Promise<{
+    userMessage: Message;
+    assistantMessage: Message;
+  }> => {
+    const response = await baseURL.post<{ data: { userMessage: ApiChatMessage; assistantMessage: ApiChatMessage } }>(
       `/chat/sessions/${sessionId}/messages`,
       dto,
     );
-    return transformMessageToMessage(response.data.data);
+    return {
+      userMessage: transformMessageToMessage(response.data.data.userMessage),
+      assistantMessage: transformMessageToMessage(response.data.data.assistantMessage),
+    };
   },
 
   // Create a new message with a new session (for first message)
