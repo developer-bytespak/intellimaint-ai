@@ -96,16 +96,9 @@ function RecentHistoryContent() {
     setShowDeleteDocumentConfirm(false);
   };
 
-  // Handle view photo - find the photo and set it for overlay
-  const handleViewPhoto = (photoId: string) => {
-    // Find the photo in all photo groups
-    for (const group of photoGroups) {
-      const photo = group.photos.find(p => p.id === photoId);
-      if (photo) {
-        setViewingPhoto(photo);
-        break;
-      }
-    }
+  // Handle view photo - set the photo for overlay
+  const handleViewPhoto = (photo: Photo) => {
+    setViewingPhoto(photo);
   };
 
   // Handle delete photo - show confirmation dialog
