@@ -12,6 +12,7 @@ export interface Message {
   images?: string[]; // optional list of image URLs/data URLs attached to the message
   documents?: MessageDocument[]; // optional list of documents (PDF/DOC) attached to the message
   audioDocument?: MessageDocument; // optional audio document attached to the message
+  isStopped?: boolean; // true if user stopped the response before it was sent to LLM
 }
 
 export interface Chat {

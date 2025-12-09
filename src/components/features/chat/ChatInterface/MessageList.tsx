@@ -1,27 +1,129 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Chat } from '@/types/chat';
 import { useAudio } from '@/hooks/useAudio';
+import MessageItem from './MessageItem';
 
 interface MessageListProps {
   activeChat: Chat | null;
+  isSending?: boolean;
+  streamingText?: { [messageId: string]: string };
+  streamingMessageId?: string | null;
+  onEditMessage?: (messageId: string) => void;
 }
 
-export default function MessageList({ activeChat }: MessageListProps) {
+export default function MessageList({ 
+  activeChat, 
+  isSending = false, 
+  streamingText = {}, 
+  streamingMessageId = null,
+  onEditMessage,
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [isUserNearBottom, setIsUserNearBottom] = useState(true);
   const { textToSpeech, currentPlayingId, playAudio, stopAudio } = useAudio();
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Check if user is near bottom of scroll (helper function for initial check)
+  const checkIfNearBottom = () => {
+    const findScrollableParent = (element: HTMLElement | null): HTMLElement | null => {
+      if (!element) return null;
+      let parent = element.parentElement;
+      while (parent) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      return null;
+    };
+
+    const scrollableContainer = findScrollableParent(messagesContainerRef.current);
+    if (!scrollableContainer) {
+      setIsUserNearBottom(true); // Default to true if can't find container
+      return;
+    }
+
+    const threshold = 100;
+    const isNearBottom = 
+      scrollableContainer.scrollHeight - scrollableContainer.scrollTop - scrollableContainer.clientHeight < threshold;
+    setIsUserNearBottom(isNearBottom);
   };
 
+  // Scroll to bottom smoothly if user is near bottom
+  // Memoize to prevent dependency array issues
+  const scrollToBottom = useCallback(() => {
+    if (isUserNearBottom && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isUserNearBottom]);
+
+  // Listen for scroll events to track user position
+  // Find the scrollable parent container
   useEffect(() => {
-    scrollToBottom();
+    // Find the scrollable parent (the div with overflow-y-auto in WelcomeScreen)
+    const findScrollableParent = (element: HTMLElement | null): HTMLElement | null => {
+      if (!element) return null;
+      let parent = element.parentElement;
+      while (parent) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      return null;
+    };
+
+    const scrollableContainer = findScrollableParent(messagesContainerRef.current);
+    
+    if (!scrollableContainer) {
+      // Fallback: use the container itself if no scrollable parent found
+      checkIfNearBottom();
+      return;
+    }
+
+    const handleScroll = () => {
+      const threshold = 100;
+      const isNearBottom = 
+        scrollableContainer.scrollHeight - scrollableContainer.scrollTop - scrollableContainer.clientHeight < threshold;
+      setIsUserNearBottom(isNearBottom);
+    };
+
+    scrollableContainer.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial check
+
+    return () => {
+      scrollableContainer.removeEventListener('scroll', handleScroll);
+    };
   }, [activeChat?.messages]);
+
+  // Auto-scroll when messages are added
+  useEffect(() => {
+    const lastMessage = activeChat?.messages[activeChat.messages.length - 1];
+    const isUserMessage = lastMessage?.role === 'user';
+    
+    // Always scroll for user messages, conditional scroll for assistant messages
+    if (isUserMessage || (isUserNearBottom && lastMessage?.role === 'assistant')) {
+      scrollToBottom();
+    }
+  }, [activeChat?.messages.length, isSending, isUserNearBottom]);
+
+  // During streaming, scroll smoothly as text arrives
+  // Use streamingText length or keys to track changes without causing dependency array size issues
+  const streamingTextLength = streamingMessageId ? (streamingText[streamingMessageId]?.length || 0) : 0;
+  
+  useEffect(() => {
+    if (!streamingMessageId || !isUserNearBottom) return;
+
+    // Scroll during streaming when new tokens arrive
+    scrollToBottom();
+  }, [streamingTextLength, streamingMessageId, isUserNearBottom, scrollToBottom]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { 
@@ -85,188 +187,36 @@ export default function MessageList({ activeChat }: MessageListProps) {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full" ref={messagesContainerRef}>
       <div className="space-y-4 pb-4">
-        {activeChat.messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
-          >
-            {/* Images above the blue bubble (outside frame) */}
-            {message.images && message.images.length > 0 && (
-              <div className={`max-w-[85%] sm:max-w-[80%] mb-2 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className="flex flex-wrap gap-2">
-                  {message.images.map((src, idx) => (
-                    <div 
-                      key={idx} 
-                      className="overflow-hidden rounded-lg border-2 border-[#3a4a5a] bg-[#2a3441]"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={src} 
-                        alt={`attachment-${idx}`} 
-                        className="w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity block" 
-                        onClick={() => setViewingImage(src)}
-                        onError={(e) => {
-                          console.error('Failed to load image:', src);
-                          e.currentTarget.style.display = 'none';
-                        }}
-                        loading="lazy"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Documents above the blue bubble */}
-            {message.documents && message.documents.length > 0 && (
-              <div className={`max-w-[85%] sm:max-w-[80%] mb-2 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className="flex flex-wrap gap-2">
-                  {message.documents.map((doc, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-[#3a4a5a] bg-[#2a3441] ${doc.type === 'AUDIO' ? 'max-w-[300px]' : 'max-w-[250px] cursor-pointer hover:bg-[#3a4a5a]'} transition-colors`}
-                      onClick={doc.type !== 'AUDIO' ? () => window.open(doc.url, '_blank') : undefined}
-                      title={doc.type !== 'AUDIO' ? `Click to open ${doc.file.name}` : 'Audio message'}
-                    >
-                      {doc.type === 'AUDIO' ? (
-                        <div className="flex items-center gap-2 w-full">
-                          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                          </svg>
-                          <audio 
-                            controls 
-                            src={doc.url}
-                            className="flex-1 h-8"
-                            style={{ maxWidth: '200px' }}
-                          />
-                        </div>
-                      ) : doc.type === 'PDF' ? (
-                        <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      )}
-                      {doc.type !== 'AUDIO' && (
-                        <span className="text-white text-xs truncate">
-                          {doc.file.name}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Blue bubble with text */}
-            <div
-              className={`max-w-[85%] sm:max-w-[80%] min-w-0 rounded-xl overflow-hidden ${
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-[#2a3441] text-white'
-              }`}
-            >
-              {message.content && (
-                <div className="p-3 min-w-0">
-                  <p className="text-base whitespace-pre-wrap leading-relaxed break-all" style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{message.content}</p>
-                  {/* Timestamp, Copy and Speaker Icon */}
-                  <div className={`flex items-center justify-between mt-2 gap-2 ${
-                    message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-                  }`}>
-                    <p className={`text-xs ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                    }`}>
-                      {formatTime(message.timestamp)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {/* Copy Button */}
-                      {message.content && (
-                        <button
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                          title={copiedMessageId === message.id ? "Copied!" : "Copy text"}
-                          onClick={() => handleCopyText(message.content, message.id)}
-                        >
-                          {copiedMessageId === message.id ? (
-                            <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      {/* Speaker Icon */}
-                      {loadingMessageId === message.id ? (
-                        <div className="w-[15px] h-[15px] border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
-                      ) : currentPlayingId === message.id ? (
-                        <button
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                          title="Stop audio"
-                          onClick={stopAudio}
-                        >
-                          <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      ) : loadingMessageId ? null : (
-                        <button
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                          title="Play audio"
-                          onClick={() => handleTextToSpeech(message.content, message.id)}
-                        >
-                          <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* Timestamp for image-only or document-only messages (without text) */}
-              {(!message.content && ((message.images && message.images.length > 0) || (message.documents && message.documents.length > 0))) && (
-                <div className="p-3">
-                  <div className={`flex items-center justify-between gap-2 ${
-                    message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-                  }`}>
-                    <p className={`text-xs ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                    }`}>
-                      {formatTime(message.timestamp)}
-                    </p>
-                    {loadingMessageId === message.id ? (
-                      <div className="w-[15px] h-[15px] border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
-                    ) : currentPlayingId === message.id ? (
-                      <button
-                        className="opacity-60 hover:opacity-100 transition-opacity"
-                        title="Stop audio"
-                        onClick={stopAudio}
-                      >
-                        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    ) : loadingMessageId ? null : (
-                      <button
-                        className="opacity-60 hover:opacity-100 transition-opacity"
-                        title="Play audio"
-                        onClick={() => handleTextToSpeech(message.content || '', message.id)}
-                      >
-                        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+        {activeChat.messages.map((message, index) => {
+          const isLastMessage = index === activeChat.messages.length - 1;
+          // Get streaming text for this message if it's currently streaming
+          const messageStreamingText = streamingMessageId === message.id 
+            ? streamingText[message.id] || null
+            : null;
+          const isCurrentlyStreaming = streamingMessageId === message.id && messageStreamingText !== null;
+          
+          return (
+            <MessageItem
+              key={message.id}
+              message={message}
+              isLastMessage={isLastMessage}
+              isSending={isSending}
+              copiedMessageId={copiedMessageId}
+              loadingMessageId={loadingMessageId}
+              currentPlayingId={currentPlayingId}
+              onCopyText={handleCopyText}
+              onTextToSpeech={handleTextToSpeech}
+              onStopAudio={stopAudio}
+              formatTime={formatTime}
+              streamingText={messageStreamingText}
+              streamingMessageId={streamingMessageId}
+              onEditMessage={onEditMessage}
+            />
+          );
+        })}
+        
         <div ref={messagesEndRef} />
       </div>
 

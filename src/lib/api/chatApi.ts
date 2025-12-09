@@ -156,4 +156,182 @@ export const chatApi = {
       message: transformMessageToMessage(response.data.data.message),
     };
   },
+
+  // Stream message creation in existing session (SSE)
+  streamMessage: async (
+    sessionId: string,
+    dto: CreateMessageDto,
+    onToken: (token: string, fullText: string) => void,
+    onComplete: (fullText: string, messageId?: string) => void,
+    onError: (error: Error) => void,
+    abortSignal?: AbortSignal,
+  ): Promise<void> => {
+    // Get API base URL from axios instance
+    const API_BASE = baseURL.defaults.baseURL;
+    const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies
+      body: JSON.stringify(dto),
+      signal: abortSignal, // Add abort signal
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      onError(new Error(errorData.message || 'Stream failed'));
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      onError(new Error('Response body is not readable'));
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        // Check if aborted before reading
+        if (abortSignal?.aborted) {
+          return; // Silently return if aborted
+        }
+        
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          // Check if aborted during processing
+          if (abortSignal?.aborted) {
+            return; // Silently return if aborted
+          }
+          
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                onError(new Error(data.error));
+                return;
+              }
+              if (data.token && !data.done) {
+                onToken(data.token, data.fullText || '');
+              }
+              if (data.done) {
+                onComplete(data.fullText || '', data.messageId);
+                return;
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Don't call onError if it was aborted
+      if (abortSignal?.aborted) {
+        return; // Silently return if aborted
+      }
+      onError(error instanceof Error ? error : new Error('Stream read error'));
+    }
+  },
+
+  // Stream message creation with new session (SSE)
+  streamMessageWithSession: async (
+    dto: CreateMessageDto,
+    onToken: (token: string, fullText: string, sessionId?: string) => void,
+    onComplete: (fullText: string, sessionId: string, messageId?: string) => void,
+    onError: (error: Error) => void,
+    abortSignal?: AbortSignal,
+  ): Promise<void> => {
+    // Get API base URL from axios instance
+    const API_BASE = baseURL.defaults.baseURL;
+    const response = await fetch(`${API_BASE}/chat/messages/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(dto),
+      signal: abortSignal, // Add abort signal
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      onError(new Error(errorData.message || 'Stream failed'));
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      onError(new Error('Response body is not readable'));
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sessionId: string | undefined;
+
+    try {
+      while (true) {
+        // Check if aborted before reading
+        if (abortSignal?.aborted) {
+          return; // Silently return if aborted
+        }
+        
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          // Check if aborted during processing
+          if (abortSignal?.aborted) {
+            return; // Silently return if aborted
+          }
+          
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                onError(new Error(data.error));
+                return;
+              }
+              if (data.sessionId) {
+                sessionId = data.sessionId;
+              }
+              if (data.token && !data.done) {
+                onToken(data.token, data.fullText || '', sessionId);
+              }
+              if (data.done) {
+                onComplete(data.fullText || '', sessionId || '', data.messageId);
+                return;
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Don't call onError if it was aborted
+      if (abortSignal?.aborted) {
+        return; // Silently return if aborted
+      }
+      onError(error instanceof Error ? error : new Error('Stream read error'));
+    }
+  },
+
+  // Delete a message from a session
+  deleteMessage: async (sessionId: string, messageId: string): Promise<void> => {
+    await baseURL.delete(`/chat/sessions/${sessionId}/messages/${messageId}`);
+  },
 };
