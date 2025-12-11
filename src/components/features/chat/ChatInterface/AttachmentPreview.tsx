@@ -65,14 +65,7 @@ export default function AttachmentPreview({
                       </div>
                     )}
                     
-                    {/* Error Overlay */}
-                    {isError && (
-                      <div className="absolute inset-0 bg-red-500/50 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </div>
-                    )}
+                    {/* Error state - no visual overlay, only border color indicates error */}
                   </div>
                 </div>
               );

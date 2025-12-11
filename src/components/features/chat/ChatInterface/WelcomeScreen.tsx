@@ -12,10 +12,27 @@ import { useUser } from '@/hooks/useUser';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
-  onSendMessage?: (content: string, images?: string[], documents?: MessageDocument[]) => void;
+  onSendMessage?: (content: string, images?: string[], documents?: MessageDocument[], chatOverride?: Chat, editingMessageId?: string | null) => void;
+  isSending?: boolean;
+  streamingText?: { [messageId: string]: string };
+  streamingMessageId?: string | null;
+  stopStreaming?: () => void;
+  startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
+  editingMessageId?: string | null;
+  setEditingMessageId?: (id: string | null) => void;
 }
 
-export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScreenProps) {
+export default function WelcomeScreen({ 
+  activeChat, 
+  onSendMessage, 
+  isSending = false, 
+  streamingText = {}, 
+  streamingMessageId = null,
+  stopStreaming,
+  startEditingMessage,
+  editingMessageId,
+  setEditingMessageId,
+}: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [imageUploadStates, setImageUploadStates] = useState<ImageUploadState[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
@@ -47,6 +64,26 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   // Check if any image is still uploading
   const isUploading = imageUploadStates.some(state => state.status === 'uploading');
   
+  // Handle editing message - populate input when editingMessageId changes
+  useEffect(() => {
+    if (editingMessageId && activeChat && startEditingMessage) {
+      const messageData = startEditingMessage(editingMessageId);
+      if (messageData) {
+        setInputValue(messageData.content);
+        // Note: images and documents from edited message would need to be handled separately
+        // For now, we'll just populate the text content
+      }
+    } else if (!editingMessageId && inputValue) {
+      // Clear input when not editing (optional - you might want to keep the input)
+    }
+  }, [editingMessageId, activeChat, startEditingMessage]);
+  
+  const handleEditMessage = (messageId: string) => {
+    if (startEditingMessage) {
+      startEditingMessage(messageId);
+    }
+  };
+  
   const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
     // Don't allow sending if images are still uploading
@@ -59,10 +96,19 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         state.uploadedUrl || state.previewUrl
       );
       
-      onSendMessage(inputValue.trim(), imageUrls.length > 0 ? imageUrls : undefined, selectedDocuments.length > 0 ? selectedDocuments : undefined);
+      onSendMessage(
+        inputValue.trim(), 
+        imageUrls.length > 0 ? imageUrls : undefined, 
+        selectedDocuments.length > 0 ? selectedDocuments : undefined,
+        undefined,
+        editingMessageId || undefined
+      );
       setInputValue('');
       setImageUploadStates([]);
       setSelectedDocuments([]);
+      if (setEditingMessageId) {
+        setEditingMessageId(null);
+      }
       
       // Reset textarea height
       if (textareaRef.current) {
@@ -259,7 +305,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   };
 
   // Use audio hook for backend API calls
-  const { sendAudio, isSending } = useAudio();
+  const { sendAudio, isSending: isSendingAudio } = useAudio();
 
   // Handle audio send - call backend and set transcription
   const handleSendAudioWrapper = async (audioDocument: MessageDocument) => {
@@ -356,7 +402,13 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         /* Show Message List when chat has messages - Constrained to prompt width */
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 chat-scrollbar">
           <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-14 sm:pt-8 pb-4">
-            <MessageList activeChat={activeChat} />
+            <MessageList 
+              activeChat={activeChat} 
+              isSending={isSending}
+              streamingText={streamingText}
+              streamingMessageId={streamingMessageId}
+              onEditMessage={handleEditMessage}
+            />
           </div>
         </div>
       )}
@@ -377,7 +429,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
             {/* Audio Recorder UI - Shows when recording or audio ready */}
             {(audioRecorder.isRecording || audioRecorder.audioUrl) && (
               <div className="mb-3">
-                {!isSending && (
+                {!isSending && !isSendingAudio && (
                   <AudioRecorder 
                     variant="ui"
                     isRecording={audioRecorder.isRecording}
@@ -412,11 +464,11 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                     handleSubmit(e);
                   }
                 }}
-                placeholder={isSending ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
-                disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
+                placeholder={isSendingAudio ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
+                disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
                 className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-xs sm:text-sm md:text-base resize-none overflow-y-hidden max-h-[200px] pr-1 sm:pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
-                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
                 style={{ 
                   minHeight: '20px', 
@@ -433,9 +485,9 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                   <button
                     type="button"
                     onClick={() => setShowPinMenu(!showPinMenu)}
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending}
+                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                     className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                     title="More Options"
                   >
@@ -497,17 +549,32 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                   )}
                 </div>
                 
-                {/* Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
-                {(inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? (
+                {/* Stop Button (when streaming or sending) or Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
+                {(streamingMessageId || isSending) && stopStreaming ? (
+                  // Show stop button when streaming or sending
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      stopStreaming();
+                    }}
+                    className="p-1.5 sm:p-2 rounded-lg transition-colors duration-200 bg-red-500 hover:bg-red-600 text-white"
+                    title="Stop generating"
+                  >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 6h12v12H6z"/>
+                    </svg>
+                  </button>
+                ) : (inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? (
                   <button
                     type="submit"
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isUploading}
+                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio || isUploading}
                     className={`p-1.5 sm:p-2 rounded-lg transition-colors duration-200 ${
                       isUploading 
                         ? 'bg-gray-500 cursor-not-allowed opacity-50' 
                         : 'bg-blue-500 hover:bg-blue-600 text-white'
                     } ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending) ? 'opacity-50 cursor-not-allowed' : ''
+                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                     title={isUploading ? 'Uploading images...' : 'Send message'}
                     onClick={(e) => {

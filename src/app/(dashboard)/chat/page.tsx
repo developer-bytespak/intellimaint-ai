@@ -30,7 +30,14 @@ function ChatPageContent() {
     deleteDocument,
     loadMoreChats,
     hasMoreChats,
-    isLoadingMoreChats
+    isLoadingMoreChats,
+    isSending,
+    streamingText,
+    streamingMessageId,
+    stopStreaming,
+    startEditingMessage,
+    editingMessageId,
+    setEditingMessageId,
   } = useChat();
 
   const { logout } = useUser();
@@ -188,10 +195,10 @@ function ChatPageContent() {
   // Responsive Layout - Works for both mobile and desktop
   return (
     <div className="h-screen bg-[#1f2632] flex overflow-hidden max-w-full">
-      {/* Backdrop - Close sidebar when clicking outside */}
-      {isSidebarOpen && (
+      {/* Backdrop - Close sidebar when clicking outside (Mobile only) */}
+      {isSidebarOpen && isMobile && (
         <div 
-          className="fixed inset-0 z-30"
+          className="fixed inset-0 z-30 bg-black/50"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -257,7 +264,7 @@ function ChatPageContent() {
       )}
 
       {/* Main Content Area - Shifts when sidebar opens (desktop only) */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out min-w-0 max-w-full overflow-hidden ${
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out min-w-0 max-w-full overflow-hidden relative ${
         !isMobile && isSidebarOpen ? 'ml-80' : 'ml-0'
       }`}>
         {/* Top Header - Desktop only */}
@@ -319,6 +326,13 @@ function ChatPageContent() {
               activeChat={activeChat} 
               onSendMessage={sendMessage}
               onSendMessageFromWelcome={handleSendMessageFromWelcome}
+              isSending={isSending}
+              streamingText={streamingText}
+              streamingMessageId={streamingMessageId}
+              stopStreaming={stopStreaming}
+              startEditingMessage={startEditingMessage}
+              editingMessageId={editingMessageId}
+              setEditingMessageId={setEditingMessageId}
             />
           )}
         </div>
