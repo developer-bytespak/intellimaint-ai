@@ -29,6 +29,15 @@ export function middleware(req: NextRequest) {
   
   const pathname = req.nextUrl.pathname;
 
+  // Debug logging (can be removed after testing)
+  console.log('[Middleware]', {
+    pathname,
+    hasLocalToken: !!localToken,
+    hasGoogleToken: !!googleToken,
+    hasToken,
+    allCookies: req.cookies.getAll().map(c => c.name)
+  });
+
   // Find matching route rule
   const rule = routeRules.find(r => pathname.startsWith(r.path));
 
@@ -37,11 +46,13 @@ export function middleware(req: NextRequest) {
 
   // -------- PROTECTED ROUTES ----------
   if (rule.protect && !hasToken) {
+    console.log('[Middleware] Redirecting to /login - no token found for protected route:', pathname);
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
   // -------- PUBLIC ROUTES ------------
   if (!rule.protect && hasToken) {
+    console.log('[Middleware] Redirecting to /chat - user already authenticated on public route:', pathname);
     return NextResponse.redirect(new URL('/chat', req.url));
   }
 
