@@ -70,14 +70,6 @@ export default function LoginPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Trigger sign in when Enter is pressed in email or password fields
-    if (e.key === "Enter" && !loginUser.isPending && email && password) {
-      e.preventDefault();
-      handleSignIn();
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Trigger sign in when Enter is pressed in email or password fields
     if (e.key === 'Enter' && !loginUser.isPending && email && password) {
       e.preventDefault();
       handleSignIn();
