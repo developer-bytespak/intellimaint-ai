@@ -35,14 +35,39 @@ export default function LoginPage() {
         setIsTransitioning(true);
         
         try {
-          // cookie applies to the frontend domain (Vercel). Use SameSite=None and Secure in prod.
+          // cookie applies to the frontend domain (Vercel). Use SameSite=Lax for same-site
           const cookieValue = 'true';
           const maxAge = 60 * 60 * 24 * 7; // 7 days
-          const sameSite = 'None';
+          const isProduction = window.location.hostname !== 'localhost';
+          const sameSite = isProduction ? 'Lax' : 'Lax';
           const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-          document.cookie = `local_access=${cookieValue}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+          const cookieString = `local_access=${cookieValue}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+          
+          document.cookie = cookieString;
+          
+          // Verify cookie was set
+          const cookiesAfter = document.cookie;
+          const wasSet = cookiesAfter.includes('local_access=');
+          
+          console.log('Cookie setting attempt:', {
+            cookieString,
+            hostname: window.location.hostname,
+            protocol: window.location.protocol,
+            isProduction,
+            cookiesBefore: document.cookie || 'No cookies',
+            cookiesAfter,
+            wasSet
+          });
+          
+          if (wasSet) {
+            console.log('✅ Successfully set local_access cookie');
+          } else {
+            console.error('❌ Failed to set local_access cookie');
+            toast.warning('Cookie setting failed - you may be redirected to login');
+          }
         } catch (err) {
-          console.warn('Failed to set local_access cookie:', err);
+          console.error('Failed to set local_access cookie:', err);
+          toast.error('Authentication setup failed. Please try again.');
         }
 
         // Small delay to show transition animation before navigation

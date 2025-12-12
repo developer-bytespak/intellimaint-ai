@@ -14,7 +14,13 @@ export default function CallbackClient() {
     if (error) return;
 
     if (token) {
-      document.cookie = `jwt=${token}; path=/;`;
+      // Set cookie for middleware to detect authentication
+      const maxAge = 60 * 60 * 24 * 7; // 7 days
+      const isProduction = window.location.hostname !== 'localhost';
+      const sameSite = isProduction ? 'Lax' : 'Lax';
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `google_access=true; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+      console.log('Successfully set google_access cookie');
       router.replace("/chat");
     }
   }, [error, token, router]);
