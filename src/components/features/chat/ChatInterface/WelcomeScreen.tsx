@@ -9,6 +9,7 @@ import { useAudio } from '@/hooks/useAudio';
 import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
 import { useUser } from '@/hooks/useUser';
+import CallingModal from '../CallingModal';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -21,6 +22,7 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [showCallingModal, setShowCallingModal] = useState(false);
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -463,7 +465,10 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => setShowPinMenu(false)}
+                          onClick={() => {
+                            setShowPinMenu(false);
+                            setShowCallingModal(true);
+                          }}
                           title="Call"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -559,6 +564,13 @@ export default function WelcomeScreen({ activeChat, onSendMessage }: WelcomeScre
         isOpen={showCamera}
         onClose={() => setShowCamera(false)}
         onCapture={handleCapturePhoto}
+      />
+
+      {/* Calling Modal */}
+      <CallingModal
+        isOpen={showCallingModal}
+        onClose={() => setShowCallingModal(false)}
+        websocketUrl={process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001'}
       />
 
       {/* Image Overlay */}
