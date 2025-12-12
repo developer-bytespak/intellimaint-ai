@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const { loginUser } = useUser();
 
@@ -29,10 +30,10 @@ export default function LoginPage() {
         console.log('Login successful:', data);
         const response = data as IAxiosResponse;
         toast.success(response.message);
-        // Set a lightweight frontend cookie so Next.js middleware (running on Vercel)
-        // can detect that the user is authenticated. The backend should still
-        // set the httpOnly cookie for API requests; this client cookie is only
-        // used for routing decisions in middleware.
+        
+        // Set transition state for smooth UI transition
+        setIsTransitioning(true);
+        
         try {
           // cookie applies to the frontend domain (Vercel). Use SameSite=None and Secure in prod.
           const cookieValue = 'true';
@@ -44,7 +45,10 @@ export default function LoginPage() {
           console.warn('Failed to set local_access cookie:', err);
         }
 
-        router.push('/chat');
+        // Small delay to show transition animation before navigation
+        setTimeout(() => {
+          router.push('/chat');
+        }, 500);
       },
       onError: (error) => {
         console.error('Login error:', error);
@@ -64,8 +68,32 @@ export default function LoginPage() {
     router.replace('/form');
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Trigger sign in when Enter is pressed in email or password fields
+    if (e.key === 'Enter' && !loginUser.isPending && email && password) {
+      e.preventDefault();
+      handleSignIn();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1A1D26] flex flex-col lg:flex-row">
+      {/* Transition Overlay - Smooth fade out when logging in */}
+      {isTransitioning && (
+        <div className="fixed inset-0 bg-[#1A1D26] z-50 pointer-events-none animate-[fadeOut_500ms_ease-in_forwards]" style={{
+          animation: 'fadeOut 500ms ease-in forwards'
+        }} />
+      )}
+      <style jsx>{`
+        @keyframes fadeOut {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+      `}</style>
       {/* Mobile/Tablet: Single Column Layout (matches image exactly) */}
       <div className="lg:hidden flex flex-col items-center justify-center p-4 sm:p-6 min-h-screen">
         {/* Logo */}
@@ -103,6 +131,7 @@ export default function LoginPage() {
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
               id="email"
               type="email"
               placeholder="Enter your email"
@@ -122,6 +151,7 @@ export default function LoginPage() {
                 value={password}
                 id="password"
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
@@ -262,6 +292,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Enter your email"
               className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500"
             />
@@ -277,6 +308,7 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Password"
                 className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
               />

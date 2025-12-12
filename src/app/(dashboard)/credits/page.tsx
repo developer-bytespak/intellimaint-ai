@@ -4,6 +4,7 @@ import type React from "react"
 import { useRouter } from "next/navigation"
 import { useCredits } from "@/hooks/useCredits"
 import { useState, useEffect } from "react"
+import PageTransition from '@/components/ui/PageTransition'
 
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -121,6 +122,7 @@ export default function CreditsPage() {
       </header>
 
       {/* Content */}
+      <PageTransition>
       <main className="space-y-4 pt-6">
         <section className="">
           <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
@@ -263,6 +265,7 @@ export default function CreditsPage() {
           </div>
         </section>
       </main>
+      </PageTransition>
     </div>
   )
 }

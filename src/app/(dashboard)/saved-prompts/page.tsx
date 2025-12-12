@@ -4,6 +4,7 @@ import type React from "react"
 import { useRouter } from "next/navigation"
 import { useChat } from "@/hooks/useChat"
 import { useState, useEffect, Suspense } from "react"
+import PageTransition from '@/components/ui/PageTransition'
 
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -340,7 +341,9 @@ export default function SavedPromptsPage() {
         <div className="text-white text-lg">Loading...</div>
       </div>
     }>
-      <SavedPromptsContent />
+      <PageTransition>
+        <SavedPromptsContent />
+      </PageTransition>
     </Suspense>
   );
 }

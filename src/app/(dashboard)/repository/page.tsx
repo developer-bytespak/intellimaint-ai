@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
+import PageTransition from '@/components/ui/PageTransition'
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import { useRepository, useDocuments, RepositoryDocument, useExtractionProgress, backgroundProcessingManager } from "@/hooks/useRepository"
@@ -216,16 +217,35 @@ export default function RepositoryPage() {
   // Track extraction progress at the top level (hooks must be called at top level)
   const { data: extractionProgress, error: extractionError } = useExtractionProgress(activeJobId, !!activeJobId)
   const [, forceUpdate] = useState(0)
+  const scheduledUpdateRef = useRef<number | null>(null)
   
   // Subscribe to cache updates to force re-render when background manager updates progress
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
       // Only update for extraction-progress queries
       if (event?.query?.queryKey?.[0] === 'extraction-progress') {
-        forceUpdate(prev => prev + 1)
+        // Schedule an async update to avoid synchronous nested state updates
+        if (typeof window !== 'undefined') {
+          if (scheduledUpdateRef.current) return
+          scheduledUpdateRef.current = window.setTimeout(() => {
+            scheduledUpdateRef.current = null
+            forceUpdate(prev => prev + 1)
+          }, 50)
+        } else {
+          // Server-side fallback (shouldn't usually run here)
+          forceUpdate(prev => prev + 1)
+        }
       }
     })
-    return () => unsubscribe()
+
+    return () => {
+      // Cleanup scheduled update and unsubscribe
+      if (typeof window !== 'undefined' && scheduledUpdateRef.current) {
+        clearTimeout(scheduledUpdateRef.current)
+        scheduledUpdateRef.current = null
+      }
+      unsubscribe()
+    }
   }, [queryClient])
   
   if(extractionProgress?.status === "completed"){
@@ -742,6 +762,7 @@ export default function RepositoryPage() {
   })
 
   return (
+    <PageTransition>
     <main className="min-h-screen bg-[#1f2632] text-white">
 
       {/* Header */}
@@ -1092,6 +1113,7 @@ export default function RepositoryPage() {
         </div>
       </section>
     </main>
+    </PageTransition>
   )
 }
 
