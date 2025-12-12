@@ -1,113 +1,119 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface UseSmoothStreamingOptions {
-  baseDelay?: number; // Base delay in ms between characters (default: 20ms)
-  minDelay?: number; // Minimum delay when queue is large (default: 5ms)
-  maxDelay?: number; // Maximum delay when queue is small (default: 50ms)
-  queueThreshold?: number; // Queue length threshold for speed adjustment (default: 50)
-  aggressivenessFactor?: number; // How aggressively to speed up (default: 0.1)
+  baseDelay?: number; // Base delay in ms between characters (default: 8ms for faster feel)
+  minDelay?: number; // Minimum delay when queue is large (default: 2ms)
+  maxDelay?: number; // Maximum delay when queue is small (default: 15ms)
+  batchSize?: number; // Number of characters to render per frame (default: 1)
 }
 
 /**
  * Custom hook for smooth, ChatGPT-like token streaming
- * Implements a producer-consumer queue pattern with adaptive pacing
+ * Optimized for consistent character-by-character display
+ * 
+ * IMPROVEMENTS:
+ * - Faster base delay (8ms vs 20ms)
+ * - Stops rendering loop when queue is truly empty
+ * - Simpler delay calculation (no complex adaptive logic)
+ * - Better performance with requestAnimationFrame
  */
 export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
   const {
-    baseDelay = 20,
-    minDelay = 5,
-    maxDelay = 50,
-    queueThreshold = 50,
-    aggressivenessFactor = 0.1,
+    baseDelay = 8, // Faster default for snappier feel
+    minDelay = 2,
+    maxDelay = 15,
+    batchSize = 1, // Render 1 character at a time
   } = options;
 
   const [displayedText, setDisplayedText] = useState('');
   const queueRef = useRef<string[]>([]);
   const animationFrameRef = useRef<number | null>(null);
   const isRenderingRef = useRef(false);
-  const lastUpdateTimeRef = useRef(0);
+  const lastRenderTimeRef = useRef<number>(0);
 
   /**
    * Add new tokens to the queue (producer)
-   * Splits tokens into individual characters for maximum smoothness
+   * Splits tokens into individual characters for smooth rendering
    */
   const addTokens = useCallback((tokens: string) => {
-    if (!tokens) return;
+    if (!tokens || tokens.length === 0) return;
     
-    // Split tokens into individual characters for character-by-character rendering
+    // Split tokens into individual characters
     const chars = tokens.split('');
     queueRef.current.push(...chars);
     
     // Start rendering loop if not already running
     if (!isRenderingRef.current) {
-      startRenderingLoop();
+      isRenderingRef.current = true;
+      lastRenderTimeRef.current = performance.now();
+      animationFrameRef.current = requestAnimationFrame(renderLoop);
     }
   }, []);
 
   /**
-   * Calculate adaptive delay based on queue length
-   * Formula: delay = baseDelay / (1 + queueLength * aggressivenessFactor)
-   * Clamped between minDelay and maxDelay
+   * Calculate delay based on queue length
+   * Uses simpler linear interpolation for consistent feel
    */
   const calculateDelay = useCallback((queueLength: number): number => {
-    if (queueLength > queueThreshold) {
-      // Large queue: speed up (lower delay)
-      const calculatedDelay = baseDelay / (1 + queueLength * aggressivenessFactor);
-      return Math.max(minDelay, calculatedDelay);
+    if (queueLength === 0) return baseDelay;
+    
+    // Simple logic: speed up slightly when queue is large
+    if (queueLength > 50) {
+      return minDelay; // Fast rendering for large queue
+    } else if (queueLength > 20) {
+      return baseDelay * 0.7; // Slightly faster
+    } else if (queueLength > 10) {
+      return baseDelay; // Normal speed
     } else {
-      // Small queue: slow down slightly (higher delay) to avoid running out
-      const calculatedDelay = baseDelay * (1 + (queueThreshold - queueLength) * 0.05);
-      return Math.min(maxDelay, calculatedDelay);
+      // Slow down slightly when queue is small to avoid emptying too fast
+      return Math.min(maxDelay, baseDelay * 1.2);
     }
-  }, [baseDelay, minDelay, maxDelay, queueThreshold, aggressivenessFactor]);
+  }, [baseDelay, minDelay, maxDelay]);
 
   /**
    * Rendering loop (consumer)
-   * Uses requestAnimationFrame for smooth, frame-synced rendering
+   * Uses requestAnimationFrame for frame-synced rendering
    */
-  const renderLoop = useCallback((currentTime: DOMHighResTimeStamp) => {
+  const renderLoop = useCallback((currentTime: number) => {
     const queue = queueRef.current;
     
+    // Stop loop if queue is empty
     if (queue.length === 0) {
-      // Queue is empty, check again soon
       isRenderingRef.current = false;
-      animationFrameRef.current = requestAnimationFrame(renderLoop);
-      return;
+      animationFrameRef.current = null;
+      return; // CRITICAL: Stop here, don't schedule another frame
     }
 
-    // Calculate adaptive delay based on current queue length
+    // Calculate delay based on current queue length
     const delay = calculateDelay(queue.length);
-    
-    // Check if enough time has passed since last update
-    if (!lastUpdateTimeRef.current) {
-      lastUpdateTimeRef.current = currentTime;
-    }
+    const deltaTime = currentTime - lastRenderTimeRef.current;
 
-    const deltaTime = currentTime - lastUpdateTimeRef.current;
-
+    // Check if enough time has passed
     if (deltaTime >= delay) {
-      // Take one character from queue and add to displayed text
-      const char = queue.shift();
-      if (char !== undefined) {
-        setDisplayedText(prev => prev + char);
-        lastUpdateTimeRef.current = currentTime;
+      // Render one or more characters based on batchSize
+      const charsToRender: string[] = [];
+      for (let i = 0; i < batchSize && queue.length > 0; i++) {
+        const char = queue.shift();
+        if (char !== undefined) {
+          charsToRender.push(char);
+        }
+      }
+
+      if (charsToRender.length > 0) {
+        setDisplayedText(prev => prev + charsToRender.join(''));
+        lastRenderTimeRef.current = currentTime;
       }
     }
 
-    // Continue rendering loop
-    isRenderingRef.current = true;
-    animationFrameRef.current = requestAnimationFrame(renderLoop);
-  }, [calculateDelay]);
-
-  /**
-   * Start the rendering loop
-   */
-  const startRenderingLoop = useCallback(() => {
-    if (!isRenderingRef.current && animationFrameRef.current === null) {
-      isRenderingRef.current = true;
+    // Continue loop only if queue still has items
+    if (queue.length > 0) {
       animationFrameRef.current = requestAnimationFrame(renderLoop);
+    } else {
+      // Queue is now empty, stop loop
+      isRenderingRef.current = false;
+      animationFrameRef.current = null;
     }
-  }, [renderLoop]);
+  }, [calculateDelay, batchSize]);
 
   /**
    * Reset the streaming state
@@ -115,7 +121,7 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
   const reset = useCallback(() => {
     setDisplayedText('');
     queueRef.current = [];
-    lastUpdateTimeRef.current = 0;
+    lastRenderTimeRef.current = 0;
     
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -137,7 +143,24 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
       animationFrameRef.current = null;
     }
     isRenderingRef.current = false;
-    lastUpdateTimeRef.current = 0;
+    lastRenderTimeRef.current = 0;
+  }, []);
+
+  /**
+   * Force flush remaining queue (useful when streaming ends but queue has items)
+   */
+  const flush = useCallback(() => {
+    if (queueRef.current.length > 0) {
+      const remaining = queueRef.current.join('');
+      setDisplayedText(prev => prev + remaining);
+      queueRef.current = [];
+    }
+    
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    isRenderingRef.current = false;
   }, []);
 
   // Cleanup on unmount
@@ -154,7 +177,8 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
     addTokens,
     reset,
     setFullText,
+    flush,
     queueLength: queueRef.current.length,
+    isRendering: isRenderingRef.current,
   };
 }
-

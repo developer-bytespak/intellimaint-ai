@@ -49,11 +49,10 @@ export default function MessageItem({
     streamingMessageId !== message.id;
   
   const { displayedText, addTokens, reset, setFullText, queueLength } = useSmoothStreaming({
-    baseDelay: 15, // Slightly faster base delay for smoother feel
-    minDelay: 3, // Very fast when queue is large
-    maxDelay: 40, // Slower when queue is small
-    queueThreshold: 50,
-    aggressivenessFactor: 0.12,
+    baseDelay: 8, // Fast base delay for smooth character-by-character feel
+    minDelay: 2, // Very fast when queue is large
+    maxDelay: 15, // Slower when queue is small
+    batchSize: 1, // Render 1 character at a time for smooth display
   });
   
   // Track what we've already queued (not just what's displayed)
@@ -62,6 +61,9 @@ export default function MessageItem({
   
   // Track what portion of message.content has been queued (for non-streaming messages)
   const queuedMessageContentRef = useRef<string>('');
+  
+  // Track if we're in completion mode (streaming finished, continuing character-by-character)
+  const isCompletionModeRef = useRef(false);
 
   // Helper function to detect duplicate content
   const hasDuplicateContent = (text: string): boolean => {
@@ -140,27 +142,64 @@ export default function MessageItem({
       // If lengths are equal, don't update (prevents showing duplicate content)
     } else if (!isCurrentlyStreaming && !isWaitingForFirstToken && message.content) {
       // Not streaming anymore and not waiting - ensure we continue character-by-character display
-      // Check if we need to continue streaming remaining characters
+      // The key is to compare what's actually displayed vs what should be displayed
+      // and add only the remaining characters gradually
+      const currentDisplayed = displayedText;
       const alreadyQueuedContent = queuedMessageContentRef.current;
       
-      // Only add content that hasn't been queued yet
-      if (message.content.length > alreadyQueuedContent.length) {
-        // Verify the new content extends what we've already queued
+      // Mark that we're in completion mode (streaming finished, continuing display)
+      if (!isCompletionModeRef.current) {
+        isCompletionModeRef.current = true;
+      }
+      
+      // Primary check: if displayed text is shorter than message content, we need to continue
+      if (currentDisplayed.length < message.content.length) {
+        // Verify the message content extends what's displayed (safety check)
+        if (message.content.startsWith(currentDisplayed)) {
+          const remainingText = message.content.slice(currentDisplayed.length);
+          if (remainingText.length > 0) {
+            // CRITICAL: Only add a small chunk at a time to ensure smooth character-by-character display
+            // This prevents large chunks from being added all at once which would cause the remaining
+            // text to appear instantly. We add chunks gradually as displayedText updates.
+            const chunkSize = 10; // Add 10 characters at a time max for smoother display (reduced from 30)
+            const textToAdd = remainingText.slice(0, chunkSize);
+            
+            // Add the chunk to queue (addTokens will split into individual characters)
+            addTokens(textToAdd);
+            
+            // Update queued content to reflect what we've added (not the full remaining text)
+            // This ensures we continue adding in chunks on subsequent renders as displayedText grows
+            queuedMessageContentRef.current = currentDisplayed + textToAdd;
+          }
+        }
+      } else if (message.content.length > alreadyQueuedContent.length) {
+        // Fallback: if displayed is complete but queued content is shorter, add remaining in chunks
         if (message.content.startsWith(alreadyQueuedContent) || alreadyQueuedContent.length === 0) {
           const remainingText = message.content.slice(alreadyQueuedContent.length);
           if (remainingText.length > 0) {
-            addTokens(remainingText);
-            queuedMessageContentRef.current = message.content;
+            // Add in chunks to maintain smooth display
+            const chunkSize = 10; // Reduced from 30 for smoother character-by-character display
+            const textToAdd = remainingText.slice(0, chunkSize);
+            addTokens(textToAdd);
+            queuedMessageContentRef.current = alreadyQueuedContent + textToAdd;
           }
         } else {
           // Content changed (shouldn't happen, but handle it)
           reset();
           queuedMessageContentRef.current = '';
+          isCompletionModeRef.current = false;
           if (message.content.length > 0) {
-            addTokens(message.content);
-            queuedMessageContentRef.current = message.content;
+            // Even on reset, add in chunks for smooth display
+            const chunkSize = 10; // Reduced from 30 for smoother character-by-character display
+            const textToAdd = message.content.slice(0, chunkSize);
+            addTokens(textToAdd);
+            queuedMessageContentRef.current = textToAdd;
+            isCompletionModeRef.current = true;
           }
         }
+      } else if (currentDisplayed.length >= message.content.length) {
+        // Display is complete, exit completion mode
+        isCompletionModeRef.current = false;
       }
       // If displayedText is already complete or longer, let the smooth streaming hook continue
       // Don't call setFullText here - let the queue finish naturally for smooth character-by-character display
@@ -173,25 +212,46 @@ export default function MessageItem({
   const hasStartedStreamingRef = useRef(false);
   
   useEffect(() => {
-    // Only reset if message ID actually changed (new message)
+    // Handle message ID changes carefully to avoid resetting during temp->real handoff
     if (prevMessageIdRef.current !== message.id) {
-      prevMessageIdRef.current = message.id;
-      hasStartedStreamingRef.current = false;
-      queuedTextRef.current = ''; // Reset queued text tracking
-      queuedMessageContentRef.current = ''; // Reset message content tracking
-      reset();
+      const prevId = prevMessageIdRef.current;
+      const newId = message.id;
+      
+      // Check if this is a temp->real ID transition (not a completely new message)
+      // If we're currently streaming or have queued text, preserve it during handoff
+      const isIdHandoff = prevId && newId && 
+                          prevId.startsWith('temp-') && 
+                          !newId.startsWith('temp-') &&
+                          (queuedTextRef.current.length > 0 || displayedText.length > 0);
+      
+      if (isIdHandoff) {
+        // This is a temp->real ID handoff during streaming
+        // DON'T reset - just update the tracking ref
+        prevMessageIdRef.current = newId;
+        // Keep streaming state intact
+      } else {
+        // This is a genuinely new message - reset everything
+        prevMessageIdRef.current = newId;
+        hasStartedStreamingRef.current = false;
+        isCompletionModeRef.current = false;
+        queuedTextRef.current = '';
+        queuedMessageContentRef.current = '';
+        reset();
+      }
     }
     
     // Track when streaming actually starts (first token arrives)
     if (isCurrentlyStreaming && !hasStartedStreamingRef.current) {
       hasStartedStreamingRef.current = true;
+      isCompletionModeRef.current = false; // Not in completion mode while actively streaming
     }
-  }, [message.id, isCurrentlyStreaming, reset]);
+  }, [message.id, isCurrentlyStreaming, reset, displayedText]);
 
   // Determine what to display
   // Always use displayedText if available (for smooth streaming), otherwise fall back to message.content
   // This ensures character-by-character display continues even after streaming completes
-  const displayedContent = displayedText || (isCurrentlyStreaming ? '' : message.content);
+  // CRITICAL: During handoff (temp->real ID), prefer displayedText to avoid empty render
+  const displayedContent = displayedText || message.content || (isCurrentlyStreaming ? '' : message.content);
 
   // Check if this is a stopped user message
   const isStoppedMessage = message.role === 'user' && message.isStopped;
@@ -227,31 +287,33 @@ export default function MessageItem({
         </div>
       )}
 
-      {/* Message bubble */}
-      <div
-        className={`max-w-[85%] sm:max-w-[80%] min-w-0 rounded-xl overflow-hidden relative group ${
-          message.role === 'user'
-            ? 'bg-blue-500 text-white'
-            : 'bg-[#2a3441] text-white'
-        }`}
-      >
-        {/* Edit button on hover for stopped messages */}
-        {isStoppedMessage && onEditMessage && (
-          <button
-            onClick={() => onEditMessage(message.id)}
-            className={`absolute top-2 right-2 p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all z-10 ${
-              isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
-            title="Edit message"
-          >
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-        )}
-        {/* For assistant messages, only render if there's content or currently streaming to avoid empty bubbles interfering with streaming display */}
-        {((message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken)) || 
-          (message.role === 'user' && (displayedContent || displayedContent === ''))) && (
+      {/* Message bubble - only show if there's content or images for user, or content/streaming for assistant */}
+      {((message.role === 'user' && (displayedContent || (message.images && message.images.length > 0))) ||
+        (message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken))) && (
+        <div
+          className={`max-w-[85%] sm:max-w-[80%] min-w-0 rounded-xl overflow-hidden relative group ${
+            message.role === 'user'
+              ? 'bg-blue-500 text-white'
+              : 'bg-[#2a3441] text-white'
+          }`}
+        >
+          {/* Edit button on hover for stopped messages */}
+          {isStoppedMessage && onEditMessage && (
+            <button
+              onClick={() => onEditMessage(message.id)}
+              className={`absolute top-2 right-2 p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all z-10 ${
+                isHovered ? 'opacity-100' : 'opacity-0'
+              }`}
+              title="Edit message"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
+          {/* For assistant messages, only render if there's content or currently streaming to avoid empty bubbles interfering with streaming display */}
+          {((message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken)) || 
+            (message.role === 'user' && displayedContent)) && (
           <div className="p-3 min-w-0">
             {message.role === 'assistant' ? (
               <>
@@ -362,7 +424,8 @@ export default function MessageItem({
             )}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
     </div>
   );
