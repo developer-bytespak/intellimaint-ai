@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useUser } from '@/hooks/useUser';
-import { IAxiosError, IAxiosResponse } from '@/types/response';
-import { toast } from 'react-toastify';
-import ForgotPasswordModal from '@/components/features/auth/ForgotPasswordModal';
+import { useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useUser } from "@/hooks/useUser";
+import { IAxiosError, IAxiosResponse } from "@/types/response";
+import { toast } from "react-toastify";
+import ForgotPasswordModal from "@/components/features/auth/ForgotPasswordModal";
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -25,9 +25,9 @@ export default function LoginPage() {
       password,
     };
     // console.log(data);
-    loginUser.mutate(data,{
+    loginUser.mutate(data, {
       onSuccess: (data) => {
-        console.log('Login successful:', data);
+        console.log("Login successful:", data);
         const response = data as IAxiosResponse;
         toast.success(response.message);
         
@@ -51,21 +51,29 @@ export default function LoginPage() {
         }, 500);
       },
       onError: (error) => {
-        console.error('Login error:', error);
+        console.error("Login error:", error);
         const axiosError = error as unknown as IAxiosError;
         toast.error(axiosError?.response?.data?.message);
-      }
+      },
     });
   };
 
   const handleSignUp = () => {
     // Navigate to signup page
-    console.log('Navigating to signup page');
-    router.push('/signup');
+    console.log("Navigating to signup page");
+    router.push("/signup");
   };
 
   const handleGoogleSignIn = () => {
-    router.replace('/form');
+    router.replace("/form");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Trigger sign in when Enter is pressed in email or password fields
+    if (e.key === "Enter" && !loginUser.isPending && email && password) {
+      e.preventDefault();
+      handleSignIn();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -205,13 +213,13 @@ export default function LoginPage() {
           </div>
 
           {/* Sign In Button */}
-          <button 
-          type="button"
+          <button
+            type="button"
             onClick={handleSignIn}
             disabled={loginUser.isPending}
             className="w-full bg-[#2196F3] text-white font-semibold py-3 rounded-3xl hover:bg-blue-600 transition-colors"
           >
-            {loginUser.isPending ? 'Signing in...' : 'Sign In'}
+            {loginUser.isPending ? "Signing in..." : "Sign In"}
           </button>
 
           {/* OR Separator */}
@@ -222,9 +230,10 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button 
-          onClick={handleGoogleSignIn}
-          className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          <button
+            onClick={handleGoogleSignIn}
+            className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center"
+          >
             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center mr-3">
               <span className="text-[#3A404C] font-bold text-sm">G</span>
             </div>
@@ -243,8 +252,10 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="text-center pt-4">
-            <span className="text-[#6C707B] text-sm">New to Energy Solution? </span>
-            <button 
+            <span className="text-[#6C707B] text-sm">
+              New to Energy Solution?{" "}
+            </span>
+            <button
               onClick={handleSignUp}
               className="text-white text-sm hover:underline cursor-pointer transition-colors hover:text-blue-400 focus:outline-none focus:text-blue-400 active:text-blue-400"
               type="button"
@@ -317,11 +328,26 @@ export default function LoginPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#6C707B] hover:text-white"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   {showPassword ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414L8.464 8.464m1.414 1.414l4.242 4.242M8.464 8.464L7.05 7.05m1.414 1.414L7.05 7.05m1.414 1.414l4.242 4.242M7.05 7.05L5.636 5.636m1.414 1.414L5.636 5.636m1.414 1.414l4.242 4.242" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414L8.464 8.464m1.414 1.414l4.242 4.242M8.464 8.464L7.05 7.05m1.414 1.414L7.05 7.05m1.414 1.414l4.242 4.242M7.05 7.05L5.636 5.636m1.414 1.414L5.636 5.636m1.414 1.414l4.242 4.242"
+                    />
                   ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   )}
                 </svg>
               </button>
@@ -360,12 +386,12 @@ export default function LoginPage() {
           </div>
 
           {/* Sign In Button */}
-          <button 
+          <button
             onClick={handleSignIn}
             disabled={loginUser.isPending}
             className="w-full bg-[#2196F3] text-white font-semibold md:py-3  rounded-3xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loginUser.isPending ? 'Signing in...' : 'Sign In'}
+            {loginUser.isPending ? "Signing in..." : "Sign In"}
           </button>
 
           {/* OR Separator */}
@@ -376,9 +402,10 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button 
-          onClick={handleGoogleSignIn}
-          className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center">
+          <button
+            onClick={handleGoogleSignIn}
+            className="w-full bg-[#3A404C] text-white font-medium py-3 rounded-3xl hover:bg-[#4A505C] transition-colors flex items-center justify-center"
+          >
             <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center mr-3">
               <span className="text-[#3A404C] font-bold text-sm">G</span>
             </div>
@@ -397,12 +424,14 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="text-center pt-4">
-            <span className="text-[#6C707B] text-sm">New to Energy Solution? </span>
-            <button 
+            <span className="text-[#6C707B] text-sm">
+              New to Energy Solution?{" "}
+            </span>
+            <button
               onClick={handleSignUp}
               className="text-white text-sm hover:underline cursor-pointer transition-colors hover:text-blue-400 focus:outline-none focus:text-blue-400 active:text-blue-400 touch-manipulation"
               type="button"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              style={{ WebkitTapHighlightColor: "transparent" }}
             >
               Sign Up
             </button>
@@ -418,5 +447,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-

@@ -359,11 +359,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Call logout endpoint - backend will clear cookies and redirect to /login
     const logout = async () => {
         try {
-            // Call logout endpoint - cookies are sent automatically, backend will redirect to /login
-              window.location.href = `${API_BASE}/auth/logout`;
+            // Clear frontend auth cookies first
+            document.cookie = 'local_access=; Path=/; Max-Age=0';
+            document.cookie = 'google_access=; Path=/; Max-Age=0';
+            
+            // Clear query cache
+            queryClient.clear();
+            
+            // Call logout endpoint - cookies are sent automatically, backend will clear its cookies
+            window.location.href = `${API_BASE}/auth/logout`;
         } catch (error) {
             console.error('Logout error:', error);
             // Fallback: clear client-side and redirect manually
+            document.cookie = 'local_access=; Path=/; Max-Age=0';
+            document.cookie = 'google_access=; Path=/; Max-Age=0';
             queryClient.clear();
             router.push('/login');
         }

@@ -21,6 +21,25 @@ const baseURL = axios.create({
   },
 });
 
+// Request interceptor - Log outgoing requests with cookies
+baseURL.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      console.log('[Axios Request]', {
+        url: config.url,
+        method: config.method,
+        baseURL: config.baseURL,
+        withCredentials: config.withCredentials,
+        cookies: document.cookie || 'No cookies found'
+      });
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor - Handle 401 errors with automatic token refresh
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -48,6 +67,13 @@ baseURL.interceptors.response.use(
       _retry?: boolean;
     };
 
+    console.log('[Axios Interceptor] Error caught:', {
+      status: error.response?.status,
+      url: originalRequest.url,
+      hasRetried: originalRequest._retry,
+      cookies: typeof window !== 'undefined' ? document.cookie : 'N/A'
+    });
+
     // If error is not 401, or request was already retried, reject immediately
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
@@ -55,6 +81,7 @@ baseURL.interceptors.response.use(
 
     // If we're already refreshing, queue this request
     if (isRefreshing) {
+      console.log('[Axios Interceptor] Request queued - refresh in progress');
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       })
@@ -71,6 +98,8 @@ baseURL.interceptors.response.use(
     originalRequest._retry = true;
     isRefreshing = true;
 
+    console.log('[Axios Interceptor] Attempting token refresh...');
+
     try {
       // Call refresh token endpoint - cookies are sent automatically with withCredentials
       const response = await axios.post(
@@ -81,6 +110,8 @@ baseURL.interceptors.response.use(
         }
       );
 
+      console.log('[Axios Interceptor] Token refresh successful');
+
       // If refresh is successful, process queued requests
       // Backend sets new access token in cookie automatically
       processQueue(null, null);
@@ -90,17 +121,17 @@ baseURL.interceptors.response.use(
       return baseURL(originalRequest);
     } catch (refreshError) {
       // Refresh failed - logout user and redirect to login
+      console.error('[Axios Interceptor] Token refresh failed:', refreshError);
       isRefreshing = false;
       processQueue(refreshError as AxiosError, null);
 
       // Clear any stored tokens/cookies on client side
       if (typeof window !== "undefined") {
-        // Clear cookies
-        document.cookie.split(";").forEach((c) => {
-          document.cookie = c
-            .replace(/^ +/, "")
-            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
+        console.log('[Axios Interceptor] Clearing cookies and redirecting to login');
+        
+        // Clear frontend auth cookies (not all cookies, to avoid breaking other functionality)
+        document.cookie = 'local_access=; Path=/; Max-Age=0';
+        document.cookie = 'google_access=; Path=/; Max-Age=0';
         
         // Redirect to login after a brief delay to allow cookie clearing
         setTimeout(() => {
