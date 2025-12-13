@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { CONFIG } from '@/constants/config';
 import { chatApi } from '@/lib/api/chatApi';
+import { streamChatMessage, streamChatMessageWithSession } from '@/lib/api/chatApi';
 import { useUser } from '@/hooks/useUser';
 
 const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
@@ -31,12 +32,23 @@ export function useChat() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   // Track if current stream was aborted to prevent onComplete from running
   const isStreamAbortedRef = useRef<boolean>(false);
+  // Track streaming completion for smooth handoff
+  const streamingCompleteRef = useRef<{ [messageId: string]: boolean }>({});
   const searchParams = useSearchParams();
   const activeChatRef = useRef<Chat | null>(null);
   const chatsRef = useRef<Chat[]>([]);
 
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
+  
+  // Keep user ref in sync for use in callbacks
+  const userRef = useRef(user);
+  const isUserLoadingRef = useRef(isUserLoading);
+  
+  useEffect(() => {
+    userRef.current = user;
+    isUserLoadingRef.current = isUserLoading;
+  }, [user, isUserLoading]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -48,7 +60,7 @@ export function useChat() {
   }, [chats]);
 
   // Helper function to detect and clean up stopped messages
-  // A stopped message is a user message with no assistant response after it
+  // A stopped message is a user message with isStopped flag set that hasn't been edited
   const cleanupStoppedMessages = useCallback(async (chat: Chat): Promise<Chat> => {
     if (!chat.id || chat.messages.length === 0) {
       return chat;
@@ -57,55 +69,32 @@ export function useChat() {
     const messages = [...chat.messages];
     const messagesToDelete: string[] = [];
 
-    // Find stopped messages (user messages with no assistant response after them)
-    // We only delete messages that are CLEARLY stopped, not just the last message
-    // (which could be in progress if the page crashed before response)
+    // Find ALL stopped messages (marked with isStopped flag) and remove them
+    // These are messages where the user clicked "Stop generating" but didn't edit
+    // On cleanup (e.g., page reload), we remove ALL stopped messages including the last one
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
       
-      // Only check user messages
-      if (message.role !== 'user') {
+      // Only check user messages with isStopped flag
+      if (message.role !== 'user' || !message.isStopped) {
         continue;
       }
 
-      // Skip if this is the last message - it might be in progress
-      // We only delete if there's clear evidence it was stopped
-      if (i === messages.length - 1) {
-        // Don't delete - could be in progress
-        continue;
-      }
+      // This is a stopped message that wasn't edited - mark for deletion
+      messagesToDelete.push(message.id);
 
-      // Check if next message is another user message (no assistant response between)
-      // This is clear evidence the previous message was stopped
-      const nextMessage = messages[i + 1];
-      if (nextMessage && nextMessage.role === 'user') {
-        messagesToDelete.push(message.id);
-        continue;
-      }
-
-      // Check if next message is assistant with empty content (incomplete response)
-      // This is clear evidence the response was stopped
-      if (nextMessage && nextMessage.role === 'assistant' && (!nextMessage.content || nextMessage.content.trim().length === 0)) {
-        messagesToDelete.push(message.id);
-        // Also delete the incomplete assistant message
-        if (!messagesToDelete.includes(nextMessage.id)) {
-          messagesToDelete.push(nextMessage.id);
+      // Also delete any assistant messages that came after it
+      // (they shouldn't exist but clean them up if they do)
+      for (let j = i + 1; j < messages.length; j++) {
+        const nextMessage = messages[j];
+        if (nextMessage.role === 'assistant') {
+          if (!messagesToDelete.includes(nextMessage.id)) {
+            messagesToDelete.push(nextMessage.id);
+          }
+        } else if (nextMessage.role === 'user') {
+          // Stop at the next user message
+          break;
         }
-        continue;
-      }
-      
-      // Check if next message is assistant with content, but user message is the last user message
-      // and there's no subsequent user message - this suggests the user stopped it but backend completed
-      // We'll delete the assistant message if the user message appears to be stopped
-      // (This is a heuristic - if a user message is immediately followed by an assistant message
-      // and there's no other user message after, it might have been stopped)
-      if (nextMessage && nextMessage.role === 'assistant' && nextMessage.content && nextMessage.content.trim().length > 0) {
-        // Check if this is the last user message in the conversation
-        const isLastUserMessage = !messages.slice(i + 1).some(msg => msg.role === 'user');
-        // If it's the last user message and immediately followed by assistant, 
-        // and there are more messages after, it might have been stopped
-        // But we need to be careful - only delete if there's clear evidence
-        // For now, we'll skip this case to avoid false positives
       }
     }
 
@@ -152,8 +141,28 @@ export function useChat() {
 
   // Helper function to upload images to storage
   const uploadImages = useCallback(async (imageUrls: string[]): Promise<string[]> => {
-    if (!user?.id) {
-      throw new Error('User ID not available');
+    // Check if user is available - if loading, wait briefly for it to load
+    // Use refs to get latest values during the wait
+    if (isUserLoadingRef.current || !userRef.current) {
+      // Wait for user to load (max 3 seconds)
+      let attempts = 0;
+      const maxAttempts = 30; // 30 * 100ms = 3 seconds
+      while ((isUserLoadingRef.current || !userRef.current) && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+    }
+    
+    // Get latest user from ref
+    const currentUser = userRef.current;
+    
+    // Final check - if still no user, throw error
+    if (!currentUser?.id) {
+      console.error('User not available for image upload:', { 
+        isUserLoading: isUserLoadingRef.current, 
+        user: currentUser 
+      });
+      throw new Error('User ID not available. Please ensure you are logged in and try again.');
     }
 
     const uploadPromises = imageUrls.map(async (url, index) => {
@@ -168,7 +177,7 @@ export function useChat() {
       // Upload to storage
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('userId', user.id!);
+      formData.append('userId', currentUser.id!);
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',
@@ -185,7 +194,7 @@ export function useChat() {
     });
 
     return Promise.all(uploadPromises);
-  }, [user?.id]);
+  }, []); // No dependencies - using refs for user state
 
   // Check if mobile view
   useEffect(() => {
@@ -430,24 +439,33 @@ export function useChat() {
       setError(null);
       setIsSending(true);
 
-      // If editing, remove the old message and any subsequent messages
+      // If editing, update the old message and delete subsequent messages
       let finalChatToUse = chatToUse;
       if (editingMessageIdParam && chatToUse) {
         const messageIndex = chatToUse.messages.findIndex(m => m.id === editingMessageIdParam);
         if (messageIndex !== -1) {
-          const messageToDelete = chatToUse.messages[messageIndex];
+          const messageToEdit = chatToUse.messages[messageIndex];
           
-          // Delete from backend if it's a real message (not temp)
-          if (chatToUse.id && messageToDelete.id && !messageToDelete.id.startsWith('temp-')) {
+          // Edit on backend if it's a real message (not temp)
+          if (chatToUse.id && messageToEdit.id && !messageToEdit.id.startsWith('temp-')) {
             try {
-              await chatApi.deleteMessage(chatToUse.id, messageToDelete.id);
+              // Call edit endpoint which will edit the message and delete subsequent ones
+              await chatApi.editMessage(chatToUse.id, messageToEdit.id, content);
             } catch (error) {
-              console.error('Error deleting old message:', error);
-              // Continue with frontend cleanup even if backend delete fails
+              console.error('Error editing message:', error);
+              // Continue with frontend cleanup even if backend edit fails
             }
           }
           
-          const updatedMessages = chatToUse.messages.slice(0, messageIndex);
+          // Update the edited message and remove subsequent ones
+          const updatedMessages = [
+            ...chatToUse.messages.slice(0, messageIndex),
+            {
+              ...messageToEdit,
+              content,
+              isStopped: false, // Clear stopped state
+            },
+          ];
           const updatedChat = {
             ...chatToUse,
             messages: updatedMessages,
@@ -476,25 +494,35 @@ export function useChat() {
       // Check if this is a new chat (empty ID means it hasn't been saved to backend yet)
       const isNewChat = !finalChatToUse.id || finalChatToUse.id === '';
 
-      // Create optimistic message for immediate display
-      const optimisticMessage: Message = {
-        id: `temp-msg-${Date.now()}`,
-        content,
-        role: 'user',
-        timestamp: new Date(),
-        images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
-        isStopped: false,
-      };
+      // When editing, the message was already updated above - don't add a new one
+      // When sending new message, create optimistic message for immediate display
+      let optimisticChat: Chat;
+      if (editingMessageIdParam) {
+        // Editing - use the already-updated finalChatToUse with the edited message
+        optimisticChat = {
+          ...finalChatToUse,
+          updatedAt: new Date(),
+        };
+      } else {
+        // New message - create optimistic message and append
+        const optimisticMessage: Message = {
+          id: `temp-msg-${Date.now()}`,
+          content,
+          role: 'user',
+          timestamp: new Date(),
+          images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
+          isStopped: false,
+        };
 
-      // Update local state optimistically (show message immediately)
-      const optimisticChat = {
-        ...finalChatToUse,
-        messages: [...finalChatToUse.messages, optimisticMessage],
-        updatedAt: new Date(),
-        title: finalChatToUse.title === 'New Chat' && finalChatToUse.messages.length === 0
-          ? (content.length > 50 ? content.substring(0, 50) + '...' : content)
-          : finalChatToUse.title,
-      };
+        optimisticChat = {
+          ...finalChatToUse,
+          messages: [...finalChatToUse.messages, optimisticMessage],
+          updatedAt: new Date(),
+          title: finalChatToUse.title === 'New Chat' && finalChatToUse.messages.length === 0
+            ? (content.length > 50 ? content.substring(0, 50) + '...' : content)
+            : finalChatToUse.title,
+        };
+      }
 
       setChats(prev => prev.map(chat => 
         chat.id === finalChatToUse.id ? optimisticChat : chat
@@ -510,11 +538,14 @@ export function useChat() {
         timestamp: new Date(),
       };
 
-      // Add optimistic assistant message
-      const chatWithAssistant = {
-        ...optimisticChat,
-        messages: [...optimisticChat.messages, optimisticAssistantMessage],
-      };
+      // Add optimistic assistant message only if not editing
+      // When editing, the message is already updated and we'll refetch the chat
+      const chatWithAssistant = editingMessageIdParam
+        ? optimisticChat
+        : {
+            ...optimisticChat,
+            messages: [...optimisticChat.messages, optimisticAssistantMessage],
+          };
 
       setChats(prev => prev.map(chat => 
         chat.id === finalChatToUse.id ? chatWithAssistant : chat
@@ -531,6 +562,22 @@ export function useChat() {
       // Reset abort flag for new stream
       isStreamAbortedRef.current = false;
 
+      // If editing, refetch the chat to get the updated state from backend
+      if (editingMessageIdParam && chatToUse.id) {
+        try {
+          const refreshedChat = await chatApi.getSession(chatToUse.id);
+          setActiveChat(refreshedChat);
+          setChats(prev => prev.map(chat => 
+            chat.id === chatToUse.id ? refreshedChat : chat
+          ));
+        } catch (error) {
+          console.error('Error refetching chat after edit:', error);
+        }
+        setIsSending(false);
+        setStreamingAbortController(null);
+        return;
+      }
+
       // Stream message via SSE
       let finalChat: Chat;
       let actualSessionId: string;
@@ -538,68 +585,50 @@ export function useChat() {
 
       try {
         if (isNewChat) {
-          // Stream with new session
-          await chatApi.streamMessageWithSession(
-            {
-              content,
-              images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
-            },
-            // onToken
-            (token: string, fullText: string, sessionId?: string) => {
-              // Check if aborted
-              if (abortController.signal.aborted) return;
-              
-              // Set streamingMessageId on first token to hide loader
-              if (!hasReceivedFirstToken[tempAssistantMessageId]) {
-                setHasReceivedFirstToken(prev => ({
-                  ...prev,
-                  [tempAssistantMessageId]: true,
-                }));
-                setStreamingMessageId(tempAssistantMessageId);
-              }
-              
-              // Only update if the new fullText is actually longer (new content)
-              // The MessageItem component handles queue tracking to prevent duplicates
+          // Stream with new session using generator-based streaming
+          const stream = streamChatMessageWithSession(
+            content,
+            permanentImageUrls.length > 0 ? permanentImageUrls : undefined
+          );
+
+          for await (const chunk of stream) {
+            // Check if aborted
+            if (abortController.signal.aborted || isStreamAbortedRef.current) {
+              break;
+            }
+
+            // Handle abort response from backend
+            if (chunk.aborted) {
+              console.log('Backend confirmed stream abort for new session');
+              isStreamAbortedRef.current = false;
+              setStreamingAbortController(null);
               setStreamingText(prev => {
-                const currentText = prev[tempAssistantMessageId] || '';
-                
-                // Only update if new text is longer (has new content)
-                if (fullText.length > currentText.length) {
-                  // Verify the new text extends the previous (not a complete replacement)
-                  if (fullText.startsWith(currentText) || currentText.length === 0) {
-                    return {
-                      ...prev,
-                      [tempAssistantMessageId]: fullText,
-                    };
-                  }
-                }
-                // If same length or shorter, don't update (prevents showing duplicate content)
-                return prev;
+                const updated = { ...prev };
+                delete updated[tempAssistantMessageId];
+                return updated;
               });
-              if (sessionId) {
-                actualSessionId = sessionId;
-              }
-            },
-            // onComplete
-            (fullText: string, sessionId: string, messageId?: string) => {
-              if (abortController.signal.aborted || isStreamAbortedRef.current) {
-                isStreamAbortedRef.current = false; // Reset for next stream
-                return;
-              }
-              
-              actualSessionId = sessionId;
-              actualAssistantMessageId = messageId;
+              setStreamingMessageId(null);
+              return;
+            }
+
+            if (chunk.done) {
+              // Final chunk - streaming complete
+              actualSessionId = chunk.sessionId || '';
+              actualAssistantMessageId = chunk.messageId;
               setStreamingAbortController(null);
               
-              // Update the message in place with the final text immediately
-              // This ensures the text stays visible while we fetch the complete chat
+              // Mark streaming as complete for this message
+              streamingCompleteRef.current[tempAssistantMessageId] = true;
+              
+              // Update message with final content
+              const finalText = chunk.fullText || '';
               setActiveChat(prev => {
                 if (!prev) return prev;
                 return {
                   ...prev,
                   messages: prev.messages.map(msg => 
                     msg.id === tempAssistantMessageId
-                      ? { ...msg, content: fullText }
+                      ? { ...msg, content: finalText }
                       : msg
                   ),
                 };
@@ -610,7 +639,7 @@ export function useChat() {
                     ...chat,
                     messages: chat.messages.map(msg => 
                       msg.id === tempAssistantMessageId
-                        ? { ...msg, content: fullText }
+                        ? { ...msg, content: finalText }
                         : msg
                     ),
                   };
@@ -618,53 +647,37 @@ export function useChat() {
                 return chat;
               }));
               
-              // Keep streaming text visible until we have the complete chat
-              // This prevents the restart effect
+              // Keep streaming text visible during handoff
               setStreamingText(prev => ({
                 ...prev,
-                [tempAssistantMessageId]: fullText,
+                [tempAssistantMessageId]: finalText,
               }));
               
-              // Then fetch complete chat to get final state (with real message ID)
-              chatApi.getSession(sessionId).then((completeChat) => {
-                // Find the real message ID in the complete chat
+              // Fetch complete chat for final state
+              try {
+                const completeChat = await chatApi.getSession(actualSessionId);
+                
+                // Find real message ID
                 const realMessage = completeChat.messages.find(msg => 
                   msg.role === 'assistant' && 
-                  msg.content === fullText &&
+                  msg.content === finalText &&
                   msg.id !== tempAssistantMessageId
                 );
                 const realMessageId = realMessage?.id || actualAssistantMessageId || tempAssistantMessageId;
                 
-                // If we have a real message ID, update streaming text mapping
-                if (realMessageId && realMessageId !== tempAssistantMessageId) {
-                  setStreamingText(prev => {
-                    const updated = { ...prev };
-                    if (updated[tempAssistantMessageId]) {
-                      updated[realMessageId] = updated[tempAssistantMessageId];
-                      delete updated[tempAssistantMessageId];
-                    }
-                    return updated;
-                  });
-                  // Update activeChat to use real message ID before clearing streaming
-                  setActiveChat(prev => {
-                    if (!prev) return prev;
-                    return {
-                      ...prev,
-                      messages: prev.messages.map(msg => 
-                        msg.id === tempAssistantMessageId
-                          ? { ...msg, id: realMessageId, content: fullText }
-                          : msg
-                      ),
-                    };
-                  });
-                }
+                // Update with complete chat FIRST
+                setActiveChat(completeChat);
+                setChats(prev => {
+                  const filtered = prev.filter(chat => !chat.id || chat.id === '');
+                  return [completeChat, ...filtered];
+                });
                 
-                // Clear streaming state after a brief delay to ensure smooth transition
+                // THEN clear streaming state after React has updated
                 setTimeout(() => {
                   setStreamingText(prev => {
                     const updated = { ...prev };
                     delete updated[tempAssistantMessageId];
-                    if (realMessageId) delete updated[realMessageId];
+                    delete updated[realMessageId];
                     return updated;
                   });
                   setHasReceivedFirstToken(prev => {
@@ -673,74 +686,33 @@ export function useChat() {
                     return updated;
                   });
                   setStreamingMessageId(null);
-                }, 100);
+                  streamingCompleteRef.current = {};
+                }, 200); // Increased delay for smoother handoff
                 
-                // Update with complete chat
-                setActiveChat(completeChat);
-                setChats(prev => {
-                  const filtered = prev.filter(chat => !chat.id || chat.id === '');
-                  return [completeChat, ...filtered];
-                });
-                router.push(`/chat?chat=${sessionId}`);
-              }).catch(err => {
+                router.push(`/chat?chat=${actualSessionId}`);
+              } catch (err) {
                 console.error('Error fetching complete chat:', err);
-                // Even if fetch fails, clear streaming state since we already updated the message
-                setStreamingText(prev => {
-                  const updated = { ...prev };
-                  delete updated[tempAssistantMessageId];
-                  return updated;
-                });
-                setHasReceivedFirstToken(prev => {
-                  const updated = { ...prev };
-                  delete updated[tempAssistantMessageId];
-                  return updated;
-                });
-                setStreamingMessageId(null);
-              });
-            },
-            // onError
-            (error: Error) => {
-              // Don't handle error if it was aborted
-              if (abortController.signal.aborted || isStreamAbortedRef.current) {
-                isStreamAbortedRef.current = false; // Reset for next stream
-                return;
+                // Clear streaming state even on error
+                setTimeout(() => {
+                  setStreamingText(prev => {
+                    const updated = { ...prev };
+                    delete updated[tempAssistantMessageId];
+                    return updated;
+                  });
+                  setHasReceivedFirstToken(prev => {
+                    const updated = { ...prev };
+                    delete updated[tempAssistantMessageId];
+                    return updated;
+                  });
+                  setStreamingMessageId(null);
+                  streamingCompleteRef.current = {};
+                }, 200);
               }
-              console.error('Stream error:', error);
-              setStreamingAbortController(null);
-              setStreamingText(prev => {
-                const updated = { ...prev };
-                delete updated[tempAssistantMessageId];
-                return updated;
-              });
-              setHasReceivedFirstToken(prev => {
-                const updated = { ...prev };
-                delete updated[tempAssistantMessageId];
-                return updated;
-              });
-              setStreamingMessageId(null);
-              setError(error.message || 'Failed to stream message');
-              // Revert optimistic update
-              setChats(prev => prev.map(chat => 
-                chat.id === finalChatToUse.id ? finalChatToUse : chat
-              ));
-              setActiveChat(finalChatToUse);
-            },
-            abortController.signal
-          );
-        } else {
-          // Stream in existing session
-          await chatApi.streamMessage(
-            finalChatToUse.id,
-            {
-              content,
-              images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
-            },
-            // onToken
-            (token: string, fullText: string) => {
-              // Check if aborted
-              if (abortController.signal.aborted) return;
+            } else {
+              // Token chunk - update streaming text
+              const fullText = chunk.fullText || '';
               
-              // Set streamingMessageId on first token to hide loader
+              // Set streamingMessageId on first token
               if (!hasReceivedFirstToken[tempAssistantMessageId]) {
                 setHasReceivedFirstToken(prev => ({
                   ...prev,
@@ -749,44 +721,82 @@ export function useChat() {
                 setStreamingMessageId(tempAssistantMessageId);
               }
               
-              // Only update if the new fullText is actually longer (new content)
-              // The MessageItem component handles queue tracking to prevent duplicates
+              // Update streaming text only if it's longer (prevents duplicates)
               setStreamingText(prev => {
                 const currentText = prev[tempAssistantMessageId] || '';
-                
-                // Only update if new text is longer (has new content)
-                if (fullText.length > currentText.length) {
-                  // Verify the new text extends the previous (not a complete replacement)
-                  if (fullText.startsWith(currentText) || currentText.length === 0) {
-                    return {
-                      ...prev,
-                      [tempAssistantMessageId]: fullText,
-                    };
-                  }
+                if (fullText.length > currentText.length && fullText.startsWith(currentText)) {
+                  return {
+                    ...prev,
+                    [tempAssistantMessageId]: fullText,
+                  };
                 }
-                // If same length or shorter, don't update (prevents showing duplicate content)
                 return prev;
               });
-            },
-            // onComplete
-            (fullText: string, messageId?: string) => {
-              if (abortController.signal.aborted || isStreamAbortedRef.current) {
-                isStreamAbortedRef.current = false; // Reset for next stream
-                return;
-              }
               
-              actualAssistantMessageId = messageId;
+              // Track session ID
+              if (chunk.sessionId) {
+                actualSessionId = chunk.sessionId;
+              }
+            }
+          }
+
+          // Handle abort case
+          if (abortController.signal.aborted || isStreamAbortedRef.current) {
+            isStreamAbortedRef.current = false;
+            setStreamingAbortController(null);
+            setStreamingText(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
+            setStreamingMessageId(null);
+            return;
+          }
+        } else {
+          // Stream in existing session using generator-based streaming
+          const stream = streamChatMessage(
+            finalChatToUse.id,
+            content,
+            permanentImageUrls.length > 0 ? permanentImageUrls : undefined
+          );
+
+          for await (const chunk of stream) {
+            // Check if aborted
+            if (abortController.signal.aborted || isStreamAbortedRef.current) {
+              break;
+            }
+
+            // Handle abort response from backend
+            if (chunk.aborted) {
+              console.log('Backend confirmed stream abort for existing session');
+              isStreamAbortedRef.current = false;
+              setStreamingAbortController(null);
+              setStreamingText(prev => {
+                const updated = { ...prev };
+                delete updated[tempAssistantMessageId];
+                return updated;
+              });
+              setStreamingMessageId(null);
+              return;
+            }
+
+            if (chunk.done) {
+              // Final chunk - streaming complete
+              actualAssistantMessageId = chunk.messageId;
               setStreamingAbortController(null);
               
-              // Update the message in place with the final text immediately
-              // This ensures the text stays visible while we fetch the complete chat
+              // Mark streaming as complete
+              streamingCompleteRef.current[tempAssistantMessageId] = true;
+              
+              // Update message with final content
+              const finalText = chunk.fullText || '';
               setActiveChat(prev => {
                 if (!prev || prev.id !== finalChatToUse.id) return prev;
                 return {
                   ...prev,
                   messages: prev.messages.map(msg => 
                     msg.id === tempAssistantMessageId
-                      ? { ...msg, content: fullText }
+                      ? { ...msg, content: finalText }
                       : msg
                   ),
                 };
@@ -797,7 +807,7 @@ export function useChat() {
                     ...chat,
                     messages: chat.messages.map(msg => 
                       msg.id === tempAssistantMessageId
-                        ? { ...msg, content: fullText }
+                        ? { ...msg, content: finalText }
                         : msg
                     ),
                   };
@@ -805,53 +815,36 @@ export function useChat() {
                 return chat;
               }));
               
-              // Keep streaming text visible until we have the complete chat
-              // This prevents the restart effect
+              // Keep streaming text visible during handoff
               setStreamingText(prev => ({
                 ...prev,
-                [tempAssistantMessageId]: fullText,
+                [tempAssistantMessageId]: finalText,
               }));
               
-              // Then fetch complete chat to get final state (with real message ID)
-              chatApi.getSession(finalChatToUse.id).then((completeChat) => {
-                // Find the real message ID in the complete chat
+              // Fetch complete chat for final state
+              try {
+                const completeChat = await chatApi.getSession(finalChatToUse.id);
+                
+                // Find real message ID
                 const realMessage = completeChat.messages.find(msg => 
                   msg.role === 'assistant' && 
-                  msg.content === fullText &&
+                  msg.content === finalText &&
                   msg.id !== tempAssistantMessageId
                 );
                 const realMessageId = realMessage?.id || actualAssistantMessageId || tempAssistantMessageId;
                 
-                // If we have a real message ID, update streaming text mapping
-                if (realMessageId && realMessageId !== tempAssistantMessageId) {
-                  setStreamingText(prev => {
-                    const updated = { ...prev };
-                    if (updated[tempAssistantMessageId]) {
-                      updated[realMessageId] = updated[tempAssistantMessageId];
-                      delete updated[tempAssistantMessageId];
-                    }
-                    return updated;
-                  });
-                  // Update activeChat to use real message ID before clearing streaming
-                  setActiveChat(prev => {
-                    if (!prev || prev.id !== finalChatToUse.id) return prev;
-                    return {
-                      ...prev,
-                      messages: prev.messages.map(msg => 
-                        msg.id === tempAssistantMessageId
-                          ? { ...msg, id: realMessageId, content: fullText }
-                          : msg
-                      ),
-                    };
-                  });
-                }
+                // Update with complete chat FIRST
+                setActiveChat(completeChat);
+                setChats(prev => prev.map(chat => 
+                  chat.id === finalChatToUse.id ? completeChat : chat
+                ));
                 
-                // Clear streaming state after a brief delay to ensure smooth transition
+                // THEN clear streaming state after React has updated
                 setTimeout(() => {
                   setStreamingText(prev => {
                     const updated = { ...prev };
                     delete updated[tempAssistantMessageId];
-                    if (realMessageId) delete updated[realMessageId];
+                    delete updated[realMessageId];
                     return updated;
                   });
                   setHasReceivedFirstToken(prev => {
@@ -860,53 +853,65 @@ export function useChat() {
                     return updated;
                   });
                   setStreamingMessageId(null);
-                }, 100);
-                
-                // Update with complete chat
-                setActiveChat(completeChat);
-                setChats(prev => prev.map(chat => 
-                  chat.id === finalChatToUse.id ? completeChat : chat
-                ));
-              }).catch(err => {
+                  streamingCompleteRef.current = {};
+                }, 200); // Increased delay for smoother handoff
+              } catch (err) {
                 console.error('Error fetching complete chat:', err);
-                // Even if fetch fails, clear streaming state since we already updated the message
-                setStreamingText(prev => {
-                  const updated = { ...prev };
-                  delete updated[tempAssistantMessageId];
-                  return updated;
-                });
-                setHasReceivedFirstToken(prev => {
-                  const updated = { ...prev };
-                  delete updated[tempAssistantMessageId];
-                  return updated;
-                });
-                setStreamingMessageId(null);
-              });
-            },
-            // onError
-            (error: Error) => {
-              // Don't handle error if it was aborted
-              if (abortController.signal.aborted || isStreamAbortedRef.current) {
-                isStreamAbortedRef.current = false; // Reset for next stream
-                return;
+                // Clear streaming state even on error
+                setTimeout(() => {
+                  setStreamingText(prev => {
+                    const updated = { ...prev };
+                    delete updated[tempAssistantMessageId];
+                    return updated;
+                  });
+                  setHasReceivedFirstToken(prev => {
+                    const updated = { ...prev };
+                    delete updated[tempAssistantMessageId];
+                    return updated;
+                  });
+                  setStreamingMessageId(null);
+                  streamingCompleteRef.current = {};
+                }, 200);
               }
-              console.error('Stream error:', error);
-              setStreamingAbortController(null);
+            } else {
+              // Token chunk - update streaming text
+              const fullText = chunk.fullText || '';
+              
+              // Set streamingMessageId on first token
+              if (!hasReceivedFirstToken[tempAssistantMessageId]) {
+                setHasReceivedFirstToken(prev => ({
+                  ...prev,
+                  [tempAssistantMessageId]: true,
+                }));
+                setStreamingMessageId(tempAssistantMessageId);
+              }
+              
+              // Update streaming text only if it's longer (prevents duplicates)
               setStreamingText(prev => {
-                const updated = { ...prev };
-                delete updated[tempAssistantMessageId];
-                return updated;
+                const currentText = prev[tempAssistantMessageId] || '';
+                if (fullText.length > currentText.length && fullText.startsWith(currentText)) {
+                  return {
+                    ...prev,
+                    [tempAssistantMessageId]: fullText,
+                  };
+                }
+                return prev;
               });
-              setStreamingMessageId(null);
-              setError(error.message || 'Failed to stream message');
-              // Revert optimistic update
-              setChats(prev => prev.map(chat => 
-                chat.id === finalChatToUse.id ? finalChatToUse : chat
-              ));
-              setActiveChat(finalChatToUse);
-            },
-            abortController.signal
-          );
+            }
+          }
+
+          // Handle abort case
+          if (abortController.signal.aborted || isStreamAbortedRef.current) {
+            isStreamAbortedRef.current = false;
+            setStreamingAbortController(null);
+            setStreamingText(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
+            setStreamingMessageId(null);
+            return;
+          }
         }
       } catch (streamError) {
         console.error('Error starting stream:', streamError);
@@ -922,7 +927,11 @@ export function useChat() {
           return updated;
         });
         setStreamingMessageId(null);
-        setError('Failed to start streaming');
+        streamingCompleteRef.current = {};
+        
+        const errorMessage = streamError instanceof Error ? streamError.message : 'Failed to start streaming';
+        setError(errorMessage);
+        
         // Revert optimistic update
         setChats(prev => prev.map(chat => 
           chat.id === finalChatToUse.id ? finalChatToUse : chat
@@ -1039,7 +1048,7 @@ export function useChat() {
 
   // Stop streaming response
   const stopStreaming = useCallback(async () => {
-    // Mark that stream was aborted to prevent onComplete from running
+    // 1) Immediately abort the fetch and flip UI
     isStreamAbortedRef.current = true;
     
     if (streamingAbortController) {
@@ -1052,7 +1061,13 @@ export function useChat() {
       setStreamingAbortController(null);
     }
     
-    // Mark the last user message as stopped
+    // 2) Immediately clear streaming state and flip UI to allow editing
+    setStreamingText({});
+    setStreamingMessageId(null);
+    setHasReceivedFirstToken({});
+    setIsSending(false);
+    
+    // 3) Mark the last user message as stopped
     if (activeChat) {
       const messages = [...activeChat.messages];
       // Find the last user message
@@ -1086,11 +1101,23 @@ export function useChat() {
       setChats(prev => prev.map(chat => 
         chat.id === activeChat.id ? updatedChat : chat
       ));
-      
-      // Clear streaming state
-      setStreamingText({});
-      setStreamingMessageId(null);
-      setHasReceivedFirstToken({});
+
+      // 4) Skip backend refetch - keep the frontend state as-is
+      // The frontend state is now authoritative with isStopped: true on the stopped message.
+      // Calling backend to abort the stream is optional and would just cause unnecessary
+      // refetch that could clear the isStopped flag or trigger cleanup that deletes the message.
+      // Let the backend cleanup happen on the next natural chat load or API call.
+      if (activeChat.id && activeChat.id !== '') {
+        try {
+          // Abort the stream on backend (best-effort, fire-and-forget)
+          await chatApi.stopStream(activeChat.id);
+          console.log('Backend stream abort signal sent');
+        } catch (stopError: any) {
+          // Swallow errors - client-side abort is authoritative
+          console.warn('Backend stop signal failed (ignored):', stopError?.response?.status || stopError?.message);
+        }
+      }
+      // Keep frontend state with isStopped: true - don't refetch
     }
   }, [streamingAbortController, activeChat]);
 

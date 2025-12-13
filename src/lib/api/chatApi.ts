@@ -1,5 +1,10 @@
+import { CONFIG } from '@/constants/config';
 import baseURL from './axios';
 import { Chat, Message } from '@/types/chat';
+
+// Ensure API_BASE_URL includes /api/v1 prefix to match backend routes
+const rawUrl = CONFIG.API_URL || 'http://localhost:3000';
+const API_BASE_URL = rawUrl.includes('/api/v1') ? rawUrl : `${rawUrl}/api/v1`;
 
 // API Response Types
 interface ApiChatSession {
@@ -44,9 +49,189 @@ interface UpdateSessionDto {
   equipmentContext?: string[];
 }
 
-interface CreateMessageDto {
-  content: string;
-  images?: string[];
+export interface StreamMessageResponse {
+  token: string;
+  done: boolean;
+  fullText?: string;
+  sessionId?: string;
+  messageId?: string;
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    cachedTokens?: number;
+    totalTokens?: number;
+  };
+  aborted?: boolean;
+}
+
+/**
+ * Hardened SSE event parser
+ * Properly handles CRLF, incomplete chunks, and multi-line events
+ */
+class SSEParser {
+  private buffer = '';
+  private eventBuffer: { [key: string]: string } = {};
+
+  /**
+   * Parse incoming chunk and yield complete SSE events
+   */
+  *parse(chunk: string): Generator<StreamMessageResponse> {
+    // Add chunk to buffer
+    this.buffer += chunk;
+
+    // Split by lines (handle both \n and \r\n)
+    const lines = this.buffer.split(/\r?\n/);
+
+    // Keep last incomplete line in buffer
+    this.buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      // Trim whitespace
+      const trimmedLine = line.trim();
+
+      // Empty line = end of event
+      if (trimmedLine === '') {
+        if (Object.keys(this.eventBuffer).length > 0) {
+          // Yield complete event
+          const event = this.processEvent();
+          if (event) {
+            yield event;
+          }
+          // Reset event buffer
+          this.eventBuffer = {};
+        }
+        continue;
+      }
+
+      // Skip comments
+      if (trimmedLine.startsWith(':')) {
+        continue;
+      }
+
+      // Parse field: value
+      const colonIndex = trimmedLine.indexOf(':');
+      if (colonIndex !== -1) {
+        const field = trimmedLine.substring(0, colonIndex).trim();
+        const value = trimmedLine.substring(colonIndex + 1).trim();
+
+        // Accumulate event data
+        if (this.eventBuffer[field]) {
+          this.eventBuffer[field] += '\n' + value;
+        } else {
+          this.eventBuffer[field] = value;
+        }
+      }
+    }
+  }
+
+  /**
+   * Process accumulated event buffer into structured data
+   */
+  private processEvent(): StreamMessageResponse | null {
+    try {
+      // Get data field (SSE standard)
+      const dataStr = this.eventBuffer['data'];
+      if (!dataStr) return null;
+
+      // Parse JSON
+      const data = JSON.parse(dataStr);
+
+      return {
+        token: data.token || '',
+        done: data.done || false,
+        fullText: data.fullText,
+        sessionId: data.sessionId,
+        messageId: data.messageId,
+        tokenUsage: data.tokenUsage,
+        aborted: data.aborted || false,
+      };
+    } catch (error) {
+      console.error('Failed to parse SSE event:', error, this.eventBuffer);
+      return null;
+    }
+  }
+
+  /**
+   * Flush any remaining data in buffer (call when stream ends)
+   */
+  *flush(): Generator<StreamMessageResponse> {
+    if (this.buffer.trim()) {
+      // Try to parse remaining buffer as event
+      const trimmedBuffer = this.buffer.trim();
+      if (trimmedBuffer.startsWith('data:')) {
+        const value = trimmedBuffer.substring(5).trim();
+        this.eventBuffer['data'] = value;
+        const event = this.processEvent();
+        if (event) {
+          yield event;
+        }
+      }
+    }
+    this.buffer = '';
+    this.eventBuffer = {};
+  }
+}
+
+/**
+ * Stream a chat message with real-time token streaming
+ * Uses hardened SSE parser for reliable token delivery
+ */
+export async function* streamChatMessage(
+  sessionId: string,
+  content: string,
+  images?: string[],
+  token?: string,
+): AsyncGenerator<StreamMessageResponse> {
+  const url = `${API_BASE_URL}/chat/sessions/${sessionId}/messages/stream`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    credentials: 'include', // Include cookies for authentication
+    body: JSON.stringify({
+      content,
+      images: images || [],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stream failed: ${response.status} ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Response body is null');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const parser = new SSEParser();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        // Flush any remaining data
+        yield* parser.flush();
+        break;
+      }
+
+      // Decode chunk
+      const chunk = decoder.decode(value, { stream: true });
+
+      // Parse chunk and yield events
+      yield* parser.parse(chunk);
+    }
+  } catch (error) {
+    console.error('Stream reading error:', error);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 // Transform API response to frontend Chat type
@@ -69,7 +254,6 @@ function transformMessageToMessage(message: ApiChatMessage): Message {
       if (attachment.attachmentType === 'image') {
         images.push(attachment.fileUrl);
       }
-      // Only images are supported, documents are not allowed
     });
   }
 
@@ -96,11 +280,9 @@ export const chatApi = {
     const response = await baseURL.get<{ data: ListSessionsResponse }>('/chat/sessions', {
       params: query,
     });
-    // Defensive checks: ensure the backend returned the expected shape
     const body = response?.data?.data as ListSessionsResponse | undefined;
     if (!body || !Array.isArray(body.sessions)) {
       console.error('Unexpected listSessions response shape:', response);
-      // Throw a clear error so callers can handle it instead of crashing on undefined
       throw new Error('Invalid response from listSessions: missing sessions');
     }
 
@@ -127,211 +309,86 @@ export const chatApi = {
     await baseURL.delete(`/chat/sessions/${sessionId}`);
   },
 
-  // Create a new message in a session
-  createMessage: async (sessionId: string, dto: CreateMessageDto): Promise<{
-    userMessage: Message;
-    assistantMessage: Message;
-  }> => {
-    const response = await baseURL.post<{ data: { userMessage: ApiChatMessage; assistantMessage: ApiChatMessage } }>(
-      `/chat/sessions/${sessionId}/messages`,
-      dto,
-    );
-    return {
-      userMessage: transformMessageToMessage(response.data.data.userMessage),
-      assistantMessage: transformMessageToMessage(response.data.data.assistantMessage),
-    };
-  },
-
-  // Create a new message with a new session (for first message)
-  createMessageWithSession: async (dto: CreateMessageDto): Promise<{
-    chat: Chat;
-    message: Message;
-  }> => {
-    const response = await baseURL.post<{ data: { session: ApiChatSession; message: ApiChatMessage } }>(
-      '/chat/messages',
-      dto,
-    );
-    return {
-      chat: transformSessionToChat(response.data.data.session),
-      message: transformMessageToMessage(response.data.data.message),
-    };
-  },
-
-  // Stream message creation in existing session (SSE)
-  streamMessage: async (
-    sessionId: string,
-    dto: CreateMessageDto,
-    onToken: (token: string, fullText: string) => void,
-    onComplete: (fullText: string, messageId?: string) => void,
-    onError: (error: Error) => void,
-    abortSignal?: AbortSignal,
-  ): Promise<void> => {
-    // Get API base URL from axios instance
-    const API_BASE = baseURL.defaults.baseURL;
-    const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // Include cookies
-      body: JSON.stringify(dto),
-      signal: abortSignal, // Add abort signal
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      onError(new Error(errorData.message || 'Stream failed'));
-      return;
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      onError(new Error('Response body is not readable'));
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        // Check if aborted before reading
-        if (abortSignal?.aborted) {
-          return; // Silently return if aborted
-        }
-        
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          // Check if aborted during processing
-          if (abortSignal?.aborted) {
-            return; // Silently return if aborted
-          }
-          
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                onError(new Error(data.error));
-                return;
-              }
-              if (data.token && !data.done) {
-                onToken(data.token, data.fullText || '');
-              }
-              if (data.done) {
-                onComplete(data.fullText || '', data.messageId);
-                return;
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE data:', parseError);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Don't call onError if it was aborted
-      if (abortSignal?.aborted) {
-        return; // Silently return if aborted
-      }
-      onError(error instanceof Error ? error : new Error('Stream read error'));
-    }
-  },
-
-  // Stream message creation with new session (SSE)
-  streamMessageWithSession: async (
-    dto: CreateMessageDto,
-    onToken: (token: string, fullText: string, sessionId?: string) => void,
-    onComplete: (fullText: string, sessionId: string, messageId?: string) => void,
-    onError: (error: Error) => void,
-    abortSignal?: AbortSignal,
-  ): Promise<void> => {
-    // Get API base URL from axios instance
-    const API_BASE = baseURL.defaults.baseURL;
-    const response = await fetch(`${API_BASE}/chat/messages/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify(dto),
-      signal: abortSignal, // Add abort signal
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      onError(new Error(errorData.message || 'Stream failed'));
-      return;
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      onError(new Error('Response body is not readable'));
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let sessionId: string | undefined;
-
-    try {
-      while (true) {
-        // Check if aborted before reading
-        if (abortSignal?.aborted) {
-          return; // Silently return if aborted
-        }
-        
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          // Check if aborted during processing
-          if (abortSignal?.aborted) {
-            return; // Silently return if aborted
-          }
-          
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                onError(new Error(data.error));
-                return;
-              }
-              if (data.sessionId) {
-                sessionId = data.sessionId;
-              }
-              if (data.token && !data.done) {
-                onToken(data.token, data.fullText || '', sessionId);
-              }
-              if (data.done) {
-                onComplete(data.fullText || '', sessionId || '', data.messageId);
-                return;
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE data:', parseError);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Don't call onError if it was aborted
-      if (abortSignal?.aborted) {
-        return; // Silently return if aborted
-      }
-      onError(error instanceof Error ? error : new Error('Stream read error'));
-    }
-  },
-
   // Delete a message from a session
   deleteMessage: async (sessionId: string, messageId: string): Promise<void> => {
     await baseURL.delete(`/chat/sessions/${sessionId}/messages/${messageId}`);
   },
+
+  // Stop streaming and cleanup incomplete messages
+  stopStream: async (sessionId: string): Promise<void> => {
+    await baseURL.post(`/chat/sessions/${sessionId}/stop-stream`);
+  },
+
+  // Edit a message
+  editMessage: async (
+    sessionId: string,
+    messageId: string,
+    content: string
+  ): Promise<ApiChatMessage> => {
+    const response = await baseURL.patch<{ data: ApiChatMessage }>(
+      `/chat/sessions/${sessionId}/messages/${messageId}`,
+      { content }
+    );
+    return response.data.data;
+  },
 };
+
+/**
+ * Stream a chat message with new session creation
+ */
+export async function* streamChatMessageWithSession(
+  content: string,
+  images?: string[],
+  token?: string,
+): AsyncGenerator<StreamMessageResponse> {
+  const url = `${API_BASE_URL}/chat/messages/stream`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    credentials: 'include', // Include cookies for authentication
+    body: JSON.stringify({
+      content,
+      images: images || [],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stream failed: ${response.status} ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Response body is null');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const parser = new SSEParser();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        // Flush any remaining data
+        yield* parser.flush();
+        break;
+      }
+
+      // Decode chunk
+      const chunk = decoder.decode(value, { stream: true });
+
+      // Parse chunk and yield events
+      yield* parser.parse(chunk);
+    }
+  } catch (error) {
+    console.error('Stream reading error:', error);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
