@@ -25,6 +25,7 @@ export default function CallingModal({
     messages,
     disconnect: disconnectWebSocket,
     send: wsSend,
+    stopAudio,
   } = useWebSocket(effectiveUrl);
 
   const {
@@ -38,6 +39,8 @@ export default function CallingModal({
     onUserInterrupt: () => {
       console.log("🎤 User interrupted bot - handled in modal");
     },
+    // ✅ Stop audio when user interrupts
+    onStopAudio: stopAudio,
   });
 
   // Update call state
