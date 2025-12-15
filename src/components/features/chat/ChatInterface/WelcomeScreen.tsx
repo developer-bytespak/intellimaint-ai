@@ -6,10 +6,11 @@ import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useAudio } from '@/hooks/useAudio';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useVoiceStream } from '@/hooks/useVoiceStream';
 import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
 import { useUser } from '@/hooks/useUser';
-import CallingModal from '../CallingModal';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -39,12 +40,36 @@ export default function WelcomeScreen({
   const [selectedDocuments, setSelectedDocuments] = useState<MessageDocument[]>([]);
   const [showPinMenu, setShowPinMenu] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
-  const [showCallingModal, setShowCallingModal] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useUser();
+
+  // WebSocket connection for calling
+  const websocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001';
+  const {
+    isConnected: isWebSocketConnected,
+    disconnect: disconnectWebSocket,
+    send: wsSend,
+    stopAudio,
+  } = useWebSocket(isCallActive ? websocketUrl : '');
+
+  // Voice stream for STT/TTS during calls
+  const {
+    startStreaming: startVoiceStream,
+    stopStreaming: stopVoiceStream,
+  } = useVoiceStream(isCallActive ? websocketUrl : '', {
+    externalSend: wsSend,
+    externalIsConnected: isWebSocketConnected,
+    // Handle user interrupt - stop bot audio
+    onUserInterrupt: () => {
+      console.log("🎤 User interrupted - bot audio stopped, STT resuming");
+    },
+    // Stop bot audio when user speaks during bot speech
+    onStopAudio: stopAudio,
+  });
 
   // Cleanup object URLs when component unmounts
   useEffect(() => {
@@ -62,6 +87,29 @@ export default function WelcomeScreen({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Start STT when call is connected
+  useEffect(() => {
+    console.log("📞 Call effect - isCallActive:", isCallActive, "isWebSocketConnected:", isWebSocketConnected);
+    
+    if (isCallActive && isWebSocketConnected) {
+      console.log("📞 Call is active and websocket is connected, starting STT...");
+      
+      const timer = setTimeout(() => {
+        console.log("📞 Calling startVoiceStream()...");
+        startVoiceStream();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      if (isCallActive) {
+        console.log("📞 Call is active but websocket not connected, stopping streaming...");
+        stopVoiceStream();
+      }
+    };
+  }, [isCallActive, isWebSocketConnected, startVoiceStream, stopVoiceStream]);
 
   // Check if any image is still uploading
   const isUploading = imageUploadStates.some(state => state.status === 'uploading');
@@ -503,94 +551,129 @@ export default function WelcomeScreen({
                   }
                 }}
                 placeholder={
-                  isSendingAudio
+                  isCallActive
+                    ? "On a call..."
+                    : isSendingAudio
                     ? "Transcribing audio..."
                     : (audioRecorder.isRecording || audioRecorder.audioUrl)
                     ? "Recording audio..."
                     : "Ask Intellimaint AI."
                 }
-                disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
+                disabled={isCallActive || audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
                 className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 ${
-                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
+                  (isCallActive || audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                 }`}
               />
 
-              {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
+              {/* Right side icons: Plus/Call, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
               <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
-                {/* Plus Icon Button with Dropdown */}
-                <div className="relative pin-dropdown">
-                  <button
-                    type="button"
-                    onClick={() => setShowPinMenu(!showPinMenu)}
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
-                    className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    title="More Options"
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  
-                  {/* Plus Dropdown Menu */}
-                  {showPinMenu && (
-                    <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-100">
-                      <div className="flex gap-1.5 sm:gap-2">
-                        <button
-                          type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => { setShowPinMenu(false); handleOpenCamera(); }}
-                          title="Camera"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => {
-                            setShowPinMenu(false);
-                            setShowCallingModal(true);
-                          }}
-                          title="Call"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => { setShowPinMenu(false); handleOpenGallery(); }}
-                          title="Gallery"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => { setShowPinMenu(false); handleOpenDocumentUpload(); }}
-                          title="Upload PDF/DOC"
-                        >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                          </svg>
-                        </button>
+                {/* Conditional: Plus Icon Button OR Loading/End Call Button */}
+                {isCallActive ? (
+                  // Call is Active - Show Loading or End Call based on connection
+                  isWebSocketConnected ? (
+                    // Connected - Show End Call Button
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCallActive(false);
+                        disconnectWebSocket();
+                      }}
+                      disabled={false}
+                      className="p-1.5 sm:p-2 rounded-lg bg-transparent  text-white hover:text-white border border-white/20 hover:text-white/50 transition-colors duration-200 flex items-center gap-1.5"
+                      title="End Call"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 6h12v12H6z"/>
+                      </svg>
+                      <span className="text-xs sm:text-sm font-medium hidden sm:inline">End</span>
+                    </button>
+                  ) : (
+                    // Connecting - Show Loading
+                    <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0.2s" }}></div>
                       </div>
+                      <span className="text-xs text-blue-300 ml-1">Connecting...</span>
                     </div>
-                  )}
-                </div>
+                  )
+                ) : (
+                  // Call is Inactive - Show Plus Icon with Dropdown
+                  <div className="relative pin-dropdown">
+                    <button
+                      type="button"
+                      onClick={() => setShowPinMenu(!showPinMenu)}
+                      disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
+                      className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${
+                        (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      title="More Options"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                    
+                    {/* Plus Dropdown Menu */}
+                    {showPinMenu && (
+                      <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-100">
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            type="button"
+                            className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                            onClick={() => { setShowPinMenu(false); handleOpenCamera(); }}
+                            title="Camera"
+                          >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                            onClick={() => {
+                              setShowPinMenu(false);
+                              setIsCallActive(true);
+                            }}
+                            title="Call"
+                          >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                            onClick={() => { setShowPinMenu(false); handleOpenGallery(); }}
+                            title="Gallery"
+                          >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                            onClick={() => { setShowPinMenu(false); handleOpenDocumentUpload(); }}
+                            title="Upload PDF/DOC"
+                          >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Stop Button (when streaming or sending) or Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
                 {(streamingMessageId || isSending) && stopStreaming ? (
@@ -629,7 +712,7 @@ export default function WelcomeScreen({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
                   </button>
-                ) : (
+                ) : !isCallActive ? (
                   <AudioRecorder 
                     variant="button"
                     isRecording={audioRecorder.isRecording}
@@ -641,7 +724,7 @@ export default function WelcomeScreen({
                     handleCancel={audioRecorder.handleCancel}
                     formatTime={audioRecorder.formatTime}
                   />
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -669,13 +752,6 @@ export default function WelcomeScreen({
         isOpen={showCamera}
         onClose={() => setShowCamera(false)}
         onCapture={handleCapturePhoto}
-      />
-
-      {/* Calling Modal */}
-      <CallingModal
-        isOpen={showCallingModal}
-        onClose={() => setShowCallingModal(false)}
-        websocketUrl={process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001'}
       />
 
       {/* Image Overlay */}

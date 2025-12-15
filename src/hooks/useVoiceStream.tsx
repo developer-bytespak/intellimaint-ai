@@ -70,6 +70,7 @@ export function useVoiceStream(
 
           // Stop bot audio
           if (options?.onStopAudio) {
+            console.log("🛑 Calling onStopAudio to stop bot audio");
             options.onStopAudio();
             if (DEBUG) console.log("🛑 Bot audio stopped");
           }
@@ -155,13 +156,26 @@ export function useVoiceStream(
   // Controls
   // -----------------------------
   const startStreaming = async () => {
+    if (DEBUG) {
+      console.log("🎤 startStreaming called");
+      console.log("isConnected:", isConnected);
+      console.log("externalIsConnected:", options?.externalIsConnected);
+      console.log("recognitionRef:", recognitionRef.current);
+      console.log("isListeningRef:", isListeningRef.current);
+    }
+
     if (!isConnected) {
-      alert("WebSocket not connected");
+      console.error("❌ WebSocket not connected, cannot start voice stream");
       return;
     }
 
     if (recognitionRef.current && !isListeningRef.current) {
-      recognitionRef.current.start();
+      try {
+        recognitionRef.current.start();
+        if (DEBUG) console.log("✅ STT started successfully");
+      } catch (error) {
+        console.error("❌ Error starting STT:", error);
+      }
     }
   };
 

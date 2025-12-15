@@ -35,11 +35,11 @@ export default function CallingModal({
   } = useVoiceStream(effectiveUrl, {
     externalSend: wsSend,
     externalIsConnected: isConnected,
-    // ✅ Handle user interrupt
+    // ✅ Handle user interrupt - Resume STT and send interrupt to backend
     onUserInterrupt: () => {
-      console.log("🎤 User interrupted bot - handled in modal");
+      console.log("🎤 User interrupted bot - STT resuming, interrupt sent to backend");
     },
-    // ✅ Stop audio when user interrupts
+    // ✅ Stop audio when user interrupts - Pause mic for user speech
     onStopAudio: stopAudio,
   });
 
@@ -52,9 +52,23 @@ export default function CallingModal({
 
   // Start/stop streaming
   useEffect(() => {
+    console.log("⚙️ Effect running - isCallActive:", isCallActive, "isConnected:", isConnected, "websocketUrl:", !!websocketUrl);
+    
     if (isCallActive && isConnected && websocketUrl) {
-      console.log("📞 Starting voice stream...");
-      startStreaming();
+      console.log("📞 All conditions met, starting voice stream...");
+      
+      // Small delay to ensure websocket is fully ready
+      const timer = setTimeout(() => {
+        console.log("📞 Calling startStreaming()...");
+        startStreaming();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    } else {
+      console.log("⛔ Conditions not met:");
+      console.log("  - isCallActive:", isCallActive);
+      console.log("  - isConnected:", isConnected);
+      console.log("  - websocketUrl:", websocketUrl);
     }
 
     return () => {
@@ -64,7 +78,7 @@ export default function CallingModal({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCallActive, isConnected, websocketUrl]);
+  }, [isCallActive, isConnected, websocketUrl, startStreaming]);
 
   // ✅ Call duration timer
   useEffect(() => {
@@ -142,7 +156,9 @@ export default function CallingModal({
               }`}
             >
               <svg
-                className="w-12 h-12 sm:w-14 sm:h-14 text-white"
+                className={`w-12 h-12 sm:w-14 sm:h-14 text-white ${
+                  !isConnected ? "animate-pulse" : ""
+                }`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -160,56 +176,64 @@ export default function CallingModal({
           {/* Status */}
           <div className="text-center space-y-2">
             <h2 className="text-xl sm:text-2xl font-bold text-white">
-              {isConnected ? "Connected" : websocketUrl ? "Connecting..." : "Call"}
+              {isConnected ? "Connected" : "Connecting..."}
             </h2>
             <p className="text-gray-400 text-sm sm:text-base">
               {isConnected
                 ? "Voice call is active"
-                : websocketUrl
-                ? "Establishing connection..."
-                : "WebSocket URL not configured"}
+                : "Establishing connection..."}
             </p>
 
             {/* Connection indicator */}
             <div className="flex items-center justify-center gap-2 pt-2">
               <div
-                className={`w-2 h-2 rounded-full ${
+                className={`w-3 h-3 rounded-full ${
                   isConnected ? "bg-green-500" : "bg-yellow-500"
                 } ${isConnected ? "animate-pulse" : "animate-ping"}`}
               ></div>
-              <span className="text-xs text-gray-500">
-                {isConnected ? "Connected" : "Connecting"}
+              <span className={`text-sm font-medium ${
+                isConnected ? "text-green-400" : "text-yellow-400"
+              }`}>
+                {isConnected ? "Connected" : "Connecting..."}
               </span>
             </div>
 
-            {/* ✅ Call duration */}
+            {/* Call duration - only show when connected */}
             {isCallActive && isConnected && (
-              <div className="text-gray-400 text-lg font-mono pt-2">
-                {formatDuration(callDuration)}
+              <div className="text-gray-300 text-lg font-mono pt-2">
+                Duration: {formatDuration(callDuration)}
               </div>
             )}
           </div>
 
-          {/* End call button */}
-          <button
-            onClick={handleEndCall}
-            className="mt-6 px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full font-semibold transition-colors duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* End call button - only show when connected */}
+          {isConnected ? (
+            <button
+              onClick={handleEndCall}
+              className="mt-6 px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full font-semibold transition-colors duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            End Call
-          </button>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              End Call
+            </button>
+          ) : (
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"></div>
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+            </div>
+          )}
         </div>
 
         {/* Debug info */}
