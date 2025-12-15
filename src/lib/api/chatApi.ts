@@ -1,10 +1,10 @@
 import { CONFIG } from '@/constants/config';
-import baseURL from './axios';
+import baseURL, { API_BASE } from './axios';
 import { Chat, Message } from '@/types/chat';
 
-// Ensure API_BASE_URL includes /api/v1 prefix to match backend routes
-const rawUrl = CONFIG.API_URL || 'http://localhost:3000';
-const API_BASE_URL = rawUrl.includes('/api/v1') ? rawUrl : `${rawUrl}/api/v1`;
+// Chat API uses the Gateway backend (NEXT_PUBLIC_NEST_URL), not the Services backend
+// API_BASE is already configured correctly in axios.ts to point to Gateway with /api/v1
+const API_BASE_URL = API_BASE;
 
 // API Response Types
 interface ApiChatSession {
