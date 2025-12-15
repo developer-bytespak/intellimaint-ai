@@ -464,7 +464,7 @@ export default function RecentHistory({
         >
           Chats
         </button>
-        <button
+        {/* <button
           onClick={() => onTabChange('photos')}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
             activeTab === 'photos'
@@ -473,7 +473,7 @@ export default function RecentHistory({
           }`}
         >
           Photos
-        </button>
+        </button> */}
         <button
           onClick={() => onTabChange('documents')}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
