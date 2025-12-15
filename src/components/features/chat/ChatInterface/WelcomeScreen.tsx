@@ -79,6 +79,15 @@ export default function WelcomeScreen({
       // Clear input when not editing (optional - you might want to keep the input)
     }
   }, [editingMessageId, activeChat, startEditingMessage]);
+
+  // Auto-focus textarea when activeChat is available
+  useEffect(() => {
+    if (activeChat && textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    }
+  }, [activeChat]);
   
   const handleEditMessage = (messageId: string) => {
     if (startEditingMessage) {
@@ -123,6 +132,35 @@ export default function WelcomeScreen({
   const handleOpenGallery = () => {
     fileInputRef.current?.click();
   };
+
+  // Global key handler — focus textarea when typing anywhere outside inputs
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (!tgt) return;
+      const tag = tgt.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tgt.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Only handle printable characters, backspace and enter
+      if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Enter') {
+        if (!textareaRef.current) return;
+        e.preventDefault();
+        textareaRef.current.focus();
+
+        if (e.key.length === 1) {
+          setInputValue(prev => prev + e.key);
+        } else if (e.key === 'Backspace') {
+          setInputValue(prev => prev.slice(0, -1));
+        } else if (e.key === 'Enter') {
+          handleSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [handleSubmit]);
 
   const handleOpenDocumentUpload = () => {
     documentInputRef.current?.click();
@@ -345,7 +383,7 @@ export default function WelcomeScreen({
       {/* Header with Logo and Name - Show when chat is active, fixed at top on mobile */}
       {!showWelcomeContent && (
         <div className="fixed top-0 left-0 right-0 sm:hidden z-20 bg-[#1f2632] px-3 py-2 flex items-center gap-2 border-b border-[#2a3441]">
-          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
             <img 
               src="/Intelliment LOgo.png" 
               alt="IntelliMaint AI Logo" 
@@ -416,9 +454,9 @@ export default function WelcomeScreen({
       )}
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}
-      <div className="flex-shrink-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 border-t border-[#2a3441] bg-[#1f2632] pb-24 sm:pb-4 md:pb-6">
+      <div className="shrink-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
         <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto" noValidate>
-          <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-2 sm:px-3 md:px-4 py-2 sm:py-3 flex flex-col w-full overflow-visible box-border">
+          <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-3 sm:px-4 md:px-5 py-3 sm:py-3 md:py-4 flex flex-col w-full">
             {/* Attachment Preview - Shows uploaded images and documents */}
             <AttachmentPreview
               imageUploadStates={imageUploadStates}
@@ -447,41 +485,41 @@ export default function WelcomeScreen({
               </div>
             )}
             
-            {/* Input Field - Disabled when audio is active or sending */}
-            <div className="flex items-end gap-1.5 sm:gap-2 relative mb-2 sm:mb-3">
+            {/* Input Field Wrapper - Keeps placeholder and icons aligned in sequence */}
+            <div className="flex items-end gap-2 w-full">
               <textarea
                 ref={textareaRef}
                 value={inputValue || ''}
                 onChange={(e) => {
                   setInputValue(e.target.value || '');
-                  // Auto-resize textarea
                   const textarea = e.target;
                   textarea.style.height = 'auto';
-                  textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                  textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
                 }}
                 onKeyDown={(e) => {
-                  // Allow Enter to submit, Shift+Enter for new line
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmit(e);
                   }
                 }}
-                placeholder={isSendingAudio ? "Transcribing audio..." : (audioRecorder.isRecording || audioRecorder.audioUrl) ? "Recording audio..." : "Ask Intellimaint AI."}
+                placeholder={
+                  isSendingAudio
+                    ? "Transcribing audio..."
+                    : (audioRecorder.isRecording || audioRecorder.audioUrl)
+                    ? "Recording audio..."
+                    : "Ask Intellimaint AI."
+                }
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
-                className={`flex-1 bg-transparent text-white placeholder-gray-400 outline-none text-xs sm:text-sm md:text-base resize-none overflow-y-hidden max-h-[200px] pr-1 sm:pr-2 leading-relaxed [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
-                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
+                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 ${
+                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
                 }`}
-                style={{ 
-                  minHeight: '20px', 
-                  height: '20px',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none'
-                } as React.CSSProperties}
               />
-              
-              {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) */}
-              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0 pb-0.5 sm:pb-1">
+
+              {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
+              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
                 {/* Plus Icon Button with Dropdown */}
                 <div className="relative pin-dropdown">
                   <button
@@ -500,7 +538,7 @@ export default function WelcomeScreen({
                   
                   {/* Plus Dropdown Menu */}
                   {showPinMenu && (
-                    <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-[100]">
+                    <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-100">
                       <div className="flex gap-1.5 sm:gap-2">
                         <button
                           type="button"

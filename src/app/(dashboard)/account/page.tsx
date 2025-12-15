@@ -408,7 +408,9 @@ export default function AccountPage() {
   return (
     <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
-      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+      <header className=" text-white rounded-b-[28px] shadow-sm"
+         style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
+      
         <div className="flex items-center gap-2 pt-6 pb-8">
           <button
             onClick={handleBack}
@@ -421,8 +423,9 @@ export default function AccountPage() {
         </div>
       </header>
 
-      {/* Content */}
-      <section className="">
+      {/* Content (scrollable) */}
+      <div className="flex-1 overflow-y-auto scroll-smooth pb-24 sm:pb-12">
+        <section className="">
         <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Profile Picture */}
@@ -747,7 +750,8 @@ export default function AccountPage() {
             </div>
           )}
         </div>
-      </section>
+        </section>
+      </div>
     </main>
   )
 }

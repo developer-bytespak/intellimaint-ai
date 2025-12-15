@@ -166,7 +166,8 @@ export default function SettingsPage() {
   return (
     <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
-      <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
+      <header className=" text-white rounded-b-[28px] shadow-sm"
+         style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
         <div className="flex items-center gap-2 pt-6 pb-8">
           <button
             onClick={handleBack}
