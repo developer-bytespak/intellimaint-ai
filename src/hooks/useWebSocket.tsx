@@ -10,15 +10,22 @@ export function useWebSocket(url: string) {
   const manualDisconnectRef = useRef<boolean>(false);
   const [lastTextMessage, setLastTextMessage] = useState<string | null>(null);
   const [messages, setMessages] = useState<(string | Blob | ArrayBuffer)[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isPlayingAudioRef = useRef(false);
 
   // ✅ Fixed: Return Promise that resolves when audio finishes
   const playAudioBlob = async (blob: Blob): Promise<void> => {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      
+      // Store audio reference for interruption
+      audioRef.current = audio;
+      isPlayingAudioRef.current = true;
 
       const cleanup = () => {
         URL.revokeObjectURL(url);
+        isPlayingAudioRef.current = false;
       };
 
       audio.onended = () => {
@@ -39,6 +46,17 @@ export function useWebSocket(url: string) {
         reject(err);
       });
     });
+  };
+
+  // ✅ Stop audio playback (for interruption)
+  const stopAudio = () => {
+    if (audioRef.current) {
+      if (DEBUG) console.log("🛑 Stopping bot audio - user interrupt");
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+      isPlayingAudioRef.current = false;
+    }
   };
 
   const send = (data: string | ArrayBuffer) => {
@@ -237,5 +255,5 @@ export function useWebSocket(url: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
-  return { isConnected, send, disconnect, lastTextMessage, messages };
+  return { isConnected, send, disconnect, lastTextMessage, messages, stopAudio };
 }

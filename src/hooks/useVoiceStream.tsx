@@ -7,6 +7,7 @@ interface UseVoiceStreamOptions {
   externalSend?: (data: string) => void;
   externalIsConnected?: boolean;
   onUserInterrupt?: () => void;
+  onStopAudio?: () => void;
 }
 
 export function useVoiceStream(
@@ -22,6 +23,8 @@ export function useVoiceStream(
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
+  const isBotSpeakingRef = useRef(false);
+  const hasInterruptedRef = useRef(false);
 
   // -----------------------------
   // INIT SpeechRecognition
@@ -56,6 +59,38 @@ export function useVoiceStream(
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      // ✅ Detect voice activity during bot speech
+      if (isBotSpeakingRef.current && !hasInterruptedRef.current) {
+        const hasInterimResults = Array.from(event.results).some(
+          (result) => !result.isFinal
+        );
+
+        if (hasInterimResults) {
+          if (DEBUG) console.log("🎤 User started speaking - interrupting bot");
+
+          // Stop bot audio
+          if (options?.onStopAudio) {
+            options.onStopAudio();
+            if (DEBUG) console.log("🛑 Bot audio stopped");
+          }
+
+          // Mark as interrupted
+          hasInterruptedRef.current = true;
+
+          // Send interrupt message to backend
+          send(
+            JSON.stringify({
+              type: "interrupt",
+            })
+          );
+
+          // Trigger callback
+          if (options?.onUserInterrupt) {
+            options.onUserInterrupt();
+          }
+        }
+      }
+
       let finalText = "";
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -92,13 +127,17 @@ export function useVoiceStream(
     const pauseMic = () => {
       if (recognitionRef.current && isListeningRef.current) {
         recognitionRef.current.stop();
-        if (DEBUG) console.log("⏸️ Mic paused");
+        isBotSpeakingRef.current = true;
+        hasInterruptedRef.current = false;
+        if (DEBUG) console.log("⏸️ Mic paused - bot is speaking");
       }
     };
 
     const resumeMic = () => {
       if (recognitionRef.current && !isListeningRef.current) {
         recognitionRef.current.start();
+        isBotSpeakingRef.current = false;
+        hasInterruptedRef.current = false;
         if (DEBUG) console.log("▶️ Mic resumed");
       }
     };
