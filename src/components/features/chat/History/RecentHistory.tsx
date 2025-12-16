@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Chat, PhotoGroup, Document, TabType, Photo } from '@/types/chat';
 import ChatsList from './ChatsList';
 import PhotosGrid from './PhotosGrid';
 import DocumentsList from './DocumentsList';
+import ChatSkeleton from '@/components/ui/ChatSkeleton';
+import DocumentsSkeleton from '@/components/ui/DocumentsSkeleton';
 
 interface RecentHistoryProps {
   chats: Chat[];
@@ -29,7 +31,7 @@ interface RecentHistoryProps {
   isLoadingChats?: boolean;
 }
 
-export default function RecentHistory({
+const RecentHistory: React.FC<RecentHistoryProps> = ({
   chats,
   activeChat,
   photoGroups,
@@ -50,7 +52,7 @@ export default function RecentHistory({
   onLoadMoreChats,
   hasMoreChats = false,
   isLoadingChats = false
-}: RecentHistoryProps) {
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
@@ -220,21 +222,7 @@ export default function RecentHistory({
             '',
             '**Next Service Date:** July 15, 2025',
             '**Service Provider:** IntelliMaint Services',
-            '',
-            '**Notes:**',
-            'All maintenance activities should be logged in the system.',
-            'Any anomalies detected during inspection must be reported immediately.'
-          ]
-        };
-      } else if (title.includes('fault') || title.includes('report')) {
-        return {
-          title: 'Fault Analysis Report',
-          content: [
-            '**Operational Fault Report**',
-            '',
-            '**Date:** June 20, 2025',
-            '**Equipment ID:** GEN-5000-XL-7892',
-            '**Fault Code:** ERR-0421',
+        
             '',
             '**Issue Description:**',
             'Generator failed to start during scheduled maintenance test.',
@@ -537,13 +525,17 @@ export default function RecentHistory({
 
         {activeTab === 'documents' && (
           <div className="pb-24">
-            <DocumentsList
-              documents={filteredDocuments}
-              onViewDocument={handleViewDocument}
-              onLoadMore={onLoadMoreDocuments}
-              hasMore={hasMoreDocuments}
-              isLoading={isLoadingDocuments}
-            />
+            {isLoadingDocuments && (!documents || documents.length === 0) ? (
+              <DocumentsSkeleton count={4} />
+            ) : (
+              <DocumentsList
+                documents={filteredDocuments}
+                onViewDocument={handleViewDocument}
+                onLoadMore={onLoadMoreDocuments}
+                hasMore={hasMoreDocuments}
+                isLoading={isLoadingDocuments}
+              />
+            )}
           </div>
         )}
       </div>
@@ -884,4 +876,6 @@ export default function RecentHistory({
     </div>
   );
 }
+
+export default RecentHistory;
 

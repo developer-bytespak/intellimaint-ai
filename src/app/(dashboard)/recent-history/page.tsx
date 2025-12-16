@@ -7,11 +7,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
 import DocumentsList from '@/components/features/chat/History/DocumentsList';
 import PhotosGrid from '@/components/features/chat/History/PhotosGrid';
+import ChatSkeleton from '@/components/ui/ChatSkeleton';
+import DocumentsSkeleton from '@/components/ui/DocumentsSkeleton';
 
 function RecentHistoryContent() {
   const [activeTab, setActiveTab] = useState<TabType>('chats');
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
@@ -20,9 +23,24 @@ function RecentHistoryContent() {
   const [viewingDocument, setViewingDocument] = useState<ChatDocument | null>(null);
   const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto, documents, deleteDocument } = useChat();
+  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto, documents, deleteDocument, isLoading } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // If on mobile, ensure photos tab is not active
+  useEffect(() => {
+    if (isMobile && activeTab === 'photos') {
+      setActiveTab('chats');
+      router.replace('/recent-history?recent-history=chats');
+    }
+  }, [isMobile, activeTab, router]);
 
   const addParams = (params: string) => {
     router.push(`/recent-history?recent-history=${params}`);
@@ -643,19 +661,21 @@ function RecentHistoryContent() {
         >
           Chats
         </button>
-        <button
-          onClick={() => {
-            handleTabChange('photos');
-            addParams("photos");
-          }}
-          className={`flex-1 py-4 rounded-none text-sm font-medium transition-all duration-200 border-b-2 ${
-            activeTab === 'photos'
-              ? 'bg-blue-500/10 text-white border-blue-500'
-              : 'text-gray-400 hover:text-white border-transparent'
-          }`}
-        >
-          Photos
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => {
+              handleTabChange('photos');
+              addParams("photos");
+            }}
+            className={`flex-1 py-4 rounded-none text-sm font-medium transition-all duration-200 border-b-2 ${
+              activeTab === 'photos'
+                ? 'bg-blue-500/10 text-white border-blue-500'
+                : 'text-gray-400 hover:text-white border-transparent'
+            }`}
+          >
+            Photos
+          </button>
+        )}
         <button
           onClick={() => {
             handleTabChange('documents');
@@ -708,47 +728,51 @@ function RecentHistoryContent() {
               </button>
             </div>
             <div className="space-y-2 ">
-              {filteredChats.map((chat) => (
-                <div
-                  key={chat.id}
-                  onClick={() => handleChatSelect(chat)}
-                  className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-                    activeChat?.id === chat.id
-                      ? 'bg-[#3a4a5a] border border-blue-500'
-                      : 'hover:bg-[#3a4a5a]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium mb-1">{chat.title}</p>
-                      {chat.messages.length > 0 && (
-                        <p className="text-gray-400 text-xs">
-                          {chat.messages[chat.messages.length - 1].content.substring(0, 50)}...
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      <button 
-                        className="p-1 hover:bg-red-500/20 rounded transition-colors duration-200"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteChat(chat.id);
-                        }}
-                      >
-                        <svg className="w-5 h-5 text-red-400 hover:text-red-300" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                        </svg>
-                      </button>
+              {isLoading && (!chats || chats.length === 0) ? (
+                <ChatSkeleton count={5} />
+              ) : (
+                filteredChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    onClick={() => handleChatSelect(chat)}
+                    className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                      activeChat?.id === chat.id
+                        ? 'bg-[#3a4a5a] border border-blue-500'
+                        : 'hover:bg-[#3a4a5a]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium mb-1">{chat.title}</p>
+                        {chat.messages.length > 0 && (
+                          <p className="text-gray-400 text-xs">
+                            {chat.messages[chat.messages.length - 1].content.substring(0, 50)}...
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button 
+                          className="p-1 hover:bg-red-500/20 rounded transition-colors duration-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteChat(chat.id);
+                          }}
+                        >
+                          <svg className="w-5 h-5 text-red-400 hover:text-red-300" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
 
-        {/* Photos Tab */}
-        {activeTab === 'photos' && (
+        {/* Photos Tab - hidden on mobile */}
+        {!isMobile && activeTab === 'photos' && (
           <div className="pb-4">
             <PhotosGrid
               photoGroups={filteredPhotoGroups}
@@ -761,10 +785,14 @@ function RecentHistoryContent() {
         {/* Documents Tab */}
         {activeTab === 'documents' && (
           <div className="pb-24">
-            <DocumentsList
-              documents={filteredDocuments}
-              onViewDocument={handleViewDocument}
-            />
+            {isLoading && (!documents || documents.length === 0) ? (
+              <DocumentsSkeleton />
+            ) : (
+              <DocumentsList
+                documents={filteredDocuments}
+                onViewDocument={handleViewDocument}
+              />
+            )}
           </div>
         )}
       </div>

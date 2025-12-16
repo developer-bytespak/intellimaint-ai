@@ -229,3 +229,22 @@ html {
   -ms-overflow-style: none;     /* IE / Edge */
 }
 
+/* Utility to hide scrollbars (useful for horizontal filter chips on mobile) */
+.hide-scrollbar::-webkit-scrollbar {
+  height: 0;
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .will-change-transform, .will-change-opacity {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
