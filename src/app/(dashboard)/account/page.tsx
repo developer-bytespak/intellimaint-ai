@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
 import AccountDetailsSkeleton from "@/components/shared/AccountDetailsSkeleton"
 import { useUser } from "@/hooks/useUser"
+import PageTransition from '@/components/ui/PageTransition'
 
 // Icons
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
@@ -402,11 +403,16 @@ export default function AccountPage() {
   }
 
   if (isLoading) {
-    return <AccountDetailsSkeleton />
+    return (
+      <PageTransition>
+        <AccountDetailsSkeleton />
+      </PageTransition>
+    )
   }
 
   return (
-    <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
+    <PageTransition>
+      <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
       <header className=" text-white rounded-b-[28px] shadow-sm"
          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
@@ -752,6 +758,7 @@ export default function AccountPage() {
         </div>
         </section>
       </div>
-    </main>
+      </main>
+    </PageTransition>
   )
 }

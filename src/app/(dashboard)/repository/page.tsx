@@ -967,9 +967,14 @@ export default function RepositoryPage() {
               </div>
 
               {isLoadingDocuments ? (
-                <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-white/70">Loading documents...</p>
+                <div className="space-y-4">
+                  {[1,2,3].map((n) => (
+                    <div key={n} className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-4 animate-pulse">
+                      <div className="w-full h-40 bg-white/6 rounded-md mb-4" />
+                      <div className="h-4 bg-white/20 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-white/20 rounded w-1/2" />
+                    </div>
+                  ))}
                 </div>
               ) : uploadedItems.length === 0 ? (
                 <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
