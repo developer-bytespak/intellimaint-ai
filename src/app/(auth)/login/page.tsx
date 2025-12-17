@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const { loginUser } = useUser();
+  const { loginUser,googleAuth  } = useUser();
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
@@ -64,8 +64,21 @@ export default function LoginPage() {
     router.push("/signup");
   };
 
-  const handleGoogleSignIn = () => {
-    router.replace("/form");
+const handleGoogleSignIn = () => {
+    googleAuth.mutate({role:'',company:''},{
+      onSuccess: (data) => {
+        console.log('Google sign in successful:', data);
+        // const response = data as any;
+        // toast.success(response.message);
+        // router.push('/chat');
+      },
+      onError: (error) => {
+        console.error('Google sign in error:', error);
+        const axiosError = error as unknown as IAxiosError;
+        toast.error(axiosError?.response?.data?.message);
+        router.push('/signup');
+      }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

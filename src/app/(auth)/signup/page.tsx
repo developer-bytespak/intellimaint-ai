@@ -89,8 +89,8 @@ export default function SignUpPage() {
   const handleGoogleSignIn = () => {
     // Handle Google sign in
     console.log('Google sign in');
+    router.replace('/form');
   };
-
   const handleSignIn = () => {
     // Navigate to login page
     router.push('/login');
