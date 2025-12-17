@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Animation from '@/components/ui/Animation'
 import { MessageDocument, Chat, ImageUploadState } from '@/types/chat';
 import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
@@ -92,6 +93,15 @@ export default function WelcomeScreen({
   const handleEditMessage = (messageId: string) => {
     if (startEditingMessage) {
       startEditingMessage(messageId);
+    }
+  };
+
+  // Inline edit save handler - will trigger onSendMessage with editingMessageId param
+  const handleInlineEditSave = async (messageId: string, newContent: string) => {
+    if (!newContent || newContent.trim() === '') return;
+    if (onSendMessage) {
+      // Pass editingMessageId as last param so sendMessage treats this as an edit
+      await onSendMessage(newContent.trim(), undefined, undefined, undefined, messageId);
     }
   };
   
@@ -413,28 +423,36 @@ export default function WelcomeScreen({
             <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white px-2">Welcome to IntelliMaint AI</h1>
 
             {/* Feature Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-4 sm:mt-6 md:mt-8">
-              <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200">
-                <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">Fast Response</h3>
-                <p className="text-gray-400 text-xs sm:text-sm">Get instant AI-powered answers</p>
-              </div>
-              <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200">
-                <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">Expert Knowledge</h3>
-                <p className="text-gray-400 text-xs sm:text-sm">Access comprehensive maintenance data</p>
-              </div>
-              <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 sm:col-span-2 lg:col-span-1">
-                <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">24/7 Available</h3>
-                <p className="text-gray-400 text-xs sm:text-sm">Always here when you need help</p>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-4 sm:mt-6 md:mt-8 items-stretch">
+              <Animation animation="slideUp" delay={180} duration={600}>
+                <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 h-full flex flex-col justify-center">
+                  <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">Fast Response</h3>
+                  <p className="text-gray-400 text-xs sm:text-sm">Get instant AI-powered answers</p>
+                </div>
+              </Animation>
+
+              <Animation animation="slideUp" delay={280} duration={600}>
+                <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 h-full flex flex-col justify-center">
+                  <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">Expert Knowledge</h3>
+                  <p className="text-gray-400 text-xs sm:text-sm">Access comprehensive maintenance data</p>
+                </div>
+              </Animation>
+
+              <Animation animation="slideUp" delay={380} duration={600}>
+                <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 sm:col-span-2 lg:col-span-1 h-full flex flex-col justify-center">
+                  <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-white font-semibold mb-1 text-sm sm:text-base">24/7 Available</h3>
+                  <p className="text-gray-400 text-xs sm:text-sm">Always here when you need help</p>
+                </div>
+              </Animation>
             </div>
           </div>
         </div>
@@ -448,6 +466,7 @@ export default function WelcomeScreen({
               streamingText={streamingText}
               streamingMessageId={streamingMessageId}
               onEditMessage={handleEditMessage}
+              onInlineEditSave={handleInlineEditSave}
             />
           </div>
         </div>

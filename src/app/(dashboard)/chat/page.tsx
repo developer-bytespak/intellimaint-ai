@@ -12,6 +12,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ROUTES } from '@/constants/routes';
 
+
 type NavigationTab = 'chat' | 'history' | 'info' | 'profile';
 
 function ChatPageContent() {
@@ -33,6 +34,7 @@ function ChatPageContent() {
     loadMoreChats,
     hasMoreChats,
     isLoadingMoreChats,
+    isLoading,
     isSending,
     streamingText,
     streamingMessageId,
@@ -41,6 +43,8 @@ function ChatPageContent() {
     editingMessageId,
     setEditingMessageId,
   } = useChat();
+  
+  
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -236,6 +240,16 @@ function ChatPageContent() {
   // Responsive Layout - Works for both mobile and desktop
   return (
     <div className="h-screen bg-[#1f2632] flex overflow-hidden max-w-full">
+      {/* Compact mobile subscription CTA */}
+      {isMobile && (
+        <div className="fixed top-3 right-3 z-50">
+          <Link href={ROUTES.SUBSCRIPTION} className="bg-[#2a3441] text-white p-2 rounded-full flex items-center justify-center shadow-lg">
+            <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 16L3 8l5.5 5L12 4l3.5 9L21 8l-2 8H5zm2.7-2h8.6l.9-4.4L12 8.5 6.8 9.6L7.7 14z" />
+            </svg>
+          </Link>
+        </div>
+      )}
       {/* Backdrop - Close sidebar when clicking outside (Mobile only) */}
       {isSidebarOpen && isMobile && (
         <div 
@@ -264,6 +278,7 @@ function ChatPageContent() {
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             <div className="flex-1 overflow-hidden min-h-0">
               <RecentHistory
+
                 chats={chats}
                 activeChat={activeChat}
                 photoGroups={photoGroups}
@@ -283,7 +298,8 @@ function ChatPageContent() {
                 isLoadingDocuments={isLoadingRepositoryDocuments}
                 onLoadMoreChats={loadMoreChats}
                 hasMoreChats={hasMoreChats}
-                isLoadingChats={isLoadingMoreChats}
+                isLoadingChats={isLoadingMoreChats || isLoading}
+                
               />
             </div>
             {/* Logout Button at bottom of sidebar */}

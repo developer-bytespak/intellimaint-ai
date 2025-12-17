@@ -80,7 +80,17 @@ export default function DocumentsList({
       {hasMore && (
         <div ref={observerTarget} className="py-4 flex justify-center">
           {isLoading && (
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            <div className="w-full max-w-xs">
+              <div className="p-3 bg-gradient-to-r from-[#232a33] to-[#1f2632] rounded-xl animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-[#2a3441]" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-[#2a3441] rounded mb-2 w-3/4"></div>
+                    <div className="h-3 bg-[#2a3441] rounded w-1/3"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
