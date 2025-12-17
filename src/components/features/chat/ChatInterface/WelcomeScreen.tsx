@@ -95,6 +95,15 @@ export default function WelcomeScreen({
       startEditingMessage(messageId);
     }
   };
+
+  // Inline edit save handler - will trigger onSendMessage with editingMessageId param
+  const handleInlineEditSave = async (messageId: string, newContent: string) => {
+    if (!newContent || newContent.trim() === '') return;
+    if (onSendMessage) {
+      // Pass editingMessageId as last param so sendMessage treats this as an edit
+      await onSendMessage(newContent.trim(), undefined, undefined, undefined, messageId);
+    }
+  };
   
   const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
@@ -457,6 +466,7 @@ export default function WelcomeScreen({
               streamingText={streamingText}
               streamingMessageId={streamingMessageId}
               onEditMessage={handleEditMessage}
+              onInlineEditSave={handleInlineEditSave}
             />
           </div>
         </div>
