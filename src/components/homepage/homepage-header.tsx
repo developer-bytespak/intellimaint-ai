@@ -39,11 +39,11 @@ export function HomepageHeader() {
         <div className="flex h-20 items-center justify-between">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 group">
             <div className="relative h-10 w-10 sm:h-12 sm:w-12">
-              <Image src="/Intelliment LOgo.png" alt="IntellimentAi" fill sizes="48px" />
+              <Image src="/Intelliment LOgo.png" alt="IntelliMaint AI" fill sizes="48px" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-base sm:text-lg font-bold uppercase tracking-[0.15em] text-white">IntellimentAi</span>
-              <span className="text-[10px] sm:text-xs text-slate-400 group-hover:text-slate-300 transition-colors">Trade with Intelligence</span>
+              <span className="text-base sm:text-lg font-bold uppercase tracking-[0.15em] text-white">IntelliMaint AI</span>
+              <span className="text-[10px] sm:text-xs text-slate-400 group-hover:text-slate-300 transition-colors">Virtual Mechanic Platform</span>
             </div>
           </button>
 
@@ -55,8 +55,8 @@ export function HomepageHeader() {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
-            <Link href="/login" className="group rounded-xl border-2 border-gradient-to-r from-[#fc4f02] to-[#fda300] bg-transparent px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:bg-gradient-to-r from-[#fc4f02] to-[#fda300] hover:border-none hover:scale-105">Login</Link>
-            <Link href="/signup" className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-[#fc4f02] to-[#fda300] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#fc4f02]/30 transition-all duration-300 hover:scale-105">Sign Up</Link>
+            <Link href="/login" className="group rounded-xl border-2 border-transparent bg-transparent px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:bg-gradient-to-r hover:from-[#1d4ed8] hover:to-[#3b82f6] hover:border-none hover:scale-105">Login</Link>
+            <Link href="/signup" className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1d4ed8]/25 transition-all duration-300 hover:scale-105">Sign Up</Link>
           </div>
 
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-[--color-surface] transition-colors" aria-label="Toggle menu">
@@ -71,7 +71,7 @@ export function HomepageHeader() {
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-[#fc4f02] via-[#fda300] to-[#fc4f02]"></div>
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-[#1d4ed8] via-[#3b82f6] to-[#1d4ed8]"></div>
 
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-[--color-border] bg-black/95 backdrop-blur-md">
@@ -82,8 +82,8 @@ export function HomepageHeader() {
             <button onClick={() => scrollToSection("contact")} className="block w-full text-left text-sm font-medium text-slate-300 hover:text-white py-2">Contact</button>
 
             <div className="pt-4 border-t border-[--color-border] space-y-3">
-              <Link href="/login" className="w-full rounded-xl inline-block text-center bg-gradient-to-r from-[#fc4f02] to-[#fda300] px-6 py-2.5 text-sm font-semibold text-white">Login</Link>
-              <Link href="/signup" className="w-full rounded-xl inline-block text-center bg-gradient-to-r from-[#fc4f02] to-[#fda300] px-6 py-2.5 text-sm font-semibold text-white">Sign Up</Link>
+              <Link href="/login" className="w-full rounded-xl inline-block text-center px-6 py-2.5 text-sm font-semibold text-white bg-transparent hover:bg-gradient-to-r hover:from-[#1d4ed8] hover:to-[#3b82f6]">Login</Link>
+              <Link href="/signup" className="w-full rounded-xl inline-block text-center bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 py-2.5 text-sm font-semibold text-white">Sign Up</Link>
             </div>
           </nav>
         </div>
