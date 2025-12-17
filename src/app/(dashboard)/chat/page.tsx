@@ -8,7 +8,7 @@ import { useDocuments, useRepository } from '@/hooks/useRepository';
 import { TopNavigation } from '@/components/features/chat/Navigation';
 import RecentHistory from '@/components/features/chat/History/RecentHistory';
 import ChatInterface from '@/components/features/chat/ChatInterface';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ROUTES } from '@/constants/routes';
 
@@ -46,8 +46,8 @@ function ChatPageContent() {
   
   
 
-  const { logout } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [repositoryPage, setRepositoryPage] = useState(1);
@@ -58,6 +58,7 @@ function ChatPageContent() {
   
   // Fetch repository documents with pagination (10 per page)
   const { data: repositoryDocumentsData, isLoading: isLoadingRepositoryDocuments } = useDocuments(repositoryPage, 10);
+  const { logout } = useUser();
   
   // Transform and accumulate repository documents
   useEffect(() => {
@@ -138,6 +139,8 @@ function ChatPageContent() {
     setIsSidebarOpen(false);
   };
 
+ 
+
   const handleSendMessageFromWelcome = (content: string, images?: string[], documents?: MessageDocument[]) => {
     // Create new chat first if no active chat (without redirect)
     if (!activeChat) {
@@ -156,6 +159,15 @@ function ChatPageContent() {
 
   const handleViewPhoto = (photoId: string) => {
     console.log('View photo:', photoId);
+  };
+
+  const handleLogout = async () => {
+    try {
+      const result = await logout.mutateAsync();
+      
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   const handleDeleteDocument = async (documentId: string) => {
@@ -293,7 +305,7 @@ function ChatPageContent() {
             {/* Logout Button at bottom of sidebar */}
             <div className="flex-shrink-0 border-t border-[#2a3441] bg-[#1f2632]">
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-4 rounded-none bg-[#2a3441] hover:bg-red-600/20 text-white transition-colors duration-200 border-0"
               >
                 <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -301,7 +313,10 @@ function ChatPageContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 17l5-5-5-5" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 12H9" />
                 </svg>
-                <span className="text-sm font-medium">Logout</span>
+                <span className="text-sm font-medium">{logout?.isPending ? 'Logging out...' : 'Logout'}</span>
+                {logout?.isError && (
+                  <span className="text-xs text-red-500">Error during logout</span>
+                )}
               </button>
             </div>
           </div>

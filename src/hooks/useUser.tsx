@@ -48,7 +48,7 @@ interface UserContextType {
   resetPassword: UseMutationResult<unknown, Error, {email:string,otp:string,newPassword:string}, unknown>;
   uploadProfileImage: UseMutationResult<{url: string, pathname: string}, Error, File, unknown>;
   deleteProfileImage: UseMutationResult<{success: boolean, message: string}, Error, string, unknown>;
-  logout: () => void;
+  logout: UseMutationResult<unknown, Error, void, unknown>;
 }
 
 
@@ -357,26 +357,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     //* LOGOUT USER :
     // Call logout endpoint - backend will clear cookies and redirect to /login
-    const logout = async () => {
-        try {
-            // Clear frontend auth cookies first
-            document.cookie = 'local_access=; Path=/; Max-Age=0';
-            document.cookie = 'google_access=; Path=/; Max-Age=0';
-            
-            // Clear query cache
-            queryClient.clear();
-            
-            // Call logout endpoint - cookies are sent automatically, backend will clear its cookies
-            window.location.href = `${API_BASE}/auth/logout`;
-        } catch (error) {
-            console.error('Logout error:', error);
-            // Fallback: clear client-side and redirect manually
-            document.cookie = 'local_access=; Path=/; Max-Age=0';
-            document.cookie = 'google_access=; Path=/; Max-Age=0';
-            queryClient.clear();
-            router.push('/login');
-        }
-    };
+    const logout =useMutation({
+      mutationFn: async () => {
+        const res = await baseURL.get('/auth/logout');
+        return res?.data;
+      },
+      onSuccess: () => {
+        // Clear user data and redirect to login
+        queryClient.clear();
+        router.push('/login');
+      }
+    })
 
     //* Memoize the context value to prevent unnecessary re-renders
 
@@ -405,7 +396,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           resetPassword,
           uploadProfileImage,
           deleteProfileImage,
-          logout 
+          logout,
         }}>
             {children}
         </UserContext.Provider>
