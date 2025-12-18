@@ -4,7 +4,7 @@ import { BottomNavigation } from '@/components/features/chat/Navigation'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useUser } from '@/hooks/useUser'
-import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
+import LoadingSpinner from '@/components/shared/LoadingSpinner'
 
 export default function DashboardLayout({
   children,
@@ -21,14 +21,18 @@ export default function DashboardLayout({
   // Check authentication on mount
   useEffect(() => {
     // If user data is still loading, wait for it
-    if (isLoading) return
+    if (isLoading) {
+      console.log('[DashboardLayout] User data is loading...')
+      return
+    }
 
     // If user is not authenticated and loading is done, redirect to login
     if (!user && !isLoading) {
-      console.log('[DashboardLayout] User not authenticated, redirecting to login')
+      console.log('[DashboardLayout] User not authenticated, redirecting to login', { user, isLoading })
       router.replace('/login')
     } else if (user) {
       // User is authenticated
+      console.log('[DashboardLayout] User authenticated:', user.email)
       setIsChecking(false)
     }
   }, [user, isLoading, router])
@@ -98,5 +102,4 @@ export default function DashboardLayout({
       )}
     </div>
   );
-
-
+}

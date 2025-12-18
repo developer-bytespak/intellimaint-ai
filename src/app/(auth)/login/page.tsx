@@ -7,9 +7,11 @@ import { useUser } from "@/hooks/useUser";
 import { IAxiosError, IAxiosResponse } from "@/types/response";
 import { toast } from "react-toastify";
 import ForgotPasswordModal from "@/components/features/auth/ForgotPasswordModal";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,8 +47,15 @@ export default function LoginPage() {
           console.warn('Failed to set local_access cookie:', err);
         }
 
-        // Navigate to chat - the chat page layout checks auth
-        router.push('/chat');
+        // Invalidate user query so it refetches on the next page
+        // This ensures the user data is loaded when navigating to /chat
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+
+        // Small delay to ensure cookie is set and query is invalidated
+        setTimeout(() => {
+          console.log('[LoginPage] Navigating to /chat');
+          router.push('/chat');
+        }, 100);
       },
       onError: (error) => {
         console.error("Login error:", error);
