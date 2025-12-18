@@ -249,7 +249,7 @@ export default function RepositoryPage() {
   }, [queryClient])
   
   if(extractionProgress?.status === "completed"){
-    console.log('extractionProgress', extractionProgress.data);
+    // console.log('extractionProgress', extractionProgress.data);
   }
   // Calculate progress percentage (handle both decimal 0-1 and percentage 0-100 formats)
   const progressPercentage = Math.min(100, Math.max(0, 

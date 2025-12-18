@@ -98,7 +98,7 @@ class BackgroundProcessingManager {
           }
         } else {
           const contentType = (res.headers['content-type'] || '').toLowerCase();
-          
+
           if (contentType.includes('text/plain')) {
             progressData = {
               status: 'completed',
@@ -130,11 +130,11 @@ class BackgroundProcessingManager {
         // Update React Query cache (only if changed to prevent loops)
         if (this.queryClient) {
           const currentData = this.queryClient.getQueryData(['extraction-progress', jobId]) as any;
-          const changed = !currentData || 
+          const changed = !currentData ||
             currentData.progress !== progressData.progress ||
             currentData.percentage !== progressData.percentage ||
             currentData.status !== progressData.status;
-          
+
           if (changed) {
             this.queryClient.setQueryData(['extraction-progress', jobId], progressData);
             // Also save to sessionStorage for persistence across reloads
@@ -191,11 +191,11 @@ class BackgroundProcessingManager {
       clearTimeout(interval);
       this.pollingIntervals.delete(jobId);
     }
-    
+
     // Remove from active jobs
     const activeJobs = this.getActiveJobs().filter(id => id !== jobId);
     this.saveActiveJobs(activeJobs);
-    
+
     // Clean up progress storage if job is completed/failed
     if (typeof window !== 'undefined') {
       try {
@@ -250,13 +250,13 @@ class BackgroundProcessingManager {
   // Immediately fetch current progress (for reload scenario)
   async fetchCurrentProgress(jobId: string): Promise<void> {
     if (!this.queryClient) return;
-    
+
     // First, try to restore from sessionStorage for immediate display
     const cachedProgress = this.getProgressFromStorage(jobId);
     if (cachedProgress) {
       this.queryClient.setQueryData(['extraction-progress', jobId], cachedProgress);
     }
-    
+
     try {
       const res = await axios.get(
         `http://localhost:8000/api/v1/extract/extract/progress/${jobId}`,
@@ -293,7 +293,7 @@ class BackgroundProcessingManager {
         }
       } else {
         const contentType = (res.headers['content-type'] || '').toLowerCase();
-        
+
         if (contentType.includes('text/plain')) {
           progressData = {
             status: 'completed',
@@ -445,7 +445,7 @@ export function useRepository() {
   const storeFileForJob = async (jobId: string, file: File) => {
     globalFileStorage.set(jobId, file);
     originalFileRef.current = file;
-    
+
     // Also store file as base64 in sessionStorage for persistence across reloads
     if (typeof window !== 'undefined') {
       try {
@@ -472,14 +472,14 @@ export function useRepository() {
   // Helper function to get file by jobId (restores from base64 if needed)
   const getFileForJob = async (jobId: string | null): Promise<File | null> => {
     if (!jobId) return null;
-    
+
     // First try global storage (works if component didn't unmount)
     const storedFile = globalFileStorage.get(jobId);
     if (storedFile) {
       originalFileRef.current = storedFile;
       return storedFile;
     }
-    
+
     // If not in global storage, try to restore from sessionStorage base64
     if (typeof window !== 'undefined') {
       try {
@@ -488,7 +488,7 @@ export function useRepository() {
           const metadata = JSON.parse(storedData);
           // Convert base64 back to File
           const file = base64ToFile(metadata.base64, metadata.fileName, metadata.fileType);
-          
+
           // Store back in global storage for future use
           globalFileStorage.set(jobId, file);
           originalFileRef.current = file;
@@ -498,7 +498,7 @@ export function useRepository() {
         console.error('Failed to restore file from base64:', e);
       }
     }
-    
+
     return originalFileRef.current;
   };
 
@@ -506,7 +506,7 @@ export function useRepository() {
   const clearFileForJob = (jobId: string | null) => {
     if (jobId) {
       globalFileStorage.delete(jobId);
-      
+
       // Also clear file data from sessionStorage
       if (typeof window !== 'undefined') {
         try {
@@ -574,19 +574,39 @@ export function useRepository() {
     },
   });
 
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['user', 'profile'],
+    queryFn: async () => {
+      const res = await baseURL.get('/user/profile');
+      console.log(res.data)
+      return res.data.data;
+    }
+  });
+
+
   // Document Extraction
   const extractDocument = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
 
+      if (isError) {
+        toast.error("Failed to get user profile for extraction.");
+        return;
+      }
+
+
       const res = await axios.post(
         `http://localhost:8000/api/v1/extract/extract/full`,
         formData,
         {
-          headers: {
-            "Content-Type": "multipart/form-data",
+          params: {
+            userId: data.id,
+            name: data.name,
+            role: data.role,
+            email: data.email
           },
+          headers: { 'Content-Type': 'multipart/form-data' }
         }
       );
       console.log('res', res);
@@ -658,12 +678,12 @@ export function useDocument(id: string) {
 // 2. Progress query with background processing support
 export const useExtractionProgress = (jobId: string | null, enabled: boolean = true) => {
   const queryClient = useQueryClient();
-  
+
   // Start background polling when jobId is available
   useEffect(() => {
     if (enabled && jobId) {
       backgroundProcessingManager.setQueryClient(queryClient);
-      
+
       // Immediately fetch current progress (for reload scenario)
       backgroundProcessingManager.fetchCurrentProgress(jobId).then(() => {
         // Then start polling
@@ -671,7 +691,7 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
       });
     }
   }, [jobId, enabled, queryClient]);
-  
+
   return useQuery({
     queryKey: ['extraction-progress', jobId],
     queryFn: async () => {
@@ -685,12 +705,12 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
             },
           }
         );
-        
+
         // Handle 204 No Content (milestone not reached - wait before next call)
         if (res.status === 204) {
           // Get previous data to preserve progress
           const previousData = queryClient.getQueryData(['extraction-progress', jobId]) as any;
-          
+
           return {
             milestoneReached: false,
             status: 'waiting',
@@ -699,7 +719,7 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
             percentage: previousData?.percentage || previousData?.progress || 0,
           };
         }
-        
+
         // Handle error statuses (4xx, 5xx)
         if (res.status >= 400) {
           try {
@@ -716,10 +736,10 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
             };
           }
         }
-        
+
         // Handle successful responses (200)
         const contentType = (res.headers['content-type'] || '').toLowerCase();
-        
+
         // If Content-Type is text/plain, it's completed
         if (contentType.includes('text/plain')) {
           return {
@@ -730,18 +750,18 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
             milestoneReached: true,
           };
         }
-        
+
         // JSON response (milestone reached)
         try {
           const jsonData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
-          
+
           if (!jsonData.status) {
             jsonData.status = 'processing';
           }
-          
+
           // Mark that milestone was reached - trigger next call
           jsonData.milestoneReached = true;
-          
+
           return jsonData;
         } catch (error) {
           console.warn('Failed to parse response as JSON, treating as plain text:', error);
@@ -758,7 +778,7 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
           if (error.response.status === 204) {
             // Get previous data to preserve progress
             const previousData = queryClient.getQueryData(['extraction-progress', jobId]) as any;
-            
+
             return {
               milestoneReached: false,
               status: 'waiting',
@@ -767,13 +787,13 @@ export const useExtractionProgress = (jobId: string | null, enabled: boolean = t
               percentage: previousData?.percentage || previousData?.progress || 0,
             };
           }
-          
+
           return {
             status: 'failed',
             error: error.response.data?.error || error.response.data?.message || 'Extraction failed',
           };
         }
-        
+
         throw error;
       }
     },
