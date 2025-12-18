@@ -5,14 +5,15 @@ import { Chat, Message, MessageDocument, TabType, Photo, Document } from '@/type
 import { mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
-import { CONFIG } from '@/constants/config';
 import { chatApi } from '@/lib/api/chatApi';
+import { API_BASE } from '@/lib/api/axios';
 // SSE imports - COMMENTED OUT (Migrated to Socket.IO)
 // import { streamChatMessage, streamChatMessageWithSession } from '@/lib/api/chatApi';
 import { useUser } from '@/hooks/useUser';
 import { useChatSocket, SocketStreamResponse } from '@/hooks/useChatSocket';
 
-const API_BASE_URL = CONFIG.API_URL || 'http://localhost:3000';
+// Use the properly configured API_BASE which already includes /api/v1
+const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
 
 export function useChat() {
   const [chats, setChats] = useState<Chat[]>([]);

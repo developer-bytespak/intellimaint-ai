@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState } from 'react';
 import { MessageDocument } from '@/types/chat';
-import { CONFIG } from '@/constants/config';
+import { API_BASE } from '@/lib/api/axios';
 
 interface TranscribeResponse {
   status: number;
@@ -12,7 +12,8 @@ interface TranscribeResponse {
   data: string; // The transcription text is directly in the data field
 }
 
-const API_BASE_URL = CONFIG.API_URL || 'http://localhost:8000';
+// Use the properly configured API_BASE which already includes /api/v1
+const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
 
 export function useAudio() {
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
