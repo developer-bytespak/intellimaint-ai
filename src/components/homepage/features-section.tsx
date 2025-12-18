@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { CORE_CAPABILITIES } from "@/content/homepageContent";
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -204,12 +205,26 @@ function ScrollAnimatedHeader({ title, titleHighlight, description }: { title: s
 }
 
 export function FeaturesSection() {
-  const features = [
-    { icon: (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4" /></svg>), title: "Document Upload", description: "Upload manuals, schematics and service documents to augment the knowledge base and enable precise answers.", gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-    { icon: (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" /></svg>), title: "60,000+ Manuals", description: "Access a curated, searchable database of 60,000+ maintenance manuals and technical documents.", gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-    { icon: (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h10M7 16h6" /></svg>), title: "LLM Fallback", description: "When the knowledge base lacks an answer, seamlessly fall back to LLMs for context-aware responses.", gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-    { icon: (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2a4 4 0 014 4v3a4 4 0 01-8 0V6a4 4 0 014-4zM6 22v-2a4 4 0 014-4h4a4 4 0 014 4v2" /></svg>), title: "Virtual Mechanic Chatbot", description: "An AI-powered chatbot that acts as a virtual mechanic to diagnose and guide repairs step-by-step.", gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-  ];
+  const features = CORE_CAPABILITIES.map((c, idx) => {
+    let icon = (
+      <svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4" /></svg>
+    );
+
+    if (c.id === "manual-library") {
+      icon = (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" /></svg>);
+    } else if (c.id === "visual-diagnostics") {
+      icon = (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A2 2 0 0020 6.236V6a2 2 0 00-2-2H6a2 2 0 00-2 2v.236c0 .393.213.76.553.988L9 10m6 0v6a2 2 0 01-2 2H11a2 2 0 01-2-2v-6" /></svg>);
+    } else if (c.id === "voice-assist") {
+      icon = (<svg className="h-10 w-10 text-[#3b82f6]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1v11M8 21h8M6 11a6 6 0 0012 0" /></svg>);
+    }
+
+    return {
+      icon,
+      title: c.title,
+      description: c.description,
+      gradient: "from-[#1d4ed8] to-[#3b82f6]",
+    };
+  });
 
   return (
     <section id="features" className="relative pt-20 sm:pt-24 lg:pt-32 pb-20 sm:pb-24 lg:pb-32 overflow-hidden" style={{ perspective: "2000px" }}>

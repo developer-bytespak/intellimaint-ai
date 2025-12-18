@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { PRICING_TIERS } from "@/content/homepageContent";
 
 interface PricingTier {
   name: string;
@@ -62,26 +63,29 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
 }
 
 export function PricingSection() {
-  const tiers: PricingTier[] = [
-    { name: "Free", price: "$0", period: "month", description: "Try core features", features: ["Document upload trial", "Search manuals database (limited)", "Basic chatbot access", "Voice agent trial"], gradient: "from-slate-600 to-slate-700" },
-    { name: "Pro", price: "$99", period: "month", description: "For power users", popular: true, features: ["Full manuals DB access", "LLM fallback responses", "Virtual mechanic chatbot", "Speech-to-text agent", "Priority support"], gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-    { name: "Elite", price: "$299", period: "month", description: "For professional traders", features: ["All Pro features", "Custom AI strategies", "Dedicated account manager", "API access", "White-label options", "24/7 premium support"], gradient: "from-[#1d4ed8] to-[#3b82f6]" },
-    { name: "Institutional", price: "Custom", period: "contact", description: "Enterprise solutions", features: ["All Elite features", "Custom integrations", "Dedicated infrastructure", "SLA guarantees", "On-premise deployment", "Custom training & support"], gradient: "from-[#10b981] to-[#34d399]" },
-  ];
+  const tiers: PricingTier[] = PRICING_TIERS.map((t) => ({
+    name: t.name,
+    price: t.price,
+    period: t.period,
+    description: t.description ?? "",
+    features: t.features,
+    popular: (t as any).popular || false,
+    gradient: "from-[#1d4ed8] to-[#3b82f6]",
+  }));
 
   return (
     <section id="pricing" className="relative pb-20 sm:pb-24 lg:pb-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <ScrollAnimatedHeader title="Choose Your" titleHighlight="Plan" description="Flexible pricing options for traders of all levels" />
+        <ScrollAnimatedHeader title="Choose Your" titleHighlight="Plan" description="Flexible plans for civilian, pro, military, and enterprise needs." />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
           {tiers.map((tier, index) => (<PricingCard key={index} tier={tier} index={index} />))}
         </div>
 
-        <div className="text-center mt-16">
+        {/* <div className="text-center mt-16">
           <p className="text-slate-400 mb-4 text-sm">Need help choosing a plan?</p>
           <button onClick={() => { const element = document.getElementById("contact"); if (element) element.scrollIntoView({ behavior: "smooth" }); }} className="text-[#3b82f6] hover:text-[#60a5fa] font-semibold transition-colors cursor-pointer text-sm">Contact Sales →</button>
-        </div>
+        </div> */}
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { TESTIMONIALS } from "@/content/homepageContent";
 
 interface Testimonial {
   name: string;
@@ -53,17 +54,18 @@ function ScrollAnimatedHeader({ title, titleHighlight, description }: { title: s
 }
 
 export function TestimonialsSection() {
-  const testimonials: Testimonial[] = [
-    { name: "Alex Chen", role: "Professional Trader", quote: "IntelliMaint AI's capabilities have completely transformed my workflow.", rating: 5, metric: "+35%" },
-    { name: "Sarah Martinez", role: "Crypto Investor", quote: "The multi-exchange connectivity is a game-changer.", rating: 5, metric: "+28%" },
-    { name: "Michael Thompson", role: "Stock Trader", quote: "The portfolio optimization feature is outstanding.", rating: 5, metric: "+42%" },
-    { name: "Emily Rodriguez", role: "Day Trader", quote: "Real-time sentiment analysis from news and social media gives me an edge.", rating: 5, metric: "+31%" },
-  ];
+  const testimonials = TESTIMONIALS.map((t) => ({
+    name: t.name,
+    role: `${t.role} — ${t.company}`,
+    quote: t.quote,
+    rating: t.rating,
+    metric: "",
+  }));
 
   return (
     <section id="testimonials" className="relative pt-20 sm:pt-24 lg:pt-32 pb-20 sm:pb-24 lg:pb-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <ScrollAnimatedHeader title="Trusted by" titleHighlight="Traders" description="See what our users are saying about IntelliMaint AI" />
+        <ScrollAnimatedHeader title="Trusted by" titleHighlight="Users" description="See what our users are saying about IntelliMaint AI" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           {testimonials.map((testimonial, index) => (

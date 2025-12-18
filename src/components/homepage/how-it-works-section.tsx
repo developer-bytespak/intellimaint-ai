@@ -1,13 +1,7 @@
 "use client";
 
 import React from 'react';
-
-const STEPS = [
-  { title: 'Upload Documents', desc: 'Upload manuals, schematics and service PDFs to build context.' },
-  { title: 'Search Manuals DB', desc: 'Query a 60,000+ manuals database to find exact procedures and specs.' },
-  { title: 'Chat with Virtual Mechanic', desc: 'Ask the AI mechanic for diagnostics, repair steps, and troubleshooting.' },
-  { title: 'Voice & Field Assistance', desc: 'Use speech-to-text voice agents for hands-free guidance on-site.' },
-];
+import { HOW_IT_WORKS } from "@/content/homepageContent";
 
 import { useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
@@ -67,17 +61,20 @@ function ScrollAnimatedHeader({ title, titleHighlight, description }: { title: s
 }
 
 export function HowItWorksSection() {
-  const steps = [
-    { number: 1, title: "Upload Documents", description: "Add manuals, schematics and service PDFs to the platform.", icon: (<svg className="h-10 w-10 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V3m0 0l-3 3m3-3l3 3" /></svg>), delay: "animate-fade-in" },
-    { number: 2, title: "Search Manuals DB", description: "Query our 60,000+ manuals database for exact procedures and specs.", icon: (<svg className="h-8 w-8 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>), delay: "animate-fade-in" },
-    { number: 3, title: "Chat with Virtual Mechanic", description: "Ask the AI mechanic for diagnostics, step-by-step repairs and guidance.", icon: (<svg className="h-8 w-8 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12v4a2 2 0 01-2 2H5l-4 3V5a2 2 0 012-2h14a2 2 0 012 2v7z" /></svg>), delay: "animate-fade-in" },
-    { number: 4, title: "Voice & Field Assistance", description: "Hands-free speech-to-text agents guide technicians on-site.", icon: (<svg className="h-8 w-8 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1v11m0 0C9.79 12 8 13.79 8 16v1h8v-1c0-2.21-1.79-4-4-4z" /></svg>), delay: "animate-fade-in" },
-  ];
+  const steps = HOW_IT_WORKS.map((s) => ({
+    number: s.number,
+    title: s.title,
+    description: s.description,
+    icon: (
+      <svg className="h-10 w-10 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12M8 21h8M6 11a6 6 0 0012 0" /></svg>
+    ),
+    delay: "animate-fade-in",
+  }));
 
   return (
     <section id="how-it-works" className="relative pt-8 pb-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <ScrollAnimatedHeader title="How It" titleHighlight="Works" description="Get started in minutes and start trading smarter today" />
+        <ScrollAnimatedHeader title="How It" titleHighlight="Works" description="Sign up, add manuals, and get guided repair instructions in minutes." />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 relative -mt-6 lg:-mt-8">
           {steps.map((step, index) => (

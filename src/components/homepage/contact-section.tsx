@@ -2,32 +2,130 @@
 
 import { useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import emailjs from "@emailjs/browser";
 
 export function ContactSection() {
-  const [formData, setFormData] = useState({ name: "", email: "", company: "", phone: "", subject: "", message: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", company: "", phone: "", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { ref: sectionRef, isVisible } = useScrollAnimation({ threshold: 0.1 });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Basic input-level sanitization to improve UX and prevent accidental invalid characters
+    let val = value;
+    if (name === "name") {
+      // allow Unicode letters, spaces, hyphens, apostrophes and dots; strip digits and other symbols
+      val = val.replace(/[^^\p{L}\s'\-\.]/gu, "");
+    }
+    if (name === "phone") {
+      // allow digits, plus, hyphen, parentheses and spaces only
+      val = val.replace(/[^0-9+\-()\s]/g, "");
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: val }));
+    // Clear error for this field while user edits
+    setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Client-side validation and sanitization
+    const valid = validateForm();
+    if (!valid) return;
+
     setIsSubmitting(true);
     setSubmitStatus("idle");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // sanitize data before sending to EmailJS
+      const payload = sanitizeFormData(formData);
+
+      const SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "";
+      const TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "";
+      const PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "";
+
+      if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+        console.error("EmailJS environment variables are missing.");
+        throw new Error("EmailJS not configured");
+      }
+
+      // template params should match your EmailJS template variables
+      const templateParams = {
+        from_name: payload.name,
+        from_email: payload.email,
+        company: payload.company,
+        phone: payload.phone,
+        message: payload.message,
+      };
+
+      await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
       setSubmitStatus("success");
-      setFormData({ name: "", email: "", company: "", phone: "", subject: "", message: "" });
+      setFormData({ name: "", email: "", company: "", phone: "", message: "" });
+      setErrors({});
     } catch (error) {
       setSubmitStatus("error");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Basic sanitization to reduce risk of malicious payloads being sent from the client.
+  // Note: server-side validation and parameterized queries are REQUIRED for real security.
+  function sanitizeInput(value: string) {
+    if (!value) return value;
+    // remove common SQL meta-characters and comment patterns
+    let out = value.replace(/(--|;|\/\*|\*\/)/g, " ");
+    // remove suspicious SQL keywords (case-insensitive)
+    out = out.replace(/\b(select|insert|update|delete|drop|truncate|alter|create|exec|union)\b/gi, "");
+    // remove simple tautologies like OR 1=1
+    out = out.replace(/or\s+1=1/gi, "");
+    // strip quotes that could break naive parsers
+    out = out.replace(/["']/g, "");
+    // collapse multiple spaces
+    out = out.replace(/\s{2,}/g, " ").trim();
+    return out;
+  }
+
+  function sanitizeFormData(data: typeof formData) {
+    return {
+      name: sanitizeInput(data.name).slice(0, 40),
+      email: sanitizeInput(data.email).slice(0, 254),
+      company: sanitizeInput(data.company).slice(0, 60),
+      phone: sanitizeInput(data.phone).slice(0, 30),
+      message: sanitizeInput(data.message).slice(0, 500),
+    };
+  }
+
+  function validateForm() {
+    const newErrors: Record<string, string> = {};
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const phone = formData.phone.trim();
+    const message = formData.message.trim();
+
+    if (!name) newErrors.name = "Full name is required.";
+    else if (name.length < 2) newErrors.name = "Full name must be at least 2 characters.";
+    else if (name.length > 40) newErrors.name = "Full name is too long (max 40).";
+
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!email) newErrors.email = "Email is required.";
+    else if (!emailRegex.test(email)) newErrors.email = "Please enter a valid email address.";
+    else if (email.length > 254) newErrors.email = "Email is too long (max 254).";
+
+    const phoneRegex = /^[\d+\-()\s]{7,30}$/;
+    if (formData.phone && !phoneRegex.test(phone)) newErrors.phone = "Please enter a valid phone number (7-30 digits).";
+
+    if (!message) newErrors.message = "Message is required.";
+    else if (message.length < 10) newErrors.message = "Message must be at least 10 characters.";
+    else if (message.length > 500) newErrors.message = "Message is too long (max 500).";
+
+    // company length checks
+    if (formData.company && formData.company.trim().length > 60) newErrors.company = "Company name is too long (max 60).";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
 
   return (
     <section id="contact" ref={sectionRef} className="relative pb-20 sm:pb-24 lg:pb-32 overflow-hidden">
@@ -53,10 +151,12 @@ export function ContactSection() {
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-white mb-2.5">Full Name <span className="text-[#3b82f6] ml-1">*</span></label>
                   <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-3.5 rounded-xl bg-[--color-surface]/80 border border-[--color-border]/60 text-white placeholder-slate-500/60 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 focus:border-[#1d4ed8]/60" placeholder="Enter your full name" />
+                  {errors.name && <p className="text-xs text-red-400 mt-2">{errors.name}</p>}
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-white mb-2.5">Email Address <span className="text-[#3b82f6] ml-1">*</span></label>
                   <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-4 py-3.5 rounded-xl bg-[--color-surface]/80 border border-[--color-border]/60 text-white placeholder-slate-500/60 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 focus:border-[#1d4ed8]/60" placeholder="your.email@company.com" />
+                  {errors.email && <p className="text-xs text-red-400 mt-2">{errors.email}</p>}
                 </div>
                 <div>
                   <label htmlFor="company" className="block text-sm font-medium text-white mb-2.5">Company Name</label>
@@ -65,27 +165,18 @@ export function ContactSection() {
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-white mb-2.5">Phone Number</label>
                   <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl bg-[--color-surface]/80 border border-[--color-border]/60 text-white placeholder-slate-500/60 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 focus:border-[#1d4ed8]/60" placeholder="+1 (555) 123-4567" />
+                  {errors.phone && <p className="text-xs text-red-400 mt-2">{errors.phone}</p>}
                 </div>
               </div>
             </div>
 
             <div className="mb-8">
               <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Inquiry Details</h4>
-              <div className="mb-5">
-                <label htmlFor="subject" className="block text-sm font-medium text-white mb-2.5">Subject <span className="text-[#3b82f6] ml-1">*</span></label>
-                <select id="subject" name="subject" value={formData.subject} onChange={handleChange} required className="w-full px-4 py-3.5 rounded-xl bg-[--color-surface]/80 border border-[--color-border]/60 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 focus:border-[#1d4ed8]/60 appearance-none cursor-pointer" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231d4ed8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.5em 1.5em', paddingRight: '3rem' }}>
-                  <option value="" className="bg-[--color-surface] text-white">Select a subject</option>
-                  <option value="general" className="bg-[--color-surface] text-white">General Inquiry</option>
-                  <option value="sales" className="bg-[--color-surface] text-white">Sales & Pricing</option>
-                  <option value="support" className="bg-[--color-surface] text-white">Technical Support</option>
-                  <option value="partnership" className="bg-[--color-surface] text-white">Partnership Opportunities</option>
-                  <option value="other" className="bg-[--color-surface] text-white">Other</option>
-                </select>
-              </div>
 
               <div>
                 <label htmlFor="message" className="block text-sm font-medium text-white mb-2.5">Message <span className="text-[#3b82f6] ml-1">*</span></label>
                 <textarea id="message" name="message" value={formData.message} onChange={handleChange} required rows={6} className="w-full px-4 py-3.5 rounded-xl bg-[--color-surface]/80 border border-[--color-border]/60 text-white placeholder-slate-500/60 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 focus:border-[#1d4ed8]/60 resize-none" placeholder="Please provide a detailed description of your inquiry. Include any relevant information that will help us assist you better." />
+                {errors.message && <p className="text-xs text-red-400 mt-2">{errors.message}</p>}
               </div>
             </div>
 
