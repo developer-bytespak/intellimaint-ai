@@ -3,6 +3,8 @@
 import { BottomNavigation } from '@/components/features/chat/Navigation'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { useUser } from '@/hooks/useUser'
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 
 export default function DashboardLayout({
   children,
@@ -11,8 +13,25 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { user, isLoading } = useUser()
   const [activeTab, setActiveTab] = useState<'chat' | 'history' | 'info' | 'profile'>('chat')
   const [isMobile, setIsMobile] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+
+  // Check authentication on mount
+  useEffect(() => {
+    // If user data is still loading, wait for it
+    if (isLoading) return
+
+    // If user is not authenticated and loading is done, redirect to login
+    if (!user && !isLoading) {
+      console.log('[DashboardLayout] User not authenticated, redirecting to login')
+      router.replace('/login')
+    } else if (user) {
+      // User is authenticated
+      setIsChecking(false)
+    }
+  }, [user, isLoading, router])
 
   // Update active tab based on current pathname
   useEffect(() => {
@@ -48,23 +67,36 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-[var(--color-background)] ">
-      {/* Main content */}
-      <main
-        className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden ${isMobile ? 'pb-28' : ''}`}
-        style={isMobile ? { paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : undefined}
-      >
-        {children}
-      </main>
+      {/* Show loading spinner while checking authentication */}
+      {(isLoading || isChecking) ? (
+        <div className="flex items-center justify-center w-full h-screen">
+          <LoadingSpinner />
+        </div>
+      ) : !user ? (
+        // User not authenticated - will redirect via useEffect
+        <div className="flex items-center justify-center w-full h-screen">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <>
+          {/* Main content */}
+          <main
+            className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden ${isMobile ? 'pb-28' : ''}`}
+            style={isMobile ? { paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+          >
+            {children}
+          </main>
 
-      {/* Mobile Bottom Navigation - Only visible on mobile */}
-      {isMobile && (
-        <BottomNavigation 
-          activeTab={activeTab} 
-          onTabChange={handleTabChange} 
-        />
+          {/* Mobile Bottom Navigation - Only visible on mobile */}
+          {isMobile && (
+            <BottomNavigation 
+              activeTab={activeTab} 
+              onTabChange={handleTabChange} 
+            />
+          )}
+        </>
       )}
     </div>
   );
-}
 
 

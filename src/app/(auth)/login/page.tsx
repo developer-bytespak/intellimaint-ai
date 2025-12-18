@@ -45,10 +45,8 @@ export default function LoginPage() {
           console.warn('Failed to set local_access cookie:', err);
         }
 
-        // Small delay to show transition animation before navigation
-        setTimeout(() => {
-          router.push('/chat');
-        }, 500);
+        // Navigate to chat - the chat page layout checks auth
+        router.push('/chat');
       },
       onError: (error) => {
         console.error("Login error:", error);
