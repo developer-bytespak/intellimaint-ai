@@ -50,8 +50,8 @@ export default function DashboardLayout({
     <div className="flex min-h-screen bg-[var(--color-background)] ">
       {/* Main content */}
       <main
-        className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden ${isMobile ? 'pb-28' : ''}`}
-        style={isMobile ? { paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+        className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden flex flex-col ${isMobile ? 'pb-20' : ''}`}
+        style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
       >
         {children}
       </main>
@@ -66,5 +66,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-

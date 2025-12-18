@@ -291,13 +291,27 @@ function MessageInputContent({
                 onChange={(e) => setInputValue(e.target.value || '')}
                 placeholder={isSending ? "Transcribing audio..." : isAudioActive ? "Recording audio..." : "Ask Intellimaint AI."}
                 disabled={isDisabled}
-                className={`w-full max-w-full bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base py-2 pr-8 overflow-hidden text-ellipsis box-border ${
+                className={`w-full max-w-full bg-transparent text-white placeholder-gray-400 outline-none text-sm sm:text-base py-2 pr-14 overflow-hidden text-ellipsis box-border ${
                   isDisabled ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               />
-              {/* Loader on right end when sending */}
+
+              {/* Always-visible send button (changes style when there's input) */}
+              <button
+                type="submit"
+                aria-label="Send message"
+                className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-150 ${
+                  inputValue && inputValue.trim().length > 0 ? 'bg-blue-500 text-white' : 'bg-transparent text-gray-400 hover:bg-[#3a4a5a]'
+                }`}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12l7-7 7 7" />
+                </svg>
+              </button>
+
+              {/* Loader on right end when sending (moved left to avoid overlapping send) */}
               {isSending && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <div className="absolute right-12 top-1/2 -translate-y-1/2">
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               )}
@@ -306,9 +320,8 @@ function MessageInputContent({
             {/* Icons Row */}
             <div className="flex items-center justify-between w-full max-w-full overflow-visible">
               {/* Mobile: Show all icons */}
-              <div className="flex items-center justify-between w-full md:hidden min-w-0 max-w-full flex-shrink-0 box-border">
-                {/* Left Icons Group */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center justify-end w-full md:hidden min-w-0 max-w-full flex-shrink-0 box-border">
+                <div className="flex items-center gap-2 ml-auto">
                   <button
                     type="button"
                     disabled={isSending}
@@ -343,21 +356,21 @@ function MessageInputContent({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </button>
-                </div>
 
-                {/* Right Icons Group */}
-                <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-                  <AudioRecorder 
-                    variant="button"
-                    isRecording={isRecording}
-                    recordingTime={recordingTime}
-                    audioUrl={audioUrl}
-                    handleStartRecording={handleStartRecording}
-                    stopAndSend={stopAndSend}
-                    handleSendAudio={handleSendAudio}
-                    handleCancel={handleCancel}
-                    formatTime={formatTime}
-                  />
+                  <div className="mr-12">
+                    <AudioRecorder 
+                      variant="button"
+                      isRecording={isRecording}
+                      recordingTime={recordingTime}
+                      audioUrl={audioUrl}
+                      handleStartRecording={handleStartRecording}
+                      stopAndSend={stopAndSend}
+                      handleSendAudio={handleSendAudio}
+                      handleCancel={handleCancel}
+                      formatTime={formatTime}
+                    />
+                  </div>
+
                   <button
                     type="button"
                     disabled={isSending}
@@ -374,17 +387,19 @@ function MessageInputContent({
 
               {/* Desktop: Show plus icon with dropdown */}
               <div className="hidden md:flex items-center gap-2 ml-auto relative">
-                <AudioRecorder 
-                  variant="button"
-                  isRecording={isRecording}
-                  recordingTime={recordingTime}
-                  audioUrl={audioUrl}
-                  handleStartRecording={handleStartRecording}
-                  stopAndSend={stopAndSend}
-                  handleSendAudio={handleSendAudio}
-                  handleCancel={handleCancel}
-                  formatTime={formatTime}
-                />
+                <div className="mr-3">
+                  <AudioRecorder 
+                    variant="button"
+                    isRecording={isRecording}
+                    recordingTime={recordingTime}
+                    audioUrl={audioUrl}
+                    handleStartRecording={handleStartRecording}
+                    stopAndSend={stopAndSend}
+                    handleSendAudio={handleSendAudio}
+                    handleCancel={handleCancel}
+                    formatTime={formatTime}
+                  />
+                </div>
                 <div className="relative pin-dropdown">
                   <button
                     type="button"

@@ -530,7 +530,7 @@ export default function WelcomeScreen({
                 }
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
-                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 ${
+                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 pr-14 ${
                   (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
@@ -620,46 +620,50 @@ export default function WelcomeScreen({
                       e.preventDefault();
                       stopStreaming();
                     }}
-                    className="p-1.5 sm:p-2 rounded-lg transition-colors duration-200 bg-red-500 hover:bg-red-600 text-white"
+                    className="p-1 sm:p-1.5 rounded-lg transition-colors duration-200 bg-red-500 hover:bg-red-600 text-white"
                     title="Stop generating"
                   >
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M6 6h12v12H6z"/>
                     </svg>
                   </button>
-                ) : (inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? (
-                  <button
-                    type="submit"
-                    disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio || isUploading}
-                    className={`p-1.5 sm:p-2 rounded-lg transition-colors duration-200 ${
-                      isUploading 
-                        ? 'bg-gray-500 cursor-not-allowed opacity-50' 
-                        : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    } ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    title={isUploading ? 'Uploading images...' : 'Send message'}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleSubmit(e);
-                    }}
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                    </svg>
-                  </button>
                 ) : (
-                  <AudioRecorder 
-                    variant="button"
-                    isRecording={audioRecorder.isRecording}
-                    recordingTime={audioRecorder.recordingTime}
-                    audioUrl={audioRecorder.audioUrl}
-                    handleStartRecording={audioRecorder.handleStartRecording}
-                    stopAndSend={audioRecorder.stopAndSend}
-                    handleSendAudio={audioRecorder.handleSendAudio}
-                    handleCancel={audioRecorder.handleCancel}
-                    formatTime={audioRecorder.formatTime}
-                  />
+                  <div className="flex items-center gap-1">
+                    {/* Voice button left of send - small right margin to avoid overlap */}
+                    <div className="mr-1">
+                      <AudioRecorder 
+                        variant="button"
+                        isRecording={audioRecorder.isRecording}
+                        recordingTime={audioRecorder.recordingTime}
+                        audioUrl={audioRecorder.audioUrl}
+                        handleStartRecording={audioRecorder.handleStartRecording}
+                        stopAndSend={audioRecorder.stopAndSend}
+                        handleSendAudio={audioRecorder.handleSendAudio}
+                        handleCancel={audioRecorder.handleCancel}
+                        formatTime={audioRecorder.formatTime}
+                      />
+                    </div>
+
+                    {/* Always-visible send button (disabled when empty or busy) */}
+                    <button
+                      type="submit"
+                      disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio || isUploading || (!inputValue.trim() && imageUploadStates.length === 0 && selectedDocuments.length === 0)}
+                      className={`p-1 sm:p-1 rounded-lg transition-colors duration-200 ${
+                        (inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-transparent text-gray-400 hover:bg-[#3a4a5a]'
+                      } ${
+                        (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      title={isUploading ? 'Uploading images...' : 'Send message'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSubmit(e);
+                      }}
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                      </svg>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
