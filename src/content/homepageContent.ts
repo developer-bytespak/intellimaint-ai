@@ -26,7 +26,7 @@ export const CORE_CAPABILITIES = [
 ];
 
 export const HOW_IT_WORKS = [
-  { number: 1, title: "Create Your Account", description: "Choose civilian, military (.mil), or student email. Quick verification process gets you started in minutes." },
+  { number: 1, title: "Create Your Account", description: "Choose your email type: civilian, military (.mil), or student. Our quick verification process ensures you get started in minutes, so you can dive right into the resources available.." },
   { number: 2, title: "Build Your Knowledge Base", description: "Upload equipment documents or access our 6,000+ manual database. AI automatically chunks, embeds, and indexes everything for instant retrieval." },
   { number: 3, title: "Chat with AI Mechanic", description: "Type, speak, or attach images. Our RAG-powered system finds relevant information from your documents and our database to provide accurate answers." },
   { number: 4, title: "Solve & Track Progress", description: "Receive step-by-step repair instructions. Context-aware responses remember your equipment history for faster future diagnostics." },

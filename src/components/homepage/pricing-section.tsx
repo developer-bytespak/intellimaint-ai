@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/constants/routes";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { PRICING_TIERS } from "@/content/homepageContent";
+
 
 interface PricingTier {
   name: string;
@@ -31,11 +34,20 @@ function ScrollAnimatedHeader({ title, titleHighlight, description }: { title: s
 function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
   const { ref: cardRef, isVisible } = useScrollAnimation({ threshold: 0.1 });
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const router = useRouter();
 
   const handleGetStarted = async () => {
     setIsCheckingAuth(true);
-    // Static UI-only button; no auth flow or redirects.
-    setTimeout(() => setIsCheckingAuth(false), 600);
+    if (tier.price === "Custom") {
+      // For custom pricing, scroll to contact section
+      const el = document.getElementById("contact");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      setIsCheckingAuth(false);
+      return;
+    }
+
+    // Redirect to signup for standard tiers
+    router.push(ROUTES.SIGNUP);
   };
 
   return (
@@ -55,7 +67,27 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
 
           <ul className="space-y-2.5 mb-5 flex-grow">{tier.features.map((feature, featureIndex) => (<li key={featureIndex} className="flex items-start gap-2"><svg className="h-3.5 w-3.5 text-[#10b981] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg><span className="text-xs text-slate-400 leading-snug">{feature}</span></li>))}</ul>
 
-          <button onClick={handleGetStarted} disabled={isCheckingAuth} className={`w-full rounded-md px-4 py-2.5 text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${tier.popular ? "bg-[#1d4ed8] text-white hover:bg-[#1661d6]" : "border border-[--color-border] bg-[--color-surface] text-white hover:border-[#1d4ed8]/50 hover:bg-[--color-surface-alt]"}`}>{isCheckingAuth ? "Checking..." : tier.price === "Custom" ? "Contact Sales" : "Get Started"}</button>
+          <button
+            onClick={handleGetStarted}
+            disabled={isCheckingAuth}
+            className={`group relative w-full rounded-xl border-2 border-slate-700 bg-black/50 backdrop-blur-md px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${isCheckingAuth ? 'opacity-60 cursor-wait' : 'hover:border-[#3b82f6]/50 hover:bg-black/50'} shadow-[0_8px_30px_rgba(59,130,246,0.06)] hover:shadow-[0_18px_60px_rgba(59,130,246,0.12)]`}
+          >
+            {/* subtle inner glass layer (darker) */}
+            <span aria-hidden className="absolute inset-0 rounded-xl bg-black/25 border border-white/6 backdrop-blur-sm pointer-events-none" />
+
+            {/* soft colored glow */}
+            <span aria-hidden className="absolute inset-0 rounded-xl pointer-events-none mix-blend-screen opacity-24 bg-gradient-to-r from-[#1d4ed8]/18 via-[#3b82f6]/10 to-[#06b6d4]/10 transition-opacity duration-300 group-hover:opacity-50" />
+
+            {/* moving shimmer (mirror reflection) */}
+            <span aria-hidden className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+              <span
+                className="absolute left-[-80%] top-0 w-[60%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 transition-transform duration-700 ease-out opacity-0 group-hover:opacity-90 group-hover:translate-x-[220%]"
+                style={{ willChange: 'transform, opacity' }}
+              />
+            </span>
+
+            <span className="relative z-10">{isCheckingAuth ? "Checking..." : tier.price === "Custom" ? "Contact Sales" : "Get Started"}</span>
+          </button>
         </div>
       </div>
     </div>

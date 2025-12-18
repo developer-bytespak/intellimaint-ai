@@ -35,7 +35,7 @@ function TestimonialCard({ testimonial, index }: { testimonial: Testimonial; ind
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-[#3b82f6]">{testimonial.metric}</div>
-          <div className="text-xs text-slate-500">Performance</div>
+          <div className="text-xs text-slate-500"></div>
         </div>
       </div>
     </div>

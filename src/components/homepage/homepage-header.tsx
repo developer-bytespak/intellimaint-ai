@@ -55,7 +55,14 @@ export function HomepageHeader() {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
-            <Link href="/login" className="group rounded-xl border-2 border-transparent bg-transparent px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:bg-gradient-to-r hover:from-[#1d4ed8] hover:to-[#3b82f6] hover:border-none hover:scale-105">Login</Link>
+            <Link href="/login" className="group relative rounded-xl border-2 border-slate-700 bg-black/50 backdrop-blur-md px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:border-[#3b82f6]/50 hover:bg-black/50 shadow-[0_8px_30px_rgba(59,130,246,0.06)] hover:shadow-[0_18px_60px_rgba(59,130,246,0.12)]">
+              <span aria-hidden className="absolute inset-0 rounded-xl bg-black/25 border border-white/6 backdrop-blur-sm pointer-events-none" />
+              <span aria-hidden className="absolute inset-0 rounded-xl pointer-events-none mix-blend-screen opacity-24 bg-gradient-to-r from-[#1d4ed8]/18 via-[#3b82f6]/10 to-[#06b6d4]/10 transition-opacity duration-300 group-hover:opacity-50" />
+              <span aria-hidden className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                <span className="absolute left-[-80%] top-0 w-[60%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 transition-transform duration-700 ease-out opacity-0 group-hover:opacity-90 group-hover:translate-x-[220%]" style={{ willChange: 'transform, opacity' }} />
+              </span>
+              <span className="relative z-10">Login</span>
+            </Link>
             <Link href="/signup" className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1d4ed8]/25 transition-all duration-300 hover:scale-105">Sign Up</Link>
           </div>
 
@@ -82,7 +89,14 @@ export function HomepageHeader() {
             <button onClick={() => scrollToSection("contact")} className="block w-full text-left text-sm font-medium text-slate-300 hover:text-white py-2">Contact</button>
 
             <div className="pt-4 border-t border-[--color-border] space-y-3">
-              <Link href="/login" className="w-full rounded-xl inline-block text-center px-6 py-2.5 text-sm font-semibold text-white bg-transparent hover:bg-gradient-to-r hover:from-[#1d4ed8] hover:to-[#3b82f6]">Login</Link>
+              <Link href="/login" className="w-full group relative inline-block text-center rounded-xl border-2 border-slate-700 bg-black/50 backdrop-blur-md px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:border-[#3b82f6]/50 hover:bg-black/50">
+                <span aria-hidden className="absolute inset-0 rounded-xl bg-black/25 border border-white/6 backdrop-blur-sm pointer-events-none" />
+                <span aria-hidden className="absolute inset-0 rounded-xl pointer-events-none mix-blend-screen opacity-24 bg-gradient-to-r from-[#1d4ed8]/18 via-[#3b82f6]/10 to-[#06b6d4]/10 transition-opacity duration-300 group-hover:opacity-50" />
+                <span aria-hidden className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                  <span className="absolute left-[-80%] top-0 w-[60%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 transition-transform duration-700 ease-out opacity-0 group-hover:opacity-90 group-hover:translate-x-[220%]" style={{ willChange: 'transform, opacity' }} />
+                </span>
+                <span className="relative z-10">Login</span>
+              </Link>
               <Link href="/signup" className="w-full rounded-xl inline-block text-center bg-gradient-to-r from-[#1d4ed8] to-[#3b82f6] px-6 py-2.5 text-sm font-semibold text-white">Sign Up</Link>
             </div>
           </nav>
