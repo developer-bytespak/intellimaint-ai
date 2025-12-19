@@ -30,12 +30,18 @@ export default function ChatsList({
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+
+  // Keep ref updated
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading && onLoadMore) {
-          onLoadMore();
+        if (entries[0].isIntersecting && hasMore && !isLoading && onLoadMoreRef.current) {
+          onLoadMoreRef.current();
         }
       },
       { threshold: 0.1 }
@@ -51,7 +57,7 @@ export default function ChatsList({
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, isLoading, onLoadMore]);
+  }, [hasMore, isLoading]);
 
   return (
     <div>
