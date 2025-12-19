@@ -26,7 +26,9 @@ interface UseChatSocketOptions {
   onStopped?: (reason: string) => void;
 }
 
-const GATEWAY_URL = CONFIG.API_URL || 'http://localhost:3000';
+// NestJS Gateway URL for Socket.IO (should NOT include /api/v1)
+// Socket.IO connects to ${NEST_URL}/chat namespace
+const NEST_URL = process.env.NEXT_PUBLIC_NEST_URL || 'http://localhost:3000';
 
 export function useChatSocket(options: UseChatSocketOptions) {
   const { userId, onChunk, onError, onStopped } = options;
@@ -69,18 +71,20 @@ export function useChatSocket(options: UseChatSocketOptions) {
       return;
     }
 
-    console.log('🔌 Initializing Socket.IO connection to:', `${GATEWAY_URL}/chat`);
+    console.log('🔌 Initializing Socket.IO connection to:', `${NEST_URL}/chat`);
+    console.log('   NestJS Gateway URL:', NEST_URL);
 
-    const socketInstance = io(`${GATEWAY_URL}/chat`, {
+    const socketInstance = io(`${NEST_URL}/chat`, {
       path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'], // Backend recommends websocket-only to avoid sticky session issues
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000, // Increased timeout for production
       withCredentials: true,
       autoConnect: true,
-      forceNew: true,
+      forceNew: false, // Reuse existing connections when possible
     });
 
     socketRef.current = socketInstance;

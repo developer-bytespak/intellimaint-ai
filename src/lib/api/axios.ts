@@ -1,8 +1,9 @@
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000/api/v1";
+// NestJS Gateway base URL (add /api/v1 for REST endpoints)
+const NEST_URL = process.env.NEXT_PUBLIC_NEST_URL || "http://localhost:3000";
+export const API_BASE = `${NEST_URL}/api/v1`;
 
 const baseURL = axios.create({
   baseURL: API_BASE,
