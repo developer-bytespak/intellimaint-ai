@@ -278,6 +278,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         mutationFn: async (data: {email: string, password: string}) => {
           console.log(data)
             const res = await baseURL.post('/auth/login', data);
+            // Store access token in localStorage for Authorization header
+            if (res.data?.data?.accessToken) {
+              localStorage.setItem('accessToken', res.data.data.accessToken);
+            }
+            if (res.data?.data?.refreshToken) {
+              localStorage.setItem('refreshToken', res.data.data.refreshToken);
+            }
             return res.data;
         },
     });
@@ -363,6 +370,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return res?.data;
       },
       onSuccess: () => {
+        // Clear stored tokens
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
         // Clear user data and redirect to login
         queryClient.clear();
         router.push('/login');

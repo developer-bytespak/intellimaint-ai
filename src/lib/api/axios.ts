@@ -13,6 +13,21 @@ const baseURL = axios.create({
 });
 
 /* ======================
+    REQUEST INTERCEPTOR
+====================== */
+baseURL.interceptors.request.use(
+  (config) => {
+    // Add Authorization header if access token exists
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+/* ======================
     REFRESH QUEUE LOGIC
 ====================== */
 let isRefreshing = false;
