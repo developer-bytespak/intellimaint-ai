@@ -68,4 +68,3 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
     </div>
   );
 }
-

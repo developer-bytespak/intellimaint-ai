@@ -80,7 +80,7 @@ export default function SubscriptionPlans() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#1A1D26] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#1f2632] py-12 px-4 sm:px-6 lg:px-8">
       {/* Floating back button (navigates to chat) - fixed position */}
       <button
         onClick={() => router.push('/chat')}

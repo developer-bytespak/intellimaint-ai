@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
+  --background: #1f2632;
   --foreground: #ffffff;
   --muted: #1a1a1a;
   --muted-foreground: #a0a0a0;
@@ -465,3 +465,47 @@ select option:hover {
   }
 }
 
+/* Hide chat scrollbars on small screens (mobile) but keep scrolling functional */
+@media (max-width: 767px) {
+  .chat-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .chat-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  /* Also hide any overflow-y auto native scrollbars on mobile (keeps scrolling) */
+  .overflow-y-auto {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .overflow-y-auto::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Stronger rules to hide scrollbars in embedded WebViews (force zero width) */
+.chat-scrollbar::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.chat-scrollbar,
+.overflow-y-auto {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fallback: hide any scrollbar tracks/thumbs if present */
+.chat-scrollbar::-webkit-scrollbar-track,
+.overflow-y-auto::-webkit-scrollbar-track,
+.chat-scrollbar::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: transparent !important;
+}
