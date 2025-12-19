@@ -26,7 +26,10 @@ interface UseChatSocketOptions {
   onStopped?: (reason: string) => void;
 }
 
-const GATEWAY_URL = CONFIG.API_URL || 'http://localhost:3000';
+// Use dedicated GATEWAY_URL for Socket.IO connections (NestJS server)
+const GATEWAY_URL = CONFIG.GATEWAY_URL || CONFIG.API_URL || 'http://localhost:3000';
+
+console.log('NestJS Gateway URL:', GATEWAY_URL);
 
 export function useChatSocket(options: UseChatSocketOptions) {
   const { userId, onChunk, onError, onStopped } = options;
