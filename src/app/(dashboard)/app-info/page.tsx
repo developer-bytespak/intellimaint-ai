@@ -50,7 +50,7 @@ export default function AppInfoPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#1f2632] text-white overflow-y-auto">
+    <div className="w-full h-full bg-[#1f2632] text-white overflow-y-auto">
       {/* Header */}
       <header className="bg-blue-400 dark:bg-blue-600 text-white rounded-b-[28px] shadow-sm">
         <div className="flex items-center gap-2 pt-6 pb-8">

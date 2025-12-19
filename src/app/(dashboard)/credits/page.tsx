@@ -106,7 +106,7 @@ export default function CreditsPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#1f2632] text-white">
+    <div className="min-h-screen md:min-h-screen sm:h-auto overflow-x-hidden bg-[#1f2632] text-white">
       {/* Header */}
       <header className=" text-white rounded-b-[28px] shadow-sm"
          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
