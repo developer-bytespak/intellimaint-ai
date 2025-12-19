@@ -389,7 +389,7 @@ export default function WelcomeScreen({
   const showWelcomeContent = !activeChat || activeChat.messages.length === 0;
 
   return (
-    <div className="flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden relative">
+    <div className=" flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden relative">
       {/* Header with Logo and Name - Show when chat is active, fixed at top on mobile */}
       {!showWelcomeContent && (
         <div className="fixed top-0 left-0 right-0 sm:hidden z-20 bg-[#1f2632] px-3 py-2 flex items-center gap-2 border-b border-[#2a3441]">

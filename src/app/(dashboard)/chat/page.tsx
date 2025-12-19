@@ -239,7 +239,7 @@ function ChatPageContent() {
 
   // Responsive Layout - Works for both mobile and desktop
   return (
-    <div className="h-screen bg-[#1f2632] flex overflow-hidden max-w-full">
+    <div className="w-full h-full bg-[#1f2632] flex overflow-hidden max-w-full">
       {/* Compact mobile subscription CTA */}
       {isMobile && (
         <div className="fixed top-3 right-3 z-50">

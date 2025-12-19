@@ -412,7 +412,7 @@ export default function AccountPage() {
 
   return (
     <PageTransition>
-      <main className="min-h-screen space-y-4 bg-[#1f2632] text-white">
+      <main className="w-full h-full space-y-4 bg-[#1f2632] text-white">
       {/* Header */}
       <header className=" text-white rounded-b-[28px] shadow-sm"
          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
