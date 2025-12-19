@@ -102,7 +102,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // 1. We have a pathname (component is mounted)
     // 2. We're not on a public route
     // 3. We have an access token in localStorage (meaning user has logged in)
-    enabled: !!pathname && !isPublicRoute && !!typeof window !== 'undefined' && !!localStorage.getItem('accessToken'),
+    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && !!localStorage.getItem('accessToken'),
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,

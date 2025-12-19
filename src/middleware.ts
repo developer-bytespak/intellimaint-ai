@@ -1,5 +1,16 @@
-// import { NextResponse } from "next/server";
-// import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+// DISABLED: Server middleware checking for cross-domain cookies doesn't work
+// Backend cookies (set on intellimaint-ai-backend.onrender.com) cannot be read 
+// by the frontend middleware running on intellimaint-ai.vercel.app
+// 
+// SOLUTION: Use client-side authentication checks instead (see useAuth hook)
+
+// Minimal middleware export required by Next.js (even when disabled)
+export function middleware(req: NextRequest) {
+  return NextResponse.next();
+}
 
 // const routeRules = [
 //   { path: "/login", protect: false },
@@ -21,7 +32,7 @@
 //   { path: "/about", protect: true },
 // ];
 
-// export function middleware(req: NextRequest) {
+// export function middleware_DISABLED(req: NextRequest) {
 //   // Check for both local_access and google_access cookies
 //   const localToken = req.cookies.get("local_accessToken")?.value;
 //   const googleToken = req.cookies.get("google_access")?.value;
