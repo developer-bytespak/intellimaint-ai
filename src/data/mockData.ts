@@ -329,152 +329,152 @@ export const mockPhotos: Photo[] = [
 // Mock documents data
 export const mockDocuments: Document[] = [
   // June 2025
-  {
-    id: 'doc-1',
-    title: 'Generator Maintenance Schedule Q2 2025',
-    type: 'PDF',
-    size: '2.4MB',
-    date: new Date('2025-06-20T10:30:00'),
-    url: '/documents/generator-maintenance-schedule-q2-2025.pdf'
-  },
-  {
-    id: 'doc-2',
-    title: 'Industrial Equipment Diagnostic Report',
-    type: 'PPT',
-    size: '4.2MB',
-    date: new Date('2025-06-18T14:20:00'),
-    url: '/documents/industrial-equipment-diagnostic-report.ppt'
-  },
-  {
-    id: 'doc-3',
-    title: 'Machine Health Summary - June 2025',
-    type: 'DOC',
-    size: '1.8MB',
-    date: new Date('2025-06-15T09:15:00'),
-    url: '/documents/machine-health-summary-june-2025.doc'
-  },
-  {
-    id: 'doc-4',
-    title: 'Operational Fault Analysis Report',
-    type: 'PDF',
-    size: '3.1MB',
-    date: new Date('2025-06-12T11:45:00'),
-    url: '/documents/operational-fault-analysis-report.pdf'
-  },
-  {
-    id: 'doc-5',
-    title: 'Equipment Performance Metrics',
-    type: 'PPT',
-    size: '5.3MB',
-    date: new Date('2025-06-10T16:30:00'),
-    url: '/documents/equipment-performance-metrics.ppt'
-  },
-  {
-    id: 'doc-6',
-    title: 'Preventive Maintenance Checklist',
-    type: 'DOC',
-    size: '0.9MB',
-    date: new Date('2025-06-08T08:20:00'),
-    url: '/documents/preventive-maintenance-checklist.doc'
-  },
-  // May 2025
-  {
-    id: 'doc-7',
-    title: 'Generator Inspection Report - May 2025',
-    type: 'PDF',
-    size: '2.7MB',
-    date: new Date('2025-05-28T13:15:00'),
-    url: '/documents/generator-inspection-report-may-2025.pdf'
-  },
-  {
-    id: 'doc-8',
-    title: 'Industrial Machine Troubleshooting Guide',
-    type: 'PPT',
-    size: '6.1MB',
-    date: new Date('2025-05-25T15:40:00'),
-    url: '/documents/industrial-machine-troubleshooting-guide.ppt'
-  },
-  {
-    id: 'doc-9',
-    title: 'Equipment Service History Log',
-    type: 'DOC',
-    size: '1.5MB',
-    date: new Date('2025-05-22T10:00:00'),
-    url: '/documents/equipment-service-history-log.doc'
-  },
-  {
-    id: 'doc-10',
-    title: 'Safety Compliance Documentation',
-    type: 'PDF',
-    size: '3.8MB',
-    date: new Date('2025-05-20T14:25:00'),
-    url: '/documents/safety-compliance-documentation.pdf'
-  },
-  {
-    id: 'doc-11',
-    title: 'Machine Calibration Procedures',
-    type: 'PPT',
-    size: '4.5MB',
-    date: new Date('2025-05-18T09:50:00'),
-    url: '/documents/machine-calibration-procedures.ppt'
-  },
-  {
-    id: 'doc-12',
-    title: 'Equipment Warranty Information',
-    type: 'DOC',
-    size: '1.2MB',
-    date: new Date('2025-05-15T11:30:00'),
-    url: '/documents/equipment-warranty-information.doc'
-  },
-  {
-    id: 'doc-13',
-    title: 'Generator Load Test Results',
-    type: 'PDF',
-    size: '2.9MB',
-    date: new Date('2025-05-12T16:10:00'),
-    url: '/documents/generator-load-test-results.pdf'
-  },
-  {
-    id: 'doc-14',
-    title: 'Industrial Equipment Training Manual',
-    type: 'PPT',
-    size: '7.2MB',
-    date: new Date('2025-05-10T08:45:00'),
-    url: '/documents/industrial-equipment-training-manual.ppt'
-  },
-  {
-    id: 'doc-15',
-    title: 'Maintenance Cost Analysis Report',
-    type: 'DOC',
-    size: '2.1MB',
-    date: new Date('2025-05-08T12:20:00'),
-    url: '/documents/maintenance-cost-analysis-report.doc'
-  },
-  // April 2025
-  {
-    id: 'doc-16',
-    title: 'Equipment Replacement Recommendations',
-    type: 'PDF',
-    size: '3.4MB',
-    date: new Date('2025-04-30T14:00:00'),
-    url: '/documents/equipment-replacement-recommendations.pdf'
-  },
-  {
-    id: 'doc-17',
-    title: 'Generator Installation Guide',
-    type: 'PPT',
-    size: '5.8MB',
-    date: new Date('2025-04-27T10:35:00'),
-    url: '/documents/generator-installation-guide.ppt'
-  },
-  {
-    id: 'doc-18',
-    title: 'Machine Operating Procedures',
-    type: 'DOC',
-    size: '1.7MB',
-    date: new Date('2025-04-25T15:15:00'),
-    url: '/documents/machine-operating-procedures.doc'
-  }
+  // {
+  //   id: 'doc-1',
+  //   title: 'Generator Maintenance Schedule Q2 2025',
+  //   type: 'PDF',
+  //   size: '2.4MB',
+  //   date: new Date('2025-06-20T10:30:00'),
+  //   url: '/documents/generator-maintenance-schedule-q2-2025.pdf'
+  // },
+  // {
+  //   id: 'doc-2',
+  //   title: 'Industrial Equipment Diagnostic Report',
+  //   type: 'PPT',
+  //   size: '4.2MB',
+  //   date: new Date('2025-06-18T14:20:00'),
+  //   url: '/documents/industrial-equipment-diagnostic-report.ppt'
+  // },
+  // {
+  //   id: 'doc-3',
+  //   title: 'Machine Health Summary - June 2025',
+  //   type: 'DOC',
+  //   size: '1.8MB',
+  //   date: new Date('2025-06-15T09:15:00'),
+  //   url: '/documents/machine-health-summary-june-2025.doc'
+  // },
+  // {
+  //   id: 'doc-4',
+  //   title: 'Operational Fault Analysis Report',
+  //   type: 'PDF',
+  //   size: '3.1MB',
+  //   date: new Date('2025-06-12T11:45:00'),
+  //   url: '/documents/operational-fault-analysis-report.pdf'
+  // },
+  // {
+  //   id: 'doc-5',
+  //   title: 'Equipment Performance Metrics',
+  //   type: 'PPT',
+  //   size: '5.3MB',
+  //   date: new Date('2025-06-10T16:30:00'),
+  //   url: '/documents/equipment-performance-metrics.ppt'
+  // },
+  // {
+  //   id: 'doc-6',
+  //   title: 'Preventive Maintenance Checklist',
+  //   type: 'DOC',
+  //   size: '0.9MB',
+  //   date: new Date('2025-06-08T08:20:00'),
+  //   url: '/documents/preventive-maintenance-checklist.doc'
+  // },
+  // // May 2025
+  // {
+  //   id: 'doc-7',
+  //   title: 'Generator Inspection Report - May 2025',
+  //   type: 'PDF',
+  //   size: '2.7MB',
+  //   date: new Date('2025-05-28T13:15:00'),
+  //   url: '/documents/generator-inspection-report-may-2025.pdf'
+  // },
+  // {
+  //   id: 'doc-8',
+  //   title: 'Industrial Machine Troubleshooting Guide',
+  //   type: 'PPT',
+  //   size: '6.1MB',
+  //   date: new Date('2025-05-25T15:40:00'),
+  //   url: '/documents/industrial-machine-troubleshooting-guide.ppt'
+  // },
+  // {
+  //   id: 'doc-9',
+  //   title: 'Equipment Service History Log',
+  //   type: 'DOC',
+  //   size: '1.5MB',
+  //   date: new Date('2025-05-22T10:00:00'),
+  //   url: '/documents/equipment-service-history-log.doc'
+  // },
+  // {
+  //   id: 'doc-10',
+  //   title: 'Safety Compliance Documentation',
+  //   type: 'PDF',
+  //   size: '3.8MB',
+  //   date: new Date('2025-05-20T14:25:00'),
+  //   url: '/documents/safety-compliance-documentation.pdf'
+  // },
+  // {
+  //   id: 'doc-11',
+  //   title: 'Machine Calibration Procedures',
+  //   type: 'PPT',
+  //   size: '4.5MB',
+  //   date: new Date('2025-05-18T09:50:00'),
+  //   url: '/documents/machine-calibration-procedures.ppt'
+  // },
+  // {
+  //   id: 'doc-12',
+  //   title: 'Equipment Warranty Information',
+  //   type: 'DOC',
+  //   size: '1.2MB',
+  //   date: new Date('2025-05-15T11:30:00'),
+  //   url: '/documents/equipment-warranty-information.doc'
+  // },
+  // {
+  //   id: 'doc-13',
+  //   title: 'Generator Load Test Results',
+  //   type: 'PDF',
+  //   size: '2.9MB',
+  //   date: new Date('2025-05-12T16:10:00'),
+  //   url: '/documents/generator-load-test-results.pdf'
+  // },
+  // {
+  //   id: 'doc-14',
+  //   title: 'Industrial Equipment Training Manual',
+  //   type: 'PPT',
+  //   size: '7.2MB',
+  //   date: new Date('2025-05-10T08:45:00'),
+  //   url: '/documents/industrial-equipment-training-manual.ppt'
+  // },
+  // {
+  //   id: 'doc-15',
+  //   title: 'Maintenance Cost Analysis Report',
+  //   type: 'DOC',
+  //   size: '2.1MB',
+  //   date: new Date('2025-05-08T12:20:00'),
+  //   url: '/documents/maintenance-cost-analysis-report.doc'
+  // },
+  // // April 2025
+  // {
+  //   id: 'doc-16',
+  //   title: 'Equipment Replacement Recommendations',
+  //   type: 'PDF',
+  //   size: '3.4MB',
+  //   date: new Date('2025-04-30T14:00:00'),
+  //   url: '/documents/equipment-replacement-recommendations.pdf'
+  // },
+  // {
+  //   id: 'doc-17',
+  //   title: 'Generator Installation Guide',
+  //   type: 'PPT',
+  //   size: '5.8MB',
+  //   date: new Date('2025-04-27T10:35:00'),
+  //   url: '/documents/generator-installation-guide.ppt'
+  // },
+  // {
+  //   id: 'doc-18',
+  //   title: 'Machine Operating Procedures',
+  //   type: 'DOC',
+  //   size: '1.7MB',
+  //   date: new Date('2025-04-25T15:15:00'),
+  //   url: '/documents/machine-operating-procedures.doc'
+  // }
 ];
 
 // Helper function to group photos by month
