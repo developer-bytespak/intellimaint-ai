@@ -31,7 +31,7 @@ export default function LoginPage() {
       onSuccess: (data) => {
         console.log("Login successful:", data);
         const response = data as IAxiosResponse;
-        toast.success(response.message);
+        toast.success(response.message || "Login successful");
         
         // Set transition state for smooth UI transition
         setIsTransitioning(true);
@@ -58,9 +58,13 @@ export default function LoginPage() {
         }, 100);
       },
       onError: (error) => {
-        console.error("Login error:", error);
+        console.error("Login error - Full error object:", error);
         const axiosError = error as unknown as IAxiosError;
-        toast.error(axiosError?.response?.data?.message);
+        const errorMessage = axiosError?.response?.data?.message || axiosError?.message || "Failed to authenticate user";
+        console.error("Login error message:", errorMessage);
+        console.error("Error response status:", axiosError?.response?.status);
+        console.error("Error response data:", axiosError?.response?.data);
+        toast.error(errorMessage);
       },
     });
   };

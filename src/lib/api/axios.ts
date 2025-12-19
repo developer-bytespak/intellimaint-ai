@@ -22,7 +22,10 @@ baseURL.interceptors.request.use(
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('accessToken');
       if (token) {
+        console.log('[axios] Adding Authorization header from localStorage');
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.log('[axios] No token in localStorage, relying on cookies for auth');
       }
     }
     return config;

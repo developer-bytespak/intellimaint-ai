@@ -61,6 +61,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
+  // Track if login just happened (to trigger user profile fetch)
+  const [loginJustHappened, setLoginJustHappened] = React.useState(false);
+
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
   const isPublicRoute = pathname ? (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) : true;
@@ -82,27 +85,47 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     queryKey: ["user"],
     queryFn: async () => {
       try {
+        console.log('[useUser] Fetching user profile...');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+        console.log('[useUser] Token in localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
+        
         const res = await baseURL.get('/user/profile');
+        console.log('[useUser] User profile response:', res?.data);
+        
         // Backend returns { statusCode, message, data }
         const user = res?.data?.data || res?.data;
+        console.log('[useUser] Extracted user:', user);
         return user;
       } catch (error: unknown) {
         // If 401, user is not authenticated - this is expected on login/signup pages
         // Don't log it as an error, just return null
-        const axiosError = error as { response?: { status?: number } }
+        const axiosError = error as { response?: { status?: number; data?: any } }
+        console.error('[useUser] Error fetching user profile:', {
+          status: axiosError?.response?.status,
+          data: axiosError?.response?.data,
+          message: (error as any)?.message
+        });
+        
         if (axiosError?.response?.status === 401) {
+          console.warn('[useUser] User not authenticated (401), returning null');
           return null;
         }
         // Only log non-401 errors
-        console.error('Error fetching user profile:', error);
         throw error;
       }
     },
     // ✅ IMPORTANT: Only fetch user profile if:
     // 1. We have a pathname (component is mounted)
     // 2. We're not on a public route
-    // 3. We have an access token in localStorage (meaning user has logged in)
-    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && !!localStorage.getItem('accessToken'),
+    // 3. Either:
+    //    a. We have an access token in localStorage (stored during login)
+    //    b. OR login just happened (backend set cookies)
+    //    c. OR we have cookies already (returning user with active session)
+    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && (
+      !!localStorage.getItem('accessToken') || 
+      loginJustHappened ||
+      document.cookie.includes('local_accessToken')
+    ),
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
@@ -280,16 +303,42 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const loginUser = useMutation({
         mutationFn: async (data: {email: string, password: string}) => {
-          console.log(data)
-            const res = await baseURL.post('/auth/login', data);
-            // Store access token in localStorage for Authorization header
-            if (res.data?.data?.accessToken) {
-              localStorage.setItem('accessToken', res.data.data.accessToken);
+          console.log('[useUser] Login attempt with email:', data.email)
+            try {
+              const res = await baseURL.post('/auth/login', data);
+              console.log('[useUser] Login response received:', res.data);
+              
+              // Try to extract tokens from response body
+              const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
+              const refreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
+              
+              // Store tokens if provided in response
+              if (accessToken) {
+                console.log('[useUser] Storing accessToken in localStorage');
+                localStorage.setItem('accessToken', accessToken);
+              } else {
+                console.warn('[useUser] No accessToken in response body. Backend is using cookies instead.');
+                console.log('[useUser] Response structure:', JSON.stringify(res.data, null, 2));
+                // ✅ Signal that login happened so we can fetch user profile using cookies
+                setLoginJustHappened(true);
+              }
+              
+              if (refreshToken) {
+                console.log('[useUser] Storing refreshToken in localStorage');
+                localStorage.setItem('refreshToken', refreshToken);
+              }
+              
+              console.log('[useUser] Backend also set cookies - check Set-Cookie headers in network tab');
+              return res.data;
+            } catch (error) {
+              console.error('[useUser] Login error:', error);
+              if (typeof error === 'object' && error !== null && 'response' in error) {
+                const axiosError = error as any;
+                console.error('[useUser] Error response status:', axiosError.response?.status);
+                console.error('[useUser] Error response data:', axiosError.response?.data);
+              }
+              throw error;
             }
-            if (res.data?.data?.refreshToken) {
-              localStorage.setItem('refreshToken', res.data.data.refreshToken);
-            }
-            return res.data;
         },
     });
 
