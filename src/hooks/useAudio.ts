@@ -12,8 +12,8 @@ interface TranscribeResponse {
   data: string; // The transcription text is directly in the data field
 }
 
-// Use the properly configured API_BASE which already includes /api/v1
-const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
+// API_BASE already includes /api/v1
+const API_BASE_URL = API_BASE;
 
 export function useAudio() {
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function useAudio() {
       formData.append('file', audioDocument.file, audioDocument.file.name);
 
       const endpoint = '/api/v1/asr/transcribe';
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
+      const fullUrl = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 
       try {
         console.log(`[Audio] Sending transcription request to: ${fullUrl}`);
@@ -130,7 +130,7 @@ export function useAudio() {
 
       try {
         const response = await axios.post(
-          `${API_BASE_URL}/api/v1/asr/synthesize`,
+          `${API_BASE_URL}/asr/synthesize`,
           { text },
           {
             headers: {
@@ -149,7 +149,7 @@ export function useAudio() {
           }
 
           if (error.response?.status === 404) {
-            throw new Error(`API endpoint not found. Please check if the backend server is running at ${API_BASE_URL} and the endpoint /api/v1/asr/synthesize exists.`);
+            throw new Error(`API endpoint not found. Please check if the backend server is running at ${API_BASE_URL} and the endpoint /asr/synthesize exists.`);
           }
           throw new Error(`Failed to synthesize speech: ${error.response?.status} ${error.response?.statusText || error.message}`);
         }

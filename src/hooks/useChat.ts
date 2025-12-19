@@ -12,8 +12,8 @@ import { API_BASE } from '@/lib/api/axios';
 import { useUser } from '@/hooks/useUser';
 import { useChatSocket, SocketStreamResponse } from '@/hooks/useChatSocket';
 
-// Use the properly configured API_BASE which already includes /api/v1
-const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
+// API_BASE already includes /api/v1
+const API_BASE_URL = API_BASE;
 
 export function useChat() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -1010,7 +1010,7 @@ export function useChat() {
 
   const textToSpeech = async (text: string) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/v1/asr/synthesize`, {
+      const response = await axios.post(`${API_BASE_URL}/asr/synthesize`, {
         text: text
       }, {
         headers: {
