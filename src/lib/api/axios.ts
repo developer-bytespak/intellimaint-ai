@@ -17,13 +17,10 @@ const baseURL = axios.create({
 ====================== */
 baseURL.interceptors.request.use(
   (config) => {
-    // Skip adding Authorization header for login/signup/auth endpoints
-    const authEndpoints = ['/auth/login', '/auth/signup', '/auth/register', '/auth/google'];
-    const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
-    
-    if (!isAuthEndpoint) {
-      // Add Authorization header if access token exists
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    // ✅ ALWAYS try to add Authorization header from localStorage
+    // The backend can accept requests with or without the token
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('accessToken');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
