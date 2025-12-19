@@ -71,13 +71,25 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-[var(--color-background)] ">
-      {/* Main content */}
-      <main
-        className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden flex flex-col ${isMobile ? 'pb-20' : ''}`}
-        style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
-      >
-        {children}
-      </main>
+      {/* Show loading spinner while checking authentication */}
+      {(isLoading || isChecking) ? (
+        <div className="flex items-center justify-center w-full h-screen">
+          <LoadingSpinner />
+        </div>
+      ) : !user ? (
+        // User not authenticated - will redirect via useEffect
+        <div className="flex items-center justify-center w-full h-screen">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <>
+          {/* Main content */}
+          <main
+            className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden flex flex-col ${isMobile ? 'pb-20' : ''}`}
+            style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+          >
+            {children}
+          </main>
 
           {/* Mobile Bottom Navigation - Only visible on mobile */}
           {isMobile && (
@@ -91,5 +103,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-
