@@ -92,10 +92,10 @@ export default function RepositoryPage() {
   const uploadedFilesRef = useRef<Set<string>>(new Set())
   const finishedUploadsRef = useRef<Set<string>>(new Set())
 
-   if(userError){
-      toast.error('Failed to fetch user data for upload.');
-      return;
-    }
+  //  if(userError){
+  //     toast.error('Failed to fetch user data for upload.');
+  //     return;
+  //   }
     // console.log('userData', userData);
 
   useEffect(() => {
@@ -496,6 +496,18 @@ const handleSend = async () => {
           <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
             {view === 'upload' ? (
               <>
+                {/* Upload Instructions/Hint */}
+                <div className="mb-4 text-center">
+                  <p className="text-white/70 text-sm">
+                    Click any box to upload PDFs • Upload one or multiple files
+                  </p>
+                  <p className="text-white/50 text-xs mt-1">
+                    {selectedFiles.length > 0 
+                      ? `${selectedFiles.length} file(s) selected` 
+                      : 'No files selected yet'}
+                  </p>
+                </div>
+
                 <div className="relative mb-6">
                   <div className="grid grid-cols-3 gap-3">
                     {slots.map(({ index, file }) => {
@@ -535,7 +547,10 @@ const handleSend = async () => {
                             onClick={() => fileInputRef.current?.click()}
                             className="aspect-square rounded-xl border-2 border-dashed border-[#6B9BD1] bg-white/5 flex flex-col items-center justify-center gap-2 hover:border-[#8BB5E8] hover:bg-white/10 transition-colors"
                           >
-                            <IconLandscape className="h-10 w-10 text-[#6B9BD1]" />
+                            <svg className="h-10 w-10 text-[#6B9BD1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11v6m-3-3h6" />
+                            </svg>
                           </button>
                         )
                       }
@@ -596,8 +611,10 @@ const handleSend = async () => {
                   </div>
                 ) : uploadedItems.length === 0 ? (
                   <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
-                    <IconImage className="h-16 w-16 text-white/30 mx-auto mb-4" />
-                    <p className="text-white/70">No items uploaded yet</p>
+                    <svg className="h-16 w-16 text-white/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-white/70">No documents uploaded yet</p>
                     <p className="text-white/50 text-sm mt-2">Switch to Upload view to add files</p>
                   </div>
                 ) : (
