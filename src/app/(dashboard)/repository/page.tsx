@@ -1,14 +1,12 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import PageTransition from '@/components/ui/PageTransition'
 import { useRouter } from "next/navigation"
 import { toast } from "react-toastify"
-import { useRepository, useDocuments, RepositoryDocument, useExtractionProgress, backgroundProcessingManager } from "@/hooks/useRepository"
-import { useQueryClient } from '@tanstack/react-query'
+import { useDocuments, RepositoryDocument, useRepository, storeFiles, getFile, clearStoredFiles } from "@/hooks/useRepository"
 
-// Icon Components
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -25,7 +23,6 @@ function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-
 function IconImage(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
@@ -39,9 +36,7 @@ function IconImage(props: React.SVGProps<SVGSVGElement>) {
 function IconLandscape(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
-      {/* Mountains/Hills */}
       <path d="M3 18l4-4 4 2 4-3 4 5H3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.1" />
-      {/* Sun/Moon */}
       <circle cx="18" cy="6" r="3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.2" />
     </svg>
   )
@@ -65,529 +60,148 @@ function IconX(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-// Types
 interface UploadedItem {
   id: string
   file: File
   name: string
   size: number
-  uploadProgress?: number
-  isUploading?: boolean
-  fileId?: string
-  blobPath?: string
 }
 
-const STORAGE_KEY = 'repository-extraction-job-id' // Using sessionStorage so it clears on tab close
-const STORAGE_QUEUE_KEY = 'repository-processing-queue' // Store processing queue metadata
-const STORAGE_SELECTED_FILES_KEY = 'repository-selected-files' // Store selected files metadata
+interface BatchJob {
+  jobId: string;
+  fileName: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  progress?: number;
+  error?: string;
+}
+
 
 export default function RepositoryPage() {
   const router = useRouter()
   const [view, setView] = useState<'upload' | 'repository'>('upload')
   const [selectedFiles, setSelectedFiles] = useState<UploadedItem[]>([])
   const [currentPage, setCurrentPage] = useState(1)
-  const [activeJobId, setActiveJobId] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string>('')
-  const [processingQueue, setProcessingQueue] = useState<UploadedItem[]>([])
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
-  const [isUploading, setIsUploading] = useState(false) // Track upload status
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const uploadTriggeredRef = useRef<boolean>(false)
-  const processNextFileRef = useRef<(() => Promise<void>) | null>(null)
-  const isInitialMountRef = useRef(true)
-  const { uploadDocument, deleteDocument, extractDocument, getFileForJob, clearFileForJob, storeFileByFileId, getFileByFileId } = useRepository()
-  const queryClient = useQueryClient()
+  const { deleteDocument, uploadDocument,userData,userLoading,userError } = useRepository()
   
-  // Fetch documents from API with pagination (10 per page)
+  // Batch Status State
+  const [batchId, setBatchId] = useState<string | null>(null)
+  const [batchStatus, setBatchStatus] = useState<'idle' | 'processing' | 'completed'>('idle')
+  const [batchProgress, setBatchProgress] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const uploadedFilesRef = useRef<Set<string>>(new Set())
+  const finishedUploadsRef = useRef<Set<string>>(new Set())
+
+  //  if(userError){
+  //     toast.error('Failed to fetch user data for upload.');
+  //     return;
+  //   }
+    // console.log('userData', userData);
+
+  useEffect(() => {
+   
+    const storedBatchId = localStorage.getItem("currentBatchId");
+    if (storedBatchId) {
+      setBatchId(storedBatchId);
+      setBatchStatus('processing');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!batchId) return;
+
+    // Load processed files from localStorage to avoid duplicates
+    const uploadedKey = `batch_uploaded_${batchId}`;
+    try {
+        const previouslyUploaded = JSON.parse(localStorage.getItem(uploadedKey) || '[]');
+        previouslyUploaded.forEach((name: string) => uploadedFilesRef.current.add(name));
+    } catch (e) {
+        console.error("Error loading uploaded files from storage", e);
+    }
+
+    const evtSource = new EventSource(`http://localhost:8000/api/v1/batches/events/${batchId}`);
+
+    evtSource.addEventListener("batch_update", (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        const jobsList: BatchJob[] = Array.isArray(parsed) ? parsed : [parsed];
+        
+        if (jobsList.length > 0) {
+            const totalProgress = jobsList.reduce((acc, job) => acc + (job.progress || 0), 0) / jobsList.length;
+            setBatchProgress(Math.round(totalProgress));
+            
+            const allCompleted = jobsList.every(job => job.status === 'completed' || job.status === 'failed');
+            if (allCompleted) {
+                setBatchStatus('completed');
+            } else {
+                setBatchStatus('processing');
+            }
+
+            // Check for completed jobs and upload to repository
+            jobsList.forEach(async (job) => {
+              if (job.status === 'completed' && !uploadedFilesRef.current.has(job.fileName)) {
+                // Try to get file from IndexedDB (persisted across page reloads)
+                const fileToUpload = await getFile(job.fileName);
+
+                if (fileToUpload) {
+                  console.log(`[frontend] Uploading ${job.fileName} to repository...`);
+                  
+                  // Mark as uploaded immediately to prevent duplicates
+                  uploadedFilesRef.current.add(job.fileName);
+                  localStorage.setItem(uploadedKey, JSON.stringify(Array.from(uploadedFilesRef.current)));
+                  
+                  uploadDocument.mutate(fileToUpload, {
+                    onSuccess: () => {
+                        finishedUploadsRef.current.add(job.fileName);
+                        
+                        // Check if all files in the batch are finished uploading
+                        if (finishedUploadsRef.current.size === jobsList.length) {
+                            console.log("[frontend] All files uploaded successfully. Clearing batch.");
+                            
+                            // Clear IndexedDB and local storage
+                            clearStoredFiles();
+                            localStorage.removeItem("currentBatchId");
+                            localStorage.removeItem(uploadedKey);
+                            
+                            // Reset state
+                            setBatchId(null);
+                            setBatchStatus('idle');
+                            setSelectedFiles([]);
+                            uploadedFilesRef.current.clear();
+                            finishedUploadsRef.current.clear();
+                            setIsSubmitting(false);
+                            
+                            toast.success('All files processed and uploaded successfully!');
+                        }
+                    },
+                    onError: (error) => {
+                        console.error(`[frontend] Upload failed for ${job.fileName}:`, error);
+                        // Remove from uploaded set on error so it can be retried
+                        uploadedFilesRef.current.delete(job.fileName);
+                        localStorage.setItem(uploadedKey, JSON.stringify(Array.from(uploadedFilesRef.current)));
+                    }
+                  });
+                } else {
+                  console.error(`[frontend] File not found in IndexedDB: ${job.fileName}`);
+                  toast.error(`File ${job.fileName} not found. Please re-upload.`);
+                }
+              }
+            });
+        }
+      } catch (err) {
+        console.error("SSE Parse Error", err);
+      }
+    });
+
+    return () => {
+      evtSource.close();
+    };
+  }, [batchId, uploadDocument]);
+
   const { data: documentsData, isLoading: isLoadingDocuments } = useDocuments(currentPage, 10)
   const uploadedItems: RepositoryDocument[] = documentsData?.documents || []
   const pagination = documentsData?.pagination
   const totalPages = pagination?.totalPages || 1
-  
-  // Restore state from sessionStorage on mount and resume background polling
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Restore job ID and file name
-      const storedJobId = sessionStorage.getItem(STORAGE_KEY)
-      const storedFileName = sessionStorage.getItem(`${STORAGE_KEY}-filename`)
-      const storedUploadTriggered = sessionStorage.getItem(`${STORAGE_KEY}-uploadTriggered`)
-      
-      if (storedJobId) {
-        setActiveJobId(storedJobId)
-        if (storedFileName) {
-          setFileName(storedFileName)
-        }
-        // Restore upload trigger state
-        if (storedUploadTriggered === 'true') {
-          uploadTriggeredRef.current = true
-        }
-      }
-      
-      // Restore processing queue and file objects
-      const restoreQueueWithFiles = async () => {
-        try {
-          const storedQueue = sessionStorage.getItem(STORAGE_QUEUE_KEY)
-          if (storedQueue) {
-            const queueMetadata: Array<{id: string, name: string, size: number}> = JSON.parse(storedQueue)
-            
-            // Restore files from storage
-            const restoredQueuePromises = queueMetadata.map(async (meta) => {
-              // Try to restore file from storage
-              const restoredFile = await getFileByFileId(meta.id)
-              
-              return {
-                id: meta.id,
-                name: meta.name,
-                size: meta.size,
-                file: restoredFile || new File([], meta.name, { type: 'application/pdf' }),
-                uploadProgress: 0,
-                isUploading: false,
-              }
-            })
-            
-            const restoredQueue = await Promise.all(restoredQueuePromises)
-            setProcessingQueue(restoredQueue)
-            
-            // If no active job ID but queue has files, start processing first file
-            // This handles reload scenario where extraction completed but next file needs processing
-            if (!storedJobId && restoredQueue.length > 0 && isInitialMountRef.current) {
-              // Wait a bit for state to settle, then process next file
-              setTimeout(() => {
-                setIsProcessingQueue(false) // Ensure processing flag is false
-                processNextFileRef.current?.()
-              }, 1500)
-            } else {
-              setIsProcessingQueue(restoredQueue.length > 0)
-            }
-            
-            // Mark that initial mount is complete
-            isInitialMountRef.current = false
-          }
-        } catch (e) {
-          console.error('Error restoring queue:', e)
-        }
-      }
-      
-      restoreQueueWithFiles()
-      
-      // Restore selected files (file metadata only)
-      try {
-        const storedSelectedFiles = sessionStorage.getItem(STORAGE_SELECTED_FILES_KEY)
-        if (storedSelectedFiles) {
-          const filesMetadata: Array<{id: string, name: string, size: number}> = JSON.parse(storedSelectedFiles)
-          // Create placeholder UploadedItem objects for UI display
-          const restoredFiles: UploadedItem[] = filesMetadata.map(meta => ({
-            id: meta.id,
-            name: meta.name,
-            size: meta.size,
-            // Create a dummy File object for UI
-            file: new File([], meta.name, { type: 'application/pdf' }),
-            uploadProgress: 0,
-            isUploading: false,
-          }))
-          setSelectedFiles(restoredFiles)
-        }
-      } catch (e) {
-        console.error('Error restoring selected files:', e)
-      }
-      
-      // Resume background polling for all active jobs
-      backgroundProcessingManager.setQueryClient(queryClient)
-      
-      // If we have an active job ID, immediately restore progress from storage
-      if (storedJobId) {
-        // First restore from sessionStorage for immediate display (synchronous)
-        const cachedProgress = backgroundProcessingManager.getProgressFromStorage(storedJobId)
-        if (cachedProgress && queryClient) {
-          queryClient.setQueryData(['extraction-progress', storedJobId], cachedProgress)
-        }
-        
-        // Then fetch fresh progress from API (async)
-        backgroundProcessingManager.fetchCurrentProgress(storedJobId).then(() => {
-          // Then resume polling
-          backgroundProcessingManager.resumeAllPolling()
-        })
-      } else {
-        // No active job, just resume polling for any other active jobs
-        backgroundProcessingManager.resumeAllPolling()
-      }
-    }
-  }, [queryClient])
-  
-  // Track extraction progress at the top level (hooks must be called at top level)
-  const { data: extractionProgress, error: extractionError } = useExtractionProgress(activeJobId, !!activeJobId)
-  const [, forceUpdate] = useState(0)
-  const scheduledUpdateRef = useRef<number | null>(null)
-  
-  // Subscribe to cache updates to force re-render when background manager updates progress
-  useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // Only update for extraction-progress queries
-      if (event?.query?.queryKey?.[0] === 'extraction-progress') {
-        // Schedule an async update to avoid synchronous nested state updates
-        if (typeof window !== 'undefined') {
-          if (scheduledUpdateRef.current) return
-          scheduledUpdateRef.current = window.setTimeout(() => {
-            scheduledUpdateRef.current = null
-            forceUpdate(prev => prev + 1)
-          }, 50)
-        } else {
-          // Server-side fallback (shouldn't usually run here)
-          forceUpdate(prev => prev + 1)
-        }
-      }
-    })
-
-    return () => {
-      // Cleanup scheduled update and unsubscribe
-      if (typeof window !== 'undefined' && scheduledUpdateRef.current) {
-        clearTimeout(scheduledUpdateRef.current)
-        scheduledUpdateRef.current = null
-      }
-      unsubscribe()
-    }
-  }, [queryClient])
-  
-  if(extractionProgress?.status === "completed"){
-    console.log('extractionProgress', extractionProgress.data);
-  }
-  // Calculate progress percentage (handle both decimal 0-1 and percentage 0-100 formats)
-  const progressPercentage = Math.min(100, Math.max(0, 
-    extractionProgress?.progress !== undefined
-      ? Math.round(extractionProgress.progress > 1 ? extractionProgress.progress : extractionProgress.progress * 100)
-      : extractionProgress?.percentage !== undefined
-      ? Math.round(extractionProgress.percentage > 1 ? extractionProgress.percentage : extractionProgress.percentage * 100)
-      : extractionProgress?.status === 'completed' 
-      ? 100 
-      : extractionProgress?.status === 'failed' 
-      ? 0 
-      : activeJobId && !extractionProgress
-      ? 0 // Starting, show 0%
-      : 0
-  ))
-
-  // Show error toast if extraction fails
-  useEffect(() => {
-    if (extractionError) {
-      toast.error('Extraction failed. Please try again.')
-      // Clear job ID on error
-      setActiveJobId(null)
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(STORAGE_KEY)
-        sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
-      }
-    }
-  }, [extractionError])
-
-  // Process next file from queue
-  const processNextFile = useCallback(async () => {
-    if (isProcessingQueue) {
-      return
-    }
-
-    setProcessingQueue(prev => {
-      if (prev.length === 0) {
-        setIsProcessingQueue(false)
-        return prev
-      }
-
-      const nextFile = prev[0]
-      setIsProcessingQueue(true)
-
-      // Start extraction for this file
-      uploadTriggeredRef.current = false
-      
-      // Save queue metadata to sessionStorage
-      if (typeof window !== 'undefined') {
-        const queueMetadata = prev.map(f => ({ id: f.id, name: f.name, size: f.size }))
-        sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-      }
-      
-      // Check if file is a placeholder (reload scenario) and restore it
-      const isPlaceholder = nextFile.file.size === 0
-      
-      if (isPlaceholder) {
-        // File object is placeholder, restore from storage
-        getFileByFileId(nextFile.id).then(restoredFile => {
-          if (restoredFile) {
-            // Update queue with restored file
-            setProcessingQueue(current => {
-              const updatedQueue = current.map(f => 
-                f.id === nextFile.id ? { ...f, file: restoredFile } : f
-              )
-              // Update sessionStorage
-              if (typeof window !== 'undefined') {
-                const queueMetadata = updatedQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-                sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-              }
-              return updatedQueue
-            })
-            
-            // Start processing with restored file
-            setIsProcessingQueue(true)
-            uploadTriggeredRef.current = false
-            extractDocument.mutateAsync(restoredFile)
-              .then((extractionJobId) => {
-                if (extractionJobId?.job_id) {
-                  setActiveJobId(extractionJobId.job_id)
-                  setFileName(nextFile.name)
-                  if (typeof window !== 'undefined') {
-                    sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
-                    sessionStorage.setItem(`${STORAGE_KEY}-filename`, nextFile.name)
-                    sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-                  }
-                }
-              })
-              .catch((error) => {
-                console.error(`Error processing ${nextFile.name}:`, error)
-                toast.error(`Failed to process ${nextFile.name}`)
-                setProcessingQueue(current => current.slice(1))
-                setIsProcessingQueue(false)
-                setTimeout(() => processNextFileRef.current?.(), 500)
-              })
-          } else {
-            // File not found in storage, skip this file
-            console.warn('File not found in storage, skipping:', nextFile.name)
-            setProcessingQueue(current => {
-              const newQueue = current.slice(1)
-              if (typeof window !== 'undefined') {
-                if (newQueue.length > 0) {
-                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-                } else {
-                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
-                }
-              }
-              return newQueue
-            })
-            setIsProcessingQueue(false)
-            setTimeout(() => processNextFileRef.current?.(), 500)
-          }
-        })
-        return prev
-      }
-      
-      extractDocument.mutateAsync(nextFile.file)
-        .then((extractionJobId) => {
-          if (extractionJobId?.job_id) {
-            setActiveJobId(extractionJobId.job_id)
-            setFileName(nextFile.name)
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
-              sessionStorage.setItem(`${STORAGE_KEY}-filename`, nextFile.name)
-              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-            }
-          }
-        })
-        .catch((error) => {
-          console.error(`Error processing ${nextFile.name}:`, error)
-          toast.error(`Failed to process ${nextFile.name}`)
-          setProcessingQueue(current => current.slice(1))
-          setIsProcessingQueue(false)
-          // Process next file
-          setTimeout(() => processNextFileRef.current?.(), 500)
-        })
-
-      return prev
-    })
-  }, [isProcessingQueue, extractDocument])
-
-  // Store processNextFile in ref
-  useEffect(() => {
-    processNextFileRef.current = processNextFile
-  }, [processNextFile])
-
-  // When extraction completes, automatically upload the document
-  useEffect(() => {
-    if (extractionProgress?.status === 'completed' && !uploadTriggeredRef.current && activeJobId) {
-      // Mark as triggered to prevent multiple uploads
-      uploadTriggeredRef.current = true
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(`${STORAGE_KEY}-uploadTriggered`, 'true')
-      }
-      
-      // Get the original file that was extracted (from global storage or blob)
-      getFileForJob(activeJobId).then(fileToUpload => {
-        if (fileToUpload) {
-          // Set uploading status
-          setIsUploading(true)
-          
-          // Automatically trigger uploadDocument mutation
-          uploadDocument.mutate(fileToUpload, {
-          onSuccess: () => {
-            // Upload completed successfully
-            setIsUploading(false)
-            // Remove current file from queue
-            setProcessingQueue(prev => {
-              const newQueue = prev.slice(1)
-              // Update queue in sessionStorage
-              if (typeof window !== 'undefined') {
-                if (newQueue.length > 0) {
-                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-                } else {
-                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
-                }
-              }
-              
-              // Clear job ID and file references after successful upload
-              const completedJobId = activeJobId
-              setActiveJobId(null)
-              if (typeof window !== 'undefined') {
-                sessionStorage.removeItem(STORAGE_KEY)
-                sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
-                sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-              }
-              setFileName('')
-              clearFileForJob(completedJobId)
-              // Stop background polling for completed job
-              if (completedJobId) {
-                backgroundProcessingManager.stopPolling(completedJobId)
-              }
-              uploadTriggeredRef.current = false
-              setIsProcessingQueue(false)
-
-              // Process next file in queue after upload completes
-              if (newQueue.length > 0) {
-                setTimeout(() => {
-                  // Reset processing state and process next file
-                  setIsProcessingQueue(false)
-                  processNextFileRef.current?.()
-                }, 500)
-              }
-              
-              return newQueue
-            })
-          },
-          onError: () => {
-            // Upload failed
-            setIsUploading(false)
-            
-            // Remove failed file from queue
-            setProcessingQueue(prev => {
-              const newQueue = prev.slice(1)
-              // Update queue in sessionStorage
-              if (typeof window !== 'undefined') {
-                if (newQueue.length > 0) {
-                  const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-                  sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-                } else {
-                  sessionStorage.removeItem(STORAGE_QUEUE_KEY)
-                }
-              }
-              return newQueue
-            })
-            
-            // Clear after a delay
-            setTimeout(() => {
-              const failedJobId = activeJobId
-              setActiveJobId(null)
-              if (typeof window !== 'undefined') {
-                sessionStorage.removeItem(STORAGE_KEY)
-                sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
-                sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-              }
-              setFileName('')
-              clearFileForJob(failedJobId)
-              // Stop background polling for failed job
-              if (failedJobId) {
-                backgroundProcessingManager.stopPolling(failedJobId)
-              }
-              uploadTriggeredRef.current = false
-              setIsProcessingQueue(false)
-
-              // Process next file
-              processNextFileRef.current?.()
-            }, 3000)
-          },
-          })
-        } else {
-          // If no file found, just clear the job ID
-          console.warn('No file found to upload after extraction completion')
-          const noFileJobId = activeJobId
-        setProcessingQueue(prev => {
-          const newQueue = prev.slice(1)
-          // Update queue in sessionStorage
-          if (typeof window !== 'undefined') {
-            if (newQueue.length > 0) {
-              const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-              sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-            } else {
-              sessionStorage.removeItem(STORAGE_QUEUE_KEY)
-            }
-          }
-          return newQueue
-        })
-        setActiveJobId(null)
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem(STORAGE_KEY)
-          sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
-          sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-        }
-        setFileName('')
-        clearFileForJob(noFileJobId)
-        // Stop background polling
-        if (noFileJobId) {
-          backgroundProcessingManager.stopPolling(noFileJobId)
-        }
-        uploadTriggeredRef.current = false
-        setIsProcessingQueue(false)
-
-        // Process next file
-        setTimeout(() => processNextFileRef.current?.(), 500)
-        }
-      })
-    } else if (extractionProgress?.status === 'failed') {
-      toast.error('Document extraction failed. Please try again.')
-      const failedJobId = activeJobId
-      
-      // Remove failed file from queue
-      setProcessingQueue(prev => {
-        const newQueue = prev.slice(1)
-        // Update queue in sessionStorage
-        if (typeof window !== 'undefined') {
-          if (newQueue.length > 0) {
-            const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-            sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-          } else {
-            sessionStorage.removeItem(STORAGE_QUEUE_KEY)
-          }
-        }
-        return newQueue
-      })
-      
-      setActiveJobId(null)
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(STORAGE_KEY)
-        sessionStorage.removeItem(`${STORAGE_KEY}-filename`)
-        sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-      }
-      setFileName('')
-      clearFileForJob(failedJobId)
-      // Stop background polling for failed job
-      if (failedJobId) {
-        backgroundProcessingManager.stopPolling(failedJobId)
-      }
-      uploadTriggeredRef.current = false
-      setIsProcessingQueue(false)
-
-      // Process next file
-      setTimeout(() => processNextFileRef.current?.(), 500)
-    }
-  }, [extractionProgress?.status, uploadDocument, activeJobId, getFileForJob, clearFileForJob, processingQueue, isProcessingQueue])
-
-  // Show progress modal if extraction is in progress OR upload is in progress
-  // Also show if we have activeJobId even if extractionProgress is not loaded yet (reload scenario)
-  const isExtracting = !!activeJobId && (
-    !extractionProgress || (
-      extractionProgress?.status !== 'completed' && 
-      extractionProgress?.status !== 'failed'
-    )
-  ) && !extractionError || isUploading
-
-  const handleBack = () => {
-    router.back()
-  }
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B'
@@ -606,8 +220,7 @@ export default function RepositoryPage() {
     const newItems: UploadedItem[] = []
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      
-      // Validate that it's a PDF
+
       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
         toast.error(`${file.name} is not a PDF file. Only PDF files are allowed.`)
         continue
@@ -619,12 +232,7 @@ export default function RepositoryPage() {
         file,
         name: file.name,
         size: file.size,
-        uploadProgress: 0,
-        isUploading: false,
       })
-      
-      // Store file by file ID for queue restoration
-      storeFileByFileId(fileId, file)
     }
 
     setSelectedFiles(prev => [...prev, ...newItems])
@@ -633,74 +241,15 @@ export default function RepositoryPage() {
 
   const removeSelectedFile = (id: string) => {
     setSelectedFiles(prev => prev.filter(item => item.id !== id))
-    // Also remove from queue if present
-    setProcessingQueue(prev => prev.filter(item => item.id !== id))
-  }
-
-  const handleSend = async () => {
-    if (selectedFiles.length === 0) {
-      toast.info('Please select at least one file to upload')
-      return
-    }
-
-    try {
-      // Add all files to processing queue
-      const filesToQueue = [...selectedFiles]
-      setProcessingQueue(prev => {
-        const newQueue = [...prev, ...filesToQueue]
-        // Save queue metadata to sessionStorage
-        if (typeof window !== 'undefined') {
-          const queueMetadata = newQueue.map(f => ({ id: f.id, name: f.name, size: f.size }))
-          sessionStorage.setItem(STORAGE_QUEUE_KEY, JSON.stringify(queueMetadata))
-        }
-        return newQueue
-      })
-      
-      // Save selected files metadata
-      if (typeof window !== 'undefined') {
-        const filesMetadata = selectedFiles.map(f => ({ id: f.id, name: f.name, size: f.size }))
-        sessionStorage.setItem(STORAGE_SELECTED_FILES_KEY, JSON.stringify(filesMetadata))
-      }
-      
-      // Start processing first file immediately if not already processing
-      if (!isProcessingQueue && filesToQueue.length > 0) {
-        const firstFile = filesToQueue[0]
-        setIsProcessingQueue(true)
-        
-        try {
-          uploadTriggeredRef.current = false
-          const extractionJobId = await extractDocument.mutateAsync(firstFile.file)
-
-          if (extractionJobId?.job_id) {
-            setActiveJobId(extractionJobId.job_id)
-            setFileName(firstFile.name)
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem(STORAGE_KEY, extractionJobId.job_id)
-              sessionStorage.setItem(`${STORAGE_KEY}-filename`, firstFile.name)
-              sessionStorage.removeItem(`${STORAGE_KEY}-uploadTriggered`)
-            }
-          }
-        } catch (error) {
-          console.error(`Error processing ${firstFile.name}:`, error)
-          toast.error(`Failed to process ${firstFile.name}`)
-          setProcessingQueue(prev => prev.slice(1))
-          setIsProcessingQueue(false)
-        }
-      }
-    } catch (error) {
-      console.error('Upload error:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to queue files')
-    }
   }
 
   const handleDownload = async (item: RepositoryDocument) => {
     try {
-      // Fetch the file to ensure we can download it
       const response = await fetch(item.fileUrl)
       if (!response.ok) {
         throw new Error('Failed to fetch file')
       }
-      
+
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -725,7 +274,6 @@ export default function RepositoryPage() {
     try {
       await deleteDocument.mutateAsync(id)
       toast.success('Document deleted successfully')
-      // If we deleted the last item on the page and it's not page 1, go to previous page
       if (uploadedItems.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1)
       }
@@ -738,387 +286,460 @@ export default function RepositoryPage() {
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage)
-      // Scroll to top when page changes
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
-
-  // Combine selectedFiles and processingQueue to show all files (including those in queue)
-  const allFilesToShow = [...selectedFiles]
-  // Add files from queue that aren't in selectedFiles
-  processingQueue.forEach(queueFile => {
-    if (!allFilesToShow.find(f => f.id === queueFile.id)) {
-      allFilesToShow.push(queueFile)
-    }
-  })
-  
-  // Generate grid slots - show filled slots + empty slots (minimum 6, extends as needed)
   const minSlots = 6
-  const maxSlots = Math.max(minSlots, Math.ceil(allFilesToShow.length / 3) * 3)
+  const maxSlots = Math.max(minSlots, Math.ceil(selectedFiles.length / 3) * 3)
   const slots = Array.from({ length: maxSlots }, (_, index) => {
-    const file = allFilesToShow[index]
+    const file = selectedFiles[index]
     return { index, file }
   })
 
+  const handleBack = () => {
+    router.back()
+  }
+
+//   const handleSend = async () => {
+//   if (selectedFiles.length === 0) {
+//     toast.error("Please select at least one PDF");
+//     return;
+//   }
+
+//   setIsSubmitting(true);
+
+//   try {
+//     const formData = new FormData();
+//     selectedFiles.forEach(item => {
+//       formData.append("files", item.file);
+//     });
+
+//     console.log("[frontend] uploading batch...", selectedFiles.length);
+
+//     // Store files globally so they persist if user navigates away
+//     storeFiles(selectedFiles.map(item => item.file));
+
+//     const res = await fetch(
+//       "http://localhost:8000/api/v1/batches/upload-pdfs",
+//       {
+//         method: "POST",
+//         body: formData,
+//         mode: "cors",
+//       }
+//     );
+
+//     if (!res.ok) {
+//       localStorage.removeItem("currentBatchId");
+//       throw new Error("Batch upload failed");
+//     }
+
+//     const data = await res.json();
+
+//     console.log("[frontend] batch created", data);
+
+//     toast.success("PDFs queued for processing");
+
+//     // Store batchId in localStorage
+//     localStorage.setItem("currentBatchId", data.batchId);
+//     setBatchId(data.batchId);
+//     setBatchStatus('processing');
+//     uploadedFilesRef.current.clear(); // Clear uploaded files for new batch
+//     finishedUploadsRef.current.clear();
+//     setIsSubmitting(false); // Batch created, now we wait for SSE
+
+//     // ✅ VERY IMPORTANT
+//     // router.push(`/repository/batch/${data.batchId}`);
+
+//   } catch (err: any) {
+//     console.error("[frontend] upload error", err);
+//     toast.error(err.message || "Upload failed");
+//     setIsSubmitting(false);
+//   }
+// };
+
+// Update in handleSend function - Add this after storing files
+// Around line 315 in page.tsx
+
+const handleSend = async () => {
+  if (selectedFiles.length === 0) {
+    toast.error("Please select at least one PDF");
+    return;
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    if(userError){
+      toast.error('Failed to fetch user data for upload.');
+    }
+    const formData = new FormData();
+    selectedFiles.forEach(item => {
+      formData.append("files", item.file);
+      formData.append("userId", userData.id);
+    });
+
+
+    console.log("[frontend] uploading batch...", selectedFiles.length);
+
+    // Store files globally so they persist if user navigates away
+    await storeFiles(selectedFiles.map(item => item.file));
+
+    const res = await fetch(
+      "http://localhost:8000/api/v1/batches/upload-pdfs",
+      {
+        method: "POST",
+        body: formData,
+        mode: "cors",
+
+      },
+
+    );
+
+    if (!res.ok) {
+      localStorage.removeItem("currentBatchId");
+      throw new Error("Batch upload failed");
+    }
+
+    const data = await res.json();
+
+    console.log("[frontend] batch created", data);
+
+    toast.success("PDFs queued for processing");
+
+    // Store batchId in localStorage
+    localStorage.setItem("currentBatchId", data.batchId);
+    
+    // 🆕 Store file names for initial display on batch status page
+    const fileNames = selectedFiles.map(item => item.file.name);
+    localStorage.setItem(`batch_files_${data.batchId}`, JSON.stringify(fileNames));
+    
+    setBatchId(data.batchId);
+    setBatchStatus('processing');
+    uploadedFilesRef.current.clear();
+    finishedUploadsRef.current.clear();
+    setIsSubmitting(false);
+
+    // Navigate to batch status page to show real-time progress
+    router.push(`/repository/batch/${data.batchId}`);
+
+  } catch (err: any) {
+    console.error("[frontend] upload error", err);
+    toast.error(err.message || "Upload failed");
+    setIsSubmitting(false);
+  }
+};
+
   return (
     <PageTransition>
-    <main className="min-h-screen bg-[#1f2632] text-white">
+      <main className="min-h-screen bg-[#1f2632] text-white">
 
-      {/* Header */}
-      <header className=" text-white rounded-b-[28px] shadow-sm"
-         style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
-        <div className="flex items-center gap-2 pt-6 pb-6">
-          <button
-            onClick={handleBack}
-            className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
-            aria-label="Go back"
-          >
-            <IconChevronLeft className="h-6 w-6 text-white" />
-          </button>
-          <h1 className="text-center text-pretty text-xl md:text-2xl font-semibold flex-1 pr-4">
-            {view === 'upload' ? 'Upload PDF Documents' : 'Repository'}
-          </h1>
-        </div>
-      </header>
+        {/* Header */}
+        <header className=" text-white rounded-b-[28px] shadow-sm"
+          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
+          <div className="flex items-center gap-2 pt-6 pb-6">
+            <button
+              onClick={handleBack}
+              className="p-2 hover:bg-blue-500 dark:hover:bg-blue-700 rounded-full transition-colors ml-4"
+              aria-label="Go back"
+            >
+              <IconChevronLeft className="h-6 w-6 text-white" />
+            </button>
+            <h1 className="text-center text-pretty text-xl md:text-2xl font-semibold flex-1">
+              {view === 'upload' ? 'Upload PDF Documents' : 'Repository'}
+            </h1>
 
-      {/* Toggle Button */}
-      <div className="flex justify-center mt-6 mb-6">
-        <div className="bg-white/10 backdrop-blur-sm rounded-full p-1 flex gap-2">
-          <button
-            onClick={() => setView('upload')}
-            className={`px-6 py-2 rounded-full transition-all text-sm font-medium ${
-              view === 'upload'
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Upload
-          </button>
-          <button
-            onClick={() => setView('repository')}
-            className={`px-6 py-2 rounded-full transition-all text-sm font-medium ${
-              view === 'repository'
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'text-white/70 hover:text-white'
-            }`}
-          >
-            Repository
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <section className="pb-8">
-        <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
-          {view === 'upload' ? (
-            <>
-              {/* Upload Grid */}
-              <div className="relative mb-6">
-                <div className="grid grid-cols-3 gap-3">
-                {slots.map(({ index, file }) => {
-                  // Check if this file is being extracted or uploading
-                  const isThisFileExtracting = (isExtracting || isUploading) && file && file.name === fileName
-                  const isInQueue = file && processingQueue.some(q => q.id === file.id)
-                  const isCurrentProcessing = isInQueue && processingQueue[0]?.id === file.id && isThisFileExtracting
-                  
-                  if (file) {
-                    // Render filled slot with file
-                    return (
-                      <div
-                        key={file.id}
-                        className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 border-white/10"
-                      >
-                        {/* Progress Overlay - Only on currently processing file */}
-                        {isCurrentProcessing && (
-                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
-                            {/* Circular Progress Bar */}
-                            <div className="flex flex-col items-center justify-center">
-                              <div className="relative w-24 h-24 flex items-center justify-center mb-2">
-                                {/* Background Circle */}
-                                <svg 
-                                  className="transform -rotate-90 w-full h-full" 
-                                  viewBox="0 0 100 100"
-                                  style={{ width: '96px', height: '96px' }}
-                                >
-                                  <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="45"
-                                    stroke="rgba(255, 255, 255, 0.1)"
-                                    strokeWidth="8"
-                                    fill="none"
-                                  />
-                                  {/* Progress Circle */}
-                                  <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="45"
-                                    stroke="#22c55e"
-                                    strokeWidth="8"
-                                    fill="none"
-                                    strokeLinecap="round"
-                                    className="transition-all duration-1000 ease-out"
-                                    style={{
-                                      strokeDasharray: '282.743',
-                                      strokeDashoffset: `${282.743 * (1 - (isUploading ? 100 : progressPercentage) / 100)}`
-                                    }}
-                                  />
-                                </svg>
-                                {/* Percentage Text */}
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <span className="text-2xl font-bold text-green-500">
-                                    {isUploading ? 100 : progressPercentage}%
-                                  </span>
-                                </div>
-                              </div>
-                              {/* Status Text */}
-                              <p className="text-white/70 text-xs text-center px-2">
-                                {isUploading
-                                  ? 'Uploading...'
-                                  : extractionProgress?.status === 'processing' 
-                                  ? 'Processing...' 
-                                  : extractionProgress?.status === 'extracting'
-                                  ? 'Extracting...'
-                                  : extractionProgress?.status === 'completed'
-                                  ? 'Uploading...'
-                                  : 'Please wait...'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        {/* Waiting Overlay - For files in queue but not currently processing */}
-                        {isInQueue && !isCurrentProcessing && (
-                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-xl">
-                            <div className="flex flex-col items-center justify-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mb-2"></div>
-                              <p className="text-white/70 text-xs text-center px-2">Waiting...</p>
-                            </div>
-                          </div>
-                        )}
-                        {/* PDF icon */}
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-4">
-                          <svg className="w-12 h-12 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                          <p className="text-white text-xs text-center font-medium truncate w-full px-2" title={file.name}>
-                            {file.name}
-                          </p>
-                          <p className="text-white/60 text-xs mt-1">
-                            {formatFileSize(file.size)}
-                          </p>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            // Don't allow removal if currently processing
-                            if (!isCurrentProcessing) {
-                              removeSelectedFile(file.id)
-                            }
-                          }}
-                          className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label="Remove file"
-                          disabled={isCurrentProcessing}
-                        >
-                          <IconX className="h-4 w-4 text-white" />
-                        </button>
-                      </div>
-                    )
-                  } else {
-                    // Render empty slot placeholder
-                    return (
-                      <button
-                        key={`empty-${index}`}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="aspect-square rounded-xl border-2 border-dashed border-[#6B9BD1] bg-white/5 flex flex-col items-center justify-center gap-2 hover:border-[#8BB5E8] hover:bg-white/10 transition-colors"
-                      >
-                        <IconLandscape className="h-10 w-10 text-[#6B9BD1]" />
-                      </button>
-                    )
-                  }
-                })}
-                </div>
-              </div>
-
-              {/* Send Button */}
+            {batchId && (
               <button
-                onClick={handleSend}
-                disabled={selectedFiles.length === 0 || isProcessingQueue}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed text-white font-medium py-4 rounded-xl transition-colors shadow-lg mt-6"
+                onClick={() => router.push(`/repository/batch/${batchId}`)}
+                className="mr-4 px-3 py-1.5 bg-white/20 border-2 border-yellow-100 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap"
               >
-                {isProcessingQueue ? 'Processing...' : 'Send'}
+                {batchStatus === 'processing' ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/50 border-t-white border-yellow-200  rounded-full animate-spin" />
+                    <span>Uploading</span>
+                  </>
+                ) : (
+                  <span >Batch Status</span>
+                )}
               </button>
+            )}
+          </div>
+        </header>
 
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,application/pdf"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-            </>
-          ) : (
-            <>
-              {/* Repository View */}
-              <div className="mb-4">
-                <p className="text-white/70 text-sm">For Military Equipment</p>
-              </div>
+        {/* Toggle Button */}
+        <div className="flex justify-center mt-6 mb-6">
+          <div className="bg-white/10 backdrop-blur-sm rounded-full p-1 flex gap-2">
+            <button
+              onClick={() => setView('upload')}
+              className={`px-6 py-2 rounded-full transition-all text-sm font-medium ${view === 'upload'
+                  ? 'bg-blue-500 text-white shadow-lg'
+                  : 'text-white/70 hover:text-white'
+                }`}
+            >
+              Upload
+            </button>
+            <button
+              onClick={() => setView('repository')}
+              className={`px-6 py-2 rounded-full transition-all text-sm font-medium ${view === 'repository'
+                  ? 'bg-blue-500 text-white shadow-lg'
+                  : 'text-white/70 hover:text-white'
+                }`}
+            >
+              Repository
+            </button>
+          </div>
+        </div>
 
-              {isLoadingDocuments ? (
-                <div className="space-y-4">
-                  {[1,2,3].map((n) => (
-                    <div key={n} className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-4 animate-pulse">
-                      <div className="w-full h-40 bg-white/6 rounded-md mb-4" />
-                      <div className="h-4 bg-white/20 rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-white/20 rounded w-1/2" />
-                    </div>
-                  ))}
+        {/* Content */}
+        <section className="pb-8">
+          <div className="mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl px-6">
+            {view === 'upload' ? (
+              <>
+                {/* Upload Instructions/Hint */}
+                <div className="mb-4 text-center">
+                  <p className="text-white/70 text-sm">
+                    Click any box to upload PDFs • Upload one or multiple files
+                  </p>
+                  <p className="text-white/50 text-xs mt-1">
+                    {selectedFiles.length > 0 
+                      ? `${selectedFiles.length} file(s) selected` 
+                      : 'No files selected yet'}
+                  </p>
                 </div>
-              ) : uploadedItems.length === 0 ? (
-                <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
-                  <IconImage className="h-16 w-16 text-white/30 mx-auto mb-4" />
-                  <p className="text-white/70">No items uploaded yet</p>
-                  <p className="text-white/50 text-sm mt-2">Switch to Upload view to add files</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-4 mb-6">
-                    {uploadedItems.map((item) => {
-                      return (
-                        <div
-                          key={item.id}
-                          className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg overflow-hidden cursor-pointer hover:bg-white/15 transition-colors"
-                          onClick={() => handleOpenDocument(item.fileUrl)}
-                        >
-                          {/* PDF Icon */}
-                          <div className="relative aspect-video bg-white/5">
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-6">
-                              <svg className="w-20 h-20 text-red-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                <div className="relative mb-6">
+                  <div className="grid grid-cols-3 gap-3">
+                    {slots.map(({ index, file }) => {
+                      if (file) {
+                        return (
+                          <div
+                            key={file.id}
+                            className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 border-white/10"
+                          >
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-4">
+                              <svg className="w-12 h-12 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                               </svg>
-                              <p className="text-white text-sm font-medium text-center truncate w-full px-4" title={item.fileName}>
-                                {item.fileName}
+                              <p className="text-white text-xs text-center font-medium truncate w-full px-2" title={file.name}>
+                                {file.name}
+                              </p>
+                              <p className="text-white/60 text-xs mt-1">
+                                {formatFileSize(file.size)}
                               </p>
                             </div>
-                            {/* Download Button */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleDownload(item)
+                                removeSelectedFile(file.id)
                               }}
-                              className="absolute top-3 right-3 p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-colors border border-white/10 z-10"
-                              aria-label="Download"
+                              className="absolute top-1 right-1 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors z-50"
+                              aria-label="Remove file"
                             >
-                              <IconDownload className="h-5 w-5 text-white" />
+                              <IconX className="h-4 w-4 text-white" />
                             </button>
                           </div>
+                        )
+                      } else {
+                        return (
+                          <button
+                            key={`empty-${index}`}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="aspect-square rounded-xl border-2 border-dashed border-[#6B9BD1] bg-white/5 flex flex-col items-center justify-center gap-2 hover:border-[#8BB5E8] hover:bg-white/10 transition-colors"
+                          >
+                            <svg className="h-10 w-10 text-[#6B9BD1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11v6m-3-3h6" />
+                            </svg>
+                          </button>
+                        )
+                      }
+                    })}
+                  </div>
+                </div>
 
-                          {/* Content */}
-                          <div className="p-4">
-                            {/* Title */}
-                            <h3 className="text-white font-semibold text-lg mb-2 line-clamp-2">
-                              {item.fileName}
-                            </h3>
-                            {/* File Info */}
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-white/50 text-xs">
-                                {formatFileSize(item.fileSize)}
-                              </span>
+                <button
+                  onClick={handleSend}
+                  disabled={isSubmitting || batchStatus === 'processing'}
+                  className={`w-full font-medium py-4 rounded-xl transition-colors shadow-lg mt-6 ${
+                    isSubmitting || batchStatus === 'processing'
+                      ? 'bg-blue-400 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  } text-white`}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                      Loading...
+                    </span>
+                  ) : batchStatus === 'processing' ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                      Uploading...
+                    </span>
+                  ) : (
+                    <>
+                    {uploadDocument?.isPending ? 'Uploading...' : 'Send to Repository'}
+                    </>
+                  )}
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <p className="text-white/70 text-sm">For Military Equipment</p>
+                </div>
+
+                {isLoadingDocuments ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-4 animate-pulse">
+                        <div className="w-full h-40 bg-white/6 rounded-md mb-4" />
+                        <div className="h-4 bg-white/20 rounded w-3/4 mb-2" />
+                        <div className="h-3 bg-white/20 rounded w-1/2" />
+                      </div>
+                    ))}
+                  </div>
+                ) : uploadedItems.length === 0 ? (
+                  <div className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg p-8 text-center">
+                    <svg className="h-16 w-16 text-white/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-white/70">No documents uploaded yet</p>
+                    <p className="text-white/50 text-sm mt-2">Switch to Upload view to add files</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4 mb-6">
+                      {uploadedItems.map((item) => {
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-2xl bg-white/10 backdrop-blur-sm shadow-lg overflow-hidden cursor-pointer hover:bg-white/15 transition-colors"
+                            onClick={() => handleOpenDocument(item.fileUrl)}
+                          >
+                            <div className="relative aspect-video bg-white/5">
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-6">
+                                <svg className="w-20 h-20 text-red-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                <p className="text-white text-sm font-medium text-center truncate w-full px-4" title={item.fileName}>
+                                  {item.fileName}
+                                </p>
+                              </div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleDelete(item.id)
+                                  handleDownload(item)
                                 }}
-                                className="text-red-400 hover:text-red-300 text-xs font-medium"
+                                className="absolute top-3 right-3 p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-colors border border-white/10 z-10"
+                                aria-label="Download"
                               >
-                                Delete
+                                <IconDownload className="h-5 w-5 text-white" />
                               </button>
                             </div>
+
+                            <div className="p-4">
+                              <h3 className="text-white font-semibold text-lg mb-2 line-clamp-2">
+                                {item.fileName}
+                              </h3>
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-white/50 text-xs">
+                                  {formatFileSize(item.fileSize)}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(item.id)
+                                  }}
+                                  className="text-red-400 hover:text-red-300 text-xs font-medium"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex flex-col items-center gap-4 mt-6">
-                      {/* Pagination Info */}
-                      <p className="text-white/60 text-sm">
-                        Page {currentPage} of {totalPages} • {pagination?.total || 0} total documents
-                      </p>
-
-                      {/* Pagination Controls */}
-                      <div className="flex items-center gap-2">
-                        {/* Previous Button */}
-                        <button
-                          onClick={() => handlePageChange(currentPage - 1)}
-                          disabled={currentPage === 1}
-                          className={`p-2 rounded-lg transition-colors ${
-                            currentPage === 1
-                              ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                              : 'bg-white/10 text-white hover:bg-white/20'
-                          }`}
-                          aria-label="Previous page"
-                        >
-                          <IconChevronLeft className="h-5 w-5" />
-                        </button>
-
-                        {/* Page Numbers */}
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNum: number
-                            if (totalPages <= 5) {
-                              pageNum = i + 1
-                            } else if (currentPage <= 3) {
-                              pageNum = i + 1
-                            } else if (currentPage >= totalPages - 2) {
-                              pageNum = totalPages - 4 + i
-                            } else {
-                              pageNum = currentPage - 2 + i
-                            }
-
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => handlePageChange(pageNum)}
-                                className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                  currentPage === pageNum
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-white/10 text-white/70 hover:bg-white/20'
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        {/* Next Button */}
-                        <button
-                          onClick={() => handlePageChange(currentPage + 1)}
-                          disabled={currentPage === totalPages}
-                          className={`p-2 rounded-lg transition-colors ${
-                            currentPage === totalPages
-                              ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                              : 'bg-white/10 text-white hover:bg-white/20'
-                          }`}
-                          aria-label="Next page"
-                        >
-                          <IconChevronRight className="h-5 w-5" />
-                        </button>
-                      </div>
+                        )
+                      })}
                     </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-    </main>
+
+                    {totalPages > 1 && (
+                      <div className="flex flex-col items-center gap-4 mt-6">
+                        <p className="text-white/60 text-sm">
+                          Page {currentPage} of {totalPages} • {pagination?.total || 0} total documents
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className={`p-2 rounded-lg transition-colors ${currentPage === 1
+                                ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                                : 'bg-white/10 text-white hover:bg-white/20'
+                              }`}
+                            aria-label="Previous page"
+                          >
+                            <IconChevronLeft className="h-5 w-5" />
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                              let pageNum: number
+                              if (totalPages <= 5) {
+                                pageNum = i + 1
+                              } else if (currentPage <= 3) {
+                                pageNum = i + 1
+                              } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i
+                              } else {
+                                pageNum = currentPage - 2 + i
+                              }
+
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => handlePageChange(pageNum)}
+                                  className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                                    }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className={`p-2 rounded-lg transition-colors ${currentPage === totalPages
+                                ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                                : 'bg-white/10 text-white hover:bg-white/20'
+                              }`}
+                            aria-label="Next page"
+                          >
+                            <IconChevronRight className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      </main>
     </PageTransition>
   )
 }
