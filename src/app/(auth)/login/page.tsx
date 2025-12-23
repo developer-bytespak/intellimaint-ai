@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const { loginUser,googleAuth  } = useUser();
+  const { loginUser, googleAuth } = useUser();
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
@@ -32,19 +32,20 @@ export default function LoginPage() {
         console.log("Login successful:", data);
         const response = data as IAxiosResponse;
         toast.success(response.message || "Login successful");
-        
+
         // Set transition state for smooth UI transition
         setIsTransitioning(true);
-        
+
         try {
           // cookie applies to the frontend domain (Vercel). Use SameSite=None and Secure in prod.
-          const cookieValue = 'true';
+          const cookieValue = "true";
           const maxAge = 60 * 60 * 24 * 7; // 7 days
-          const sameSite = 'None';
-          const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+          const sameSite = "None";
+          const secure =
+            window.location.protocol === "https:" ? "; Secure" : "";
           document.cookie = `local_access=${cookieValue}; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
         } catch (err) {
-          console.warn('Failed to set local_access cookie:', err);
+          console.warn("Failed to set local_access cookie:", err);
         }
 
         // Invalidate user query so it refetches on the next page
@@ -53,14 +54,17 @@ export default function LoginPage() {
 
         // Small delay to ensure cookie is set and query is invalidated
         setTimeout(() => {
-          console.log('[LoginPage] Navigating to /chat');
-          router.push('/chat');
+          console.log("[LoginPage] Navigating to /chat");
+          router.push("/chat");
         }, 100);
       },
       onError: (error) => {
         console.error("Login error - Full error object:", error);
         const axiosError = error as unknown as IAxiosError;
-        const errorMessage = axiosError?.response?.data?.message || axiosError?.message || "Failed to authenticate user";
+        const errorMessage =
+          axiosError?.response?.data?.message ||
+          axiosError?.message ||
+          "Failed to authenticate user";
         console.error("Login error message:", errorMessage);
         console.error("Error response status:", axiosError?.response?.status);
         console.error("Error response data:", axiosError?.response?.data);
@@ -75,26 +79,29 @@ export default function LoginPage() {
     router.push("/signup");
   };
 
-const handleGoogleSignIn = () => {
-    googleAuth.mutate({role:'',company:''},{
-      onSuccess: (data) => {
-        console.log('Google sign in successful:', data);
-        // const response = data as any;
-        // toast.success(response.message);
-        // router.push('/chat');
-      },
-      onError: (error) => {
-        console.error('Google sign in error:', error);
-        const axiosError = error as unknown as IAxiosError;
-        toast.error(axiosError?.response?.data?.message);
-        router.push('/signup');
+  const handleGoogleSignIn = () => {
+    googleAuth.mutate(
+      { role: "", company: "" },
+      {
+        onSuccess: (data) => {
+          console.log("Google sign in successful:", data);
+          // const response = data as any;
+          // toast.success(response.message);
+          // router.push('/chat');
+        },
+        onError: (error) => {
+          console.error("Google sign in error:", error);
+          const axiosError = error as unknown as IAxiosError;
+          toast.error(axiosError?.response?.data?.message);
+          router.push("/signup");
+        },
       }
-    });
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Trigger sign in when Enter is pressed in email or password fields
-    if (e.key === 'Enter' && !loginUser.isPending && email && password) {
+    if (e.key === "Enter" && !loginUser.isPending && email && password) {
       e.preventDefault();
       handleSignIn();
     }
@@ -104,9 +111,12 @@ const handleGoogleSignIn = () => {
     <div className="min-h-screen bg-[#1A1D26] flex flex-col lg:flex-row">
       {/* Transition Overlay - Smooth fade out when logging in */}
       {isTransitioning && (
-        <div className="fixed inset-0 bg-[#1A1D26] z-50 pointer-events-none animate-[fadeOut_500ms_ease-in_forwards]" style={{
-          animation: 'fadeOut 500ms ease-in forwards'
-        }} />
+        <div
+          className="fixed inset-0 bg-[#1A1D26] z-50 pointer-events-none animate-[fadeOut_500ms_ease-in_forwards]"
+          style={{
+            animation: "fadeOut 500ms ease-in forwards",
+          }}
+        />
       )}
       <style jsx>{`
         @keyframes fadeOut {
@@ -146,55 +156,72 @@ const handleGoogleSignIn = () => {
         <div className="w-full max-w-sm sm:max-w-md space-y-6">
           {/* Email Field */}
           <form onSubmit={(e) => e.preventDefault()}>
-          <div>
-            <label
-             htmlFor="email"
-             className="block text-white text-sm font-medium mb-2">
-              Email
-            </label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={handleKeyDown}
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label
-             htmlFor="password"
-             className="block text-white text-sm font-medium mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                value={password}
-                id="password"
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={handleKeyDown}
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#6C707B] hover:text-white"
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-white text-sm font-medium mb-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {showPassword ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414L8.464 8.464m1.414 1.414l4.242 4.242M8.464 8.464L7.05 7.05m1.414 1.414L7.05 7.05m1.414 1.414l4.242 4.242M7.05 7.05L5.636 5.636m1.414 1.414L5.636 5.636m1.414 1.414l4.242 4.242" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  )}
-                </svg>
-              </button>
+                Email
+              </label>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={handleKeyDown}
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500"
+              />
             </div>
-          </div>
+
+            {/* Password Field */}
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-white text-sm font-medium mb-2"
+              >
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  value={password}
+                  id="password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="w-full px-4 py-3 bg-[#2C303A] border border-[#4A4E57] rounded-3xl text-white placeholder-[#6C707B] focus:outline-none focus:border-blue-500 pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#6C707B] hover:text-white"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {showPassword ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414L8.464 8.464m1.414 1.414l4.242 4.242M8.464 8.464L7.05 7.05m1.414 1.414L7.05 7.05m1.414 1.414l4.242 4.242M7.05 7.05L5.636 5.636m1.414 1.414L5.636 5.636m1.414 1.414l4.242 4.242"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    )}
+                  </svg>
+                </button>
+              </div>
+            </div>
           </form>
 
           {/* Remember Me and Forgot Password */}

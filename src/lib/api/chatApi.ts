@@ -1,6 +1,6 @@
-import { CONFIG } from '@/constants/config';
-import baseURL, { API_BASE } from './axios';
-import { Chat, Message } from '@/types/chat';
+import { CONFIG } from "@/constants/config";
+import baseURL, { API_BASE } from "./axios";
+import { Chat, Message } from "@/types/chat";
 
 // Chat API uses the Gateway backend (NEXT_PUBLIC_NEST_URL), not the Services backend
 // API_BASE is already configured correctly in axios.ts to point to Gateway with /api/v1
@@ -19,7 +19,7 @@ interface ApiChatSession {
 
 interface ApiChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   createdAt: string;
   attachments?: ApiMessageAttachment[];
@@ -27,7 +27,7 @@ interface ApiChatMessage {
 
 interface ApiMessageAttachment {
   id: string;
-  attachmentType: 'image' | 'document';
+  attachmentType: "image" | "document";
   fileUrl: string;
   fileName: string | null;
   metadata: Record<string, unknown>;
@@ -45,7 +45,7 @@ interface ListSessionsResponse {
 
 interface UpdateSessionDto {
   title?: string;
-  status?: 'active' | 'archived' | 'deleted';
+  status?: "active" | "archived" | "deleted";
   equipmentContext?: string[];
 }
 
@@ -269,7 +269,7 @@ export async function* streamChatMessageWithSession(
 function transformSessionToChat(session: ApiChatSession): Chat {
   return {
     id: session.id,
-    title: session.title || 'New Chat',
+    title: session.title || "New Chat",
     messages: session.messages.map(transformMessageToMessage),
     createdAt: new Date(session.createdAt),
     updatedAt: new Date(session.updatedAt),
@@ -282,7 +282,7 @@ function transformMessageToMessage(message: ApiChatMessage): Message {
 
   if (message.attachments) {
     message.attachments.forEach((attachment) => {
-      if (attachment.attachmentType === 'image') {
+      if (attachment.attachmentType === "image") {
         images.push(attachment.fileUrl);
       }
     });
@@ -291,7 +291,7 @@ function transformMessageToMessage(message: ApiChatMessage): Message {
   return {
     id: message.id,
     content: message.content,
-    role: message.role === 'system' ? 'assistant' : message.role,
+    role: message.role === "system" ? "assistant" : message.role,
     timestamp: new Date(message.createdAt),
     images: images.length > 0 ? images : undefined,
   };
@@ -299,7 +299,11 @@ function transformMessageToMessage(message: ApiChatMessage): Message {
 
 export const chatApi = {
   // List all chat sessions for the current user
-  listSessions: async (query?: { page?: number; limit?: number; status?: string }): Promise<{
+  listSessions: async (query?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }): Promise<{
     chats: Chat[];
     pagination: {
       page: number;
@@ -308,30 +312,46 @@ export const chatApi = {
       totalPages: number;
     };
   }> => {
-    const response = await baseURL.get<{ data: ListSessionsResponse }>('/chat/sessions', {
-      params: query,
-    });
+    const response = await baseURL.get<{ data: ListSessionsResponse }>(
+      "/chat/sessions",
+      {
+        params: query,
+      }
+    );
     const body = response?.data?.data as ListSessionsResponse | undefined;
     if (!body || !Array.isArray(body.sessions)) {
-      console.error('Unexpected listSessions response shape:', response);
-      throw new Error('Invalid response from listSessions: missing sessions');
+      console.error("Unexpected listSessions response shape:", response);
+      throw new Error("Invalid response from listSessions: missing sessions");
     }
 
     return {
       chats: body.sessions.map(transformSessionToChat),
-      pagination: body.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 },
+      pagination: body.pagination || {
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 1,
+      },
     };
   },
 
   // Get a specific chat session with all messages
   getSession: async (sessionId: string): Promise<Chat> => {
-    const response = await baseURL.get<{ data: ApiChatSession }>(`/chat/sessions/${sessionId}`);
+    const response = await baseURL.get<{ data: ApiChatSession }>(
+      `/chat/sessions/${sessionId}`
+    );
     return transformSessionToChat(response.data.data);
   },
 
   // Update a chat session
-  updateSession: async (sessionId: string, dto: UpdateSessionDto): Promise<Chat> => {
-    const response = await baseURL.put<{ data: ApiChatSession }>(`/chat/sessions/${sessionId}`, dto);
+  updateSession: async (
+    sessionId: string,
+    dto: UpdateSessionDto
+  ): Promise<Chat> => {
+    const response = await baseURL.put<{ data: ApiChatSession }>(
+      `/chat/sessions/${sessionId}`,
+      dto
+    );
     return transformSessionToChat(response.data.data);
   },
 
@@ -341,7 +361,10 @@ export const chatApi = {
   },
 
   // Delete a message from a session
-  deleteMessage: async (sessionId: string, messageId: string): Promise<void> => {
+  deleteMessage: async (
+    sessionId: string,
+    messageId: string
+  ): Promise<void> => {
     await baseURL.delete(`/chat/sessions/${sessionId}/messages/${messageId}`);
   },
 
@@ -364,10 +387,13 @@ export const chatApi = {
   },
 
   // Cleanup stopped messages on page reload
-  cleanupStoppedMessages: async (): Promise<{ deletedCount: number; messageIds: string[] }> => {
-    const response = await baseURL.post<{ data: { deletedCount: number; messageIds: string[] } }>(
-      '/chat/cleanup-stopped'
-    );
+  cleanupStoppedMessages: async (): Promise<{
+    deletedCount: number;
+    messageIds: string[];
+  }> => {
+    const response = await baseURL.post<{
+      data: { deletedCount: number; messageIds: string[] };
+    }>("/chat/cleanup-stopped");
     return response.data.data;
   },
 };
