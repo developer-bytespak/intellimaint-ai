@@ -167,7 +167,11 @@ export default function ChatsList({
       {hasMore && (
         <div ref={observerTarget} className="py-4 flex justify-center">
           {isLoading && (
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+            <div className="w-full max-w-xs">
+              <div className="p-3 rounded-xl bg-gradient-to-r from-[#232a33] to-[#1f2632] animate-pulse">
+                <div className="h-4 bg-[#2a3441] rounded mb-2 w-3/4"></div>
+              </div>
+            </div>
           )}
         </div>
       )}

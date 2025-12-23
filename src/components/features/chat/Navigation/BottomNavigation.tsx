@@ -7,15 +7,15 @@ interface BottomNavigationProps {
 
 export default function BottomNavigation({ activeTab, onTabChange }: BottomNavigationProps) {
   return (
-    <div className="fixed bottom-2 left-4 right-4 bg-[#2a3441] rounded-2xl flex-shrink-0 z-30 shadow-lg mb-2" style={{ height: '70px', boxShadow: '0 -4px 20px rgba(255, 255, 255, 0.15), 0 -2px 10px rgba(255, 255, 255, 0.08)' }}>
-      <div className="flex justify-around items-center h-full px-1">
+    <div className="fixed bottom-4 left-4 right-4 bg-[#2a3441] rounded-full flex-shrink-0 z-30 shadow-2xl" style={{ height: '60px', boxShadow: '0 -4px 30px rgba(42, 52, 65, 0.6), 0 -2px 15px rgba(42, 52, 65, 0.4)' }}>
+      <div className="flex justify-between items-center h-full gap-6 px-6">
         {/* Chat Icon - House/Pentagon Shape */}
         <button
           onClick={() => onTabChange('chat')}
-          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
             activeTab === 'chat' 
-              ? 'bg-blue-500 text-white border-blue-500' 
-              : 'text-white hover:text-white hover:bg-white/10'
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 border border-blue-400' 
+              : 'text-gray-400 border border-gray-600/40 hover:text-white hover:border-gray-400/60'
           }`}
         >
           <svg className="w-6 h-6" fill={activeTab === 'chat' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -26,10 +26,10 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* Recent History Icon - Clock */}
         <button
           onClick={() => onTabChange('history')}
-          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
             activeTab === 'history' 
-              ? 'bg-blue-500 text-white border-blue-500' 
-              : 'text-white hover:text-white hover:bg-white/10'
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 border border-blue-400' 
+              : 'text-gray-400 border border-gray-600/40 hover:text-white hover:border-gray-400/60'
           }`}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -40,10 +40,10 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* App Info Icon - Document */}
         <button
           onClick={() => onTabChange('info')}
-          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
             activeTab === 'info' 
-              ? 'bg-blue-500 text-white border-blue-500' 
-              : 'text-white hover:text-white hover:bg-white/10'
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 border border-blue-400' 
+              : 'text-gray-400 border border-gray-600/40 hover:text-white hover:border-gray-400/60'
           }`}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -54,10 +54,10 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
         {/* Profile Icon */}
         <button
           onClick={() => onTabChange('profile')}
-          className={`flex flex-col items-center justify-center w-13 h-13 rounded-full border border-white/20 transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
             activeTab === 'profile' 
-              ? 'bg-blue-500 text-white border-blue-500' 
-              : 'text-white hover:text-white hover:bg-white/10'
+              ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50 border border-blue-400' 
+              : 'text-gray-400 border border-gray-600/40 hover:text-white hover:border-gray-400/60'
           }`}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -68,4 +68,3 @@ export default function BottomNavigation({ activeTab, onTabChange }: BottomNavig
     </div>
   );
 }
-

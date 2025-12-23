@@ -48,7 +48,7 @@ interface UserContextType {
   resetPassword: UseMutationResult<unknown, Error, {email:string,otp:string,newPassword:string}, unknown>;
   uploadProfileImage: UseMutationResult<{url: string, pathname: string}, Error, File, unknown>;
   deleteProfileImage: UseMutationResult<{success: boolean, message: string}, Error, string, unknown>;
-  logout: () => void;
+  logout: UseMutationResult<unknown, Error, void, unknown>;
 }
 
 
@@ -60,6 +60,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
+
+  // Track if login just happened (to trigger user profile fetch)
+  const [loginJustHappened, setLoginJustHappened] = React.useState(false);
 
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
@@ -82,23 +85,47 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     queryKey: ["user"],
     queryFn: async () => {
       try {
+        console.log('[useUser] Fetching user profile...');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+        console.log('[useUser] Token in localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
+        
         const res = await baseURL.get('/user/profile');
+        console.log('[useUser] User profile response:', res?.data);
+        
         // Backend returns { statusCode, message, data }
         const user = res?.data?.data || res?.data;
+        console.log('[useUser] Extracted user:', user);
         return user;
       } catch (error: unknown) {
         // If 401, user is not authenticated - this is expected on login/signup pages
         // Don't log it as an error, just return null
-        const axiosError = error as { response?: { status?: number } }
+        const axiosError = error as { response?: { status?: number; data?: any } }
+        console.error('[useUser] Error fetching user profile:', {
+          status: axiosError?.response?.status,
+          data: axiosError?.response?.data,
+          message: (error as any)?.message
+        });
+        
         if (axiosError?.response?.status === 401) {
+          console.warn('[useUser] User not authenticated (401), returning null');
           return null;
         }
         // Only log non-401 errors
-        console.error('Error fetching user profile:', error);
         throw error;
       }
     },
-    enabled: !!pathname && !isPublicRoute, // Only fetch user profile if pathname is available and not on a public route
+    // ✅ IMPORTANT: Only fetch user profile if:
+    // 1. We have a pathname (component is mounted)
+    // 2. We're not on a public route
+    // 3. Either:
+    //    a. We have an access token in localStorage (stored during login)
+    //    b. OR login just happened (backend set cookies)
+    //    c. OR we have cookies already (returning user with active session)
+    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && (
+      !!localStorage.getItem('accessToken') || 
+      loginJustHappened ||
+      document.cookie.includes('local_accessToken')
+    ),
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
@@ -276,9 +303,42 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const loginUser = useMutation({
         mutationFn: async (data: {email: string, password: string}) => {
-          console.log(data)
-            const res = await baseURL.post('/auth/login', data);
-            return res.data;
+          console.log('[useUser] Login attempt with email:', data.email)
+            try {
+              const res = await baseURL.post('/auth/login', data);
+              console.log('[useUser] Login response received:', res.data);
+              
+              // Try to extract tokens from response body
+              const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
+              const refreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
+              
+              // Store tokens if provided in response
+              if (accessToken) {
+                console.log('[useUser] Storing accessToken in localStorage');
+                localStorage.setItem('accessToken', accessToken);
+              } else {
+                console.warn('[useUser] No accessToken in response body. Backend is using cookies instead.');
+                console.log('[useUser] Response structure:', JSON.stringify(res.data, null, 2));
+                // ✅ Signal that login happened so we can fetch user profile using cookies
+                setLoginJustHappened(true);
+              }
+              
+              if (refreshToken) {
+                console.log('[useUser] Storing refreshToken in localStorage');
+                localStorage.setItem('refreshToken', refreshToken);
+              }
+              
+              console.log('[useUser] Backend also set cookies - check Set-Cookie headers in network tab');
+              return res.data;
+            } catch (error) {
+              console.error('[useUser] Login error:', error);
+              if (typeof error === 'object' && error !== null && 'response' in error) {
+                const axiosError = error as any;
+                console.error('[useUser] Error response status:', axiosError.response?.status);
+                console.error('[useUser] Error response data:', axiosError.response?.data);
+              }
+              throw error;
+            }
         },
     });
 
@@ -357,26 +417,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     //* LOGOUT USER :
     // Call logout endpoint - backend will clear cookies and redirect to /login
-    const logout = async () => {
-        try {
-            // Clear frontend auth cookies first
-            document.cookie = 'local_access=; Path=/; Max-Age=0';
-            document.cookie = 'google_access=; Path=/; Max-Age=0';
-            
-            // Clear query cache
-            queryClient.clear();
-            
-            // Call logout endpoint - cookies are sent automatically, backend will clear its cookies
-            window.location.href = `${API_BASE}/auth/logout`;
-        } catch (error) {
-            console.error('Logout error:', error);
-            // Fallback: clear client-side and redirect manually
-            document.cookie = 'local_access=; Path=/; Max-Age=0';
-            document.cookie = 'google_access=; Path=/; Max-Age=0';
-            queryClient.clear();
-            router.push('/login');
-        }
-    };
+    const logout =useMutation({
+      mutationFn: async () => {
+        const res = await baseURL.get('/auth/logout');
+        return res?.data;
+      },
+      onSuccess: () => {
+        // Clear stored tokens
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        // Clear user data and redirect to login
+        queryClient.clear();
+        router.push('/login');
+      }
+    })
 
     //* Memoize the context value to prevent unnecessary re-renders
 
@@ -405,7 +459,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           resetPassword,
           uploadProfileImage,
           deleteProfileImage,
-          logout 
+          logout,
         }}>
             {children}
         </UserContext.Provider>

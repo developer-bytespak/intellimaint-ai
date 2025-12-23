@@ -7,16 +7,18 @@ import { useUser } from "@/hooks/useUser";
 import { IAxiosError, IAxiosResponse } from "@/types/response";
 import { toast } from "react-toastify";
 import ForgotPasswordModal from "@/components/features/auth/ForgotPasswordModal";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const { loginUser } = useUser();
+  const { loginUser,googleAuth  } = useUser();
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
@@ -29,7 +31,7 @@ export default function LoginPage() {
       onSuccess: (data) => {
         console.log("Login successful:", data);
         const response = data as IAxiosResponse;
-        toast.success(response.message);
+        toast.success(response.message || "Login successful");
         
         // Set transition state for smooth UI transition
         setIsTransitioning(true);
@@ -45,15 +47,24 @@ export default function LoginPage() {
           console.warn('Failed to set local_access cookie:', err);
         }
 
-        // Small delay to show transition animation before navigation
+        // Invalidate user query so it refetches on the next page
+        // This ensures the user data is loaded when navigating to /chat
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+
+        // Small delay to ensure cookie is set and query is invalidated
         setTimeout(() => {
+          console.log('[LoginPage] Navigating to /chat');
           router.push('/chat');
-        }, 500);
+        }, 100);
       },
       onError: (error) => {
-        console.error("Login error:", error);
+        console.error("Login error - Full error object:", error);
         const axiosError = error as unknown as IAxiosError;
-        toast.error(axiosError?.response?.data?.message);
+        const errorMessage = axiosError?.response?.data?.message || axiosError?.message || "Failed to authenticate user";
+        console.error("Login error message:", errorMessage);
+        console.error("Error response status:", axiosError?.response?.status);
+        console.error("Error response data:", axiosError?.response?.data);
+        toast.error(errorMessage);
       },
     });
   };
@@ -64,8 +75,21 @@ export default function LoginPage() {
     router.push("/signup");
   };
 
-  const handleGoogleSignIn = () => {
-    router.replace("/form");
+const handleGoogleSignIn = () => {
+    googleAuth.mutate({role:'',company:''},{
+      onSuccess: (data) => {
+        console.log('Google sign in successful:', data);
+        // const response = data as any;
+        // toast.success(response.message);
+        // router.push('/chat');
+      },
+      onError: (error) => {
+        console.error('Google sign in error:', error);
+        const axiosError = error as unknown as IAxiosError;
+        toast.error(axiosError?.response?.data?.message);
+        router.push('/signup');
+      }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

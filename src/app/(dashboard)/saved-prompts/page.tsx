@@ -229,7 +229,7 @@ function SavedPromptsContent() {
 
                 {/* Filter Tabs */}
                 <div className="mb-6">
-                  <div className="flex gap-2 overflow-x-auto">
+                  <div className="flex gap-2 overflow-x-auto hide-scrollbar">
                     {categories.map((category) => (
                       <button
                         key={category}

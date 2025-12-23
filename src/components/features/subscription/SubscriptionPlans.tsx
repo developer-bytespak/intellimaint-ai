@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import PlanCard from './PlanCard';
+import Animation from '@/components/ui/Animation'
 
 interface Plan {
   id: string;
@@ -79,7 +80,7 @@ export default function SubscriptionPlans() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#1A1D26] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#1f2632] py-12 px-4 sm:px-6 lg:px-8">
       {/* Floating back button (navigates to chat) - fixed position */}
       <button
         onClick={() => router.push('/chat')}
@@ -93,17 +94,18 @@ export default function SubscriptionPlans() {
       </button>
       {/* Header Section */}
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-             Subscription Plans
-          </h1>
-        </div>
+        <Animation animation="fade" delay={80} duration={600}>
+          <div className="text-center mb-12">
+            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Subscription Plans</h1>
+          </div>
+        </Animation>
 
         {/* Promotional Banner */}
-        <div
-          className="mb-12 p-6 rounded-2xl shadow-lg flex items-center justify-between gap-6"
-          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}
-        >
+        <Animation animation="slideUp" delay={140} duration={700}>
+          <div
+            className="mb-12 p-6 rounded-2xl shadow-lg flex items-center justify-between gap-6"
+            style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}
+          >
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               {/* Inline SVG pill (icon + Premium text) per spec */}
@@ -143,7 +145,8 @@ export default function SubscriptionPlans() {
               <path d="M12 54 L28 22 L44 54 L60 18 L76 54 L92 22 L108 54 L108 60 L12 60 Z" fill="url(#crownGrad)" />
             </svg>
           </div>
-        </div>
+          </div>
+        </Animation>
 
         {/* Toggle for Billing Period - Optional */}
         {/* <div className="flex justify-center mb-8">
@@ -162,9 +165,11 @@ export default function SubscriptionPlans() {
           {/* Mobile: stacked cards (no scrolling) */}
           <div className="block sm:hidden space-y-6 px-2">
             {plans.map((plan, idx) => (
-              <div key={plan.id} className="w-full max-w-xl mx-auto">
-                <PlanCard plan={plan} isSelected={selectedPlan === plan.id} onSelect={() => setSelectedPlan(plan.id)} isRound={idx === 1} />
-              </div>
+              <Animation key={plan.id} animation="slideUp" delay={120 + idx * 80} duration={600}>
+                <div className="w-full max-w-xl mx-auto">
+                  <PlanCard plan={plan} isSelected={selectedPlan === plan.id} onSelect={() => setSelectedPlan(plan.id)} isRound={idx === 1} />
+                </div>
+              </Animation>
             ))}
           </div>
 
@@ -185,12 +190,13 @@ export default function SubscriptionPlans() {
               >
                 {plans.map((plan, idx) => {
                   return (
-                    <div
-                      key={plan.id}
-                      style={{ minWidth: `${cardWidth}px`, transition: 'transform 300ms ease' }}
-                    >
-                      <PlanCard plan={plan} isSelected={selectedPlan === plan.id} onSelect={() => setSelectedPlan(plan.id)} isRound={idx === 1} />
-                    </div>
+                    <Animation key={plan.id} animation="slideUp" delay={120 + idx * 80} duration={600}>
+                      <div
+                        style={{ minWidth: `${cardWidth}px`, transition: 'transform 300ms ease' }}
+                      >
+                        <PlanCard plan={plan} isSelected={selectedPlan === plan.id} onSelect={() => setSelectedPlan(plan.id)} isRound={idx === 1} />
+                      </div>
+                    </Animation>
                   );
                 })}
               </div>

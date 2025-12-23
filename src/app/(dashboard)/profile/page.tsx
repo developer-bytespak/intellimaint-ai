@@ -129,9 +129,17 @@ function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+function IconLogout(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h6a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, isLoading, updateUser, uploadProfileImage, deleteProfileImage } = useUser()
+  const { user, isLoading, updateUser, uploadProfileImage, deleteProfileImage, logout } = useUser()
   const [showCameraMenu, setShowCameraMenu] = useState(false)
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [showCameraModal, setShowCameraModal] = useState(false)
@@ -373,7 +381,7 @@ export default function ProfilePage() {
   }, [user])
 
   return (
-    <main className="min-h-screen bg-[#1f2632] text-white">
+    <main className="h-full w-full bg-[#1f2632] text-white">
       {/* Header */}
       <header className=" text-white rounded-b-[28px] shadow-sm"
          style={{ background: 'linear-gradient(90deg,#006EE6 0%,#00A0FF 100%)' }}>
@@ -550,6 +558,22 @@ export default function ProfilePage() {
                   </button>
                 </li>
               ))}
+              {/* Logout Button - Mobile Only */}
+              <li className="md:hidden">
+                <button
+                  type="button"
+                  onClick={() => logout.mutate()}
+                  disabled={logout.isPending}
+                  className="w-full px-4 py-4 flex items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 rounded-2xl hover:bg-white/15 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Logout"
+                >
+                  <span className="flex items-center gap-3">
+                    <IconLogout className="h-5 w-5 text-white/70 group-hover:text-white transition-colors" />
+                    <span className="text-sm text-white">{logout.isPending ? 'Logging out...' : 'Logout'}</span>
+                  </span>
+                  <IconChevronRight className="h-5 w-5 text-white/50 group-hover:text-white transition-colors" />
+                </button>
+              </li>
             </ul>
           </div>
 

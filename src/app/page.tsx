@@ -1,5 +1,5 @@
-import LoginPage from './(auth)/login/page';
+import HomepageShell from '@/components/homepage/homepage-shell';
 
 export default function Home() {
-  return <LoginPage />;
+  return <HomepageShell />;
 }

@@ -1,153 +1,152 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface UseSmoothStreamingOptions {
-  baseDelay?: number; // Base delay in ms between characters (default: 8ms for faster feel)
-  minDelay?: number; // Minimum delay when queue is large (default: 2ms)
-  maxDelay?: number; // Maximum delay when queue is small (default: 15ms)
-  batchSize?: number; // Number of characters to render per frame (default: 1)
+  instant?: boolean; // If true, render character-by-character immediately
+  charDelay?: number; // Delay between characters in ms (default: 0 for instant)
+  batchSize?: number; // Characters to render per frame (default: 5 for smooth flow)
 }
 
 /**
- * Custom hook for smooth, ChatGPT-like token streaming
- * Optimized for consistent character-by-character display
- * 
- * IMPROVEMENTS:
- * - Faster base delay (8ms vs 20ms)
- * - Stops rendering loop when queue is truly empty
- * - Simpler delay calculation (no complex adaptive logic)
- * - Better performance with requestAnimationFrame
+ * Smooth streaming hook with instant character-by-character rendering
+ * - Uses requestAnimationFrame for smooth 60fps rendering
+ * - No artificial delays - processes queue as fast as possible
+ * - Renders multiple characters per frame for smooth visual flow
+ * - Much smoother than setTimeout/throttling approaches
  */
 export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
-  const {
-    baseDelay = 8, // Faster default for snappier feel
-    minDelay = 2,
-    maxDelay = 15,
-    batchSize = 1, // Render 1 character at a time
+  const { 
+    instant = true, 
+    charDelay = 0, // 0ms = instant rendering
+    batchSize = 5   // Render 5 chars per frame for smooth flow (increase if too slow)
   } = options;
 
   const [displayedText, setDisplayedText] = useState('');
+
+  // Queue of characters waiting to be rendered
   const queueRef = useRef<string[]>([]);
-  const animationFrameRef = useRef<number | null>(null);
+  
+  // RAF (requestAnimationFrame) handle
+  const rafRef = useRef<number | null>(null);
+  
+  // Track if rendering loop is active
   const isRenderingRef = useRef(false);
-  const lastRenderTimeRef = useRef<number>(0);
+  
+  // Last render time (for delay calculation)
+  const lastRenderRef = useRef<number>(0);
 
   /**
-   * Add new tokens to the queue (producer)
-   * Splits tokens into individual characters for smooth rendering
+   * Rendering loop using requestAnimationFrame
+   * Processes queue at 60fps for smooth character-by-character display
+   */
+  const renderLoop = useCallback((timestamp: number) => {
+    const queue = queueRef.current;
+    
+    // Stop if queue is empty
+    if (queue.length === 0) {
+      isRenderingRef.current = false;
+      rafRef.current = null;
+      return;
+    }
+
+    // Check if enough time has passed (for optional delay)
+    const timeSinceLastRender = timestamp - lastRenderRef.current;
+    if (charDelay > 0 && timeSinceLastRender < charDelay) {
+      // Not enough time passed, schedule next frame
+      rafRef.current = requestAnimationFrame(renderLoop);
+      return;
+    }
+
+    // Render a batch of characters for smooth flow
+    const charsToRender: string[] = [];
+    const charsThisFrame = Math.min(batchSize, queue.length);
+    
+    for (let i = 0; i < charsThisFrame; i++) {
+      const char = queue.shift();
+      if (char !== undefined) {
+        charsToRender.push(char);
+      }
+    }
+
+    if (charsToRender.length > 0) {
+      setDisplayedText(prev => prev + charsToRender.join(''));
+      lastRenderRef.current = timestamp;
+    }
+
+    // Continue loop if queue still has items
+    if (queue.length > 0) {
+      rafRef.current = requestAnimationFrame(renderLoop);
+    } else {
+      isRenderingRef.current = false;
+      rafRef.current = null;
+    }
+  }, [charDelay, batchSize]);
+
+  /**
+   * Start the rendering loop if not already running
+   */
+  const startRenderLoop = useCallback(() => {
+    if (isRenderingRef.current) return;
+    
+    isRenderingRef.current = true;
+    lastRenderRef.current = performance.now();
+    rafRef.current = requestAnimationFrame(renderLoop);
+  }, [renderLoop]);
+
+  /**
+   * Stop the rendering loop
+   */
+  const stopRenderLoop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    isRenderingRef.current = false;
+  }, []);
+
+  /**
+   * Add tokens to the queue
+   * In instant mode with batchSize, this creates smooth character-by-character flow
    */
   const addTokens = useCallback((tokens: string) => {
     if (!tokens || tokens.length === 0) return;
-    
-    // Split tokens into individual characters
+
+    if (!instant) {
+      // Non-instant mode: display immediately (legacy behavior)
+      setDisplayedText(prev => prev + tokens);
+      return;
+    }
+
+    // Instant mode: queue characters and render smoothly
+    // Split into individual characters for character-by-character display
     const chars = tokens.split('');
     queueRef.current.push(...chars);
     
     // Start rendering loop if not already running
-    if (!isRenderingRef.current) {
-      isRenderingRef.current = true;
-      lastRenderTimeRef.current = performance.now();
-      animationFrameRef.current = requestAnimationFrame(renderLoop);
-    }
-  }, []);
+    startRenderLoop();
+  }, [instant, startRenderLoop]);
 
   /**
-   * Calculate delay based on queue length
-   * Uses simpler linear interpolation for consistent feel
-   */
-  const calculateDelay = useCallback((queueLength: number): number => {
-    if (queueLength === 0) return baseDelay;
-    
-    // Simple logic: speed up slightly when queue is large
-    if (queueLength > 50) {
-      return minDelay; // Fast rendering for large queue
-    } else if (queueLength > 20) {
-      return baseDelay * 0.7; // Slightly faster
-    } else if (queueLength > 10) {
-      return baseDelay; // Normal speed
-    } else {
-      // Slow down slightly when queue is small to avoid emptying too fast
-      return Math.min(maxDelay, baseDelay * 1.2);
-    }
-  }, [baseDelay, minDelay, maxDelay]);
-
-  /**
-   * Rendering loop (consumer)
-   * Uses requestAnimationFrame for frame-synced rendering
-   */
-  const renderLoop = useCallback((currentTime: number) => {
-    const queue = queueRef.current;
-    
-    // Stop loop if queue is empty
-    if (queue.length === 0) {
-      isRenderingRef.current = false;
-      animationFrameRef.current = null;
-      return; // CRITICAL: Stop here, don't schedule another frame
-    }
-
-    // Calculate delay based on current queue length
-    const delay = calculateDelay(queue.length);
-    const deltaTime = currentTime - lastRenderTimeRef.current;
-
-    // Check if enough time has passed
-    if (deltaTime >= delay) {
-      // Render one or more characters based on batchSize
-      const charsToRender: string[] = [];
-      for (let i = 0; i < batchSize && queue.length > 0; i++) {
-        const char = queue.shift();
-        if (char !== undefined) {
-          charsToRender.push(char);
-        }
-      }
-
-      if (charsToRender.length > 0) {
-        setDisplayedText(prev => prev + charsToRender.join(''));
-        lastRenderTimeRef.current = currentTime;
-      }
-    }
-
-    // Continue loop only if queue still has items
-    if (queue.length > 0) {
-      animationFrameRef.current = requestAnimationFrame(renderLoop);
-    } else {
-      // Queue is now empty, stop loop
-      isRenderingRef.current = false;
-      animationFrameRef.current = null;
-    }
-  }, [calculateDelay, batchSize]);
-
-  /**
-   * Reset the streaming state
+   * Reset everything
    */
   const reset = useCallback(() => {
-    setDisplayedText('');
+    stopRenderLoop();
     queueRef.current = [];
-    lastRenderTimeRef.current = 0;
-    
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    isRenderingRef.current = false;
-  }, []);
+    setDisplayedText('');
+    lastRenderRef.current = 0;
+  }, [stopRenderLoop]);
 
   /**
-   * Set the full text immediately (for when streaming completes)
+   * Set full text immediately (bypass queue)
    */
   const setFullText = useCallback((text: string) => {
-    // Clear queue and set text immediately
+    stopRenderLoop();
     queueRef.current = [];
     setDisplayedText(text);
-    
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    isRenderingRef.current = false;
-    lastRenderTimeRef.current = 0;
-  }, []);
+    lastRenderRef.current = 0;
+  }, [stopRenderLoop]);
 
   /**
-   * Force flush remaining queue (useful when streaming ends but queue has items)
+   * Force flush entire queue immediately
    */
   const flush = useCallback(() => {
     if (queueRef.current.length > 0) {
@@ -155,22 +154,15 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
       setDisplayedText(prev => prev + remaining);
       queueRef.current = [];
     }
-    
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    isRenderingRef.current = false;
-  }, []);
+    stopRenderLoop();
+  }, [stopRenderLoop]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      stopRenderLoop();
     };
-  }, []);
+  }, [stopRenderLoop]);
 
   return {
     displayedText,
@@ -178,6 +170,7 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
     reset,
     setFullText,
     flush,
+    // Debug helpers
     queueLength: queueRef.current.length,
     isRendering: isRenderingRef.current,
   };

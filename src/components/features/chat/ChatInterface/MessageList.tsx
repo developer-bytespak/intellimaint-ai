@@ -11,6 +11,7 @@ interface MessageListProps {
   streamingText?: { [messageId: string]: string };
   streamingMessageId?: string | null;
   onEditMessage?: (messageId: string) => void;
+  onInlineEditSave?: (messageId: string, newContent: string) => void;
 }
 
 export default function MessageList({ 
@@ -19,6 +20,7 @@ export default function MessageList({
   streamingText = {}, 
   streamingMessageId = null,
   onEditMessage,
+  onInlineEditSave,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -213,6 +215,7 @@ export default function MessageList({
               streamingText={messageStreamingText}
               streamingMessageId={streamingMessageId}
               onEditMessage={onEditMessage}
+              onInlineEditSave={onInlineEditSave}
             />
           );
         })}

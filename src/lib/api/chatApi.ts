@@ -1,10 +1,10 @@
 import { CONFIG } from '@/constants/config';
-import baseURL from './axios';
+import baseURL, { API_BASE } from './axios';
 import { Chat, Message } from '@/types/chat';
 
-// Ensure API_BASE_URL includes /api/v1 prefix to match backend routes
-const rawUrl = CONFIG.API_URL || 'http://localhost:3000';
-const API_BASE_URL = rawUrl.includes('/api/v1') ? rawUrl : `${rawUrl}/api/v1`;
+// Chat API uses the Gateway backend (NEXT_PUBLIC_NEST_URL), not the Services backend
+// API_BASE is already configured correctly in axios.ts to point to Gateway with /api/v1
+const API_BASE_URL = API_BASE;
 
 // API Response Types
 interface ApiChatSession {
@@ -64,57 +64,47 @@ export interface StreamMessageResponse {
   aborted?: boolean;
 }
 
-/**
- * Hardened SSE event parser
- * Properly handles CRLF, incomplete chunks, and multi-line events
- */
+// ============================================================================
+// SSE IMPLEMENTATION - COMMENTED OUT (Migrated to Socket.IO)
+// ============================================================================
+// The following SSE parser and streaming functions have been replaced by
+// Socket.IO streaming via useChatSocket hook.
+// See: src/hooks/useChatSocket.ts for the new implementation.
+// ============================================================================
+
+/*
 class SSEParser {
   private buffer = '';
   private eventBuffer: { [key: string]: string } = {};
 
-  /**
-   * Parse incoming chunk and yield complete SSE events
-   */
   *parse(chunk: string): Generator<StreamMessageResponse> {
-    // Add chunk to buffer
     this.buffer += chunk;
-
-    // Split by lines (handle both \n and \r\n)
     const lines = this.buffer.split(/\r?\n/);
-
-    // Keep last incomplete line in buffer
     this.buffer = lines.pop() || '';
 
     for (const line of lines) {
-      // Trim whitespace
       const trimmedLine = line.trim();
 
-      // Empty line = end of event
       if (trimmedLine === '') {
         if (Object.keys(this.eventBuffer).length > 0) {
-          // Yield complete event
           const event = this.processEvent();
           if (event) {
             yield event;
           }
-          // Reset event buffer
           this.eventBuffer = {};
         }
         continue;
       }
 
-      // Skip comments
       if (trimmedLine.startsWith(':')) {
         continue;
       }
 
-      // Parse field: value
       const colonIndex = trimmedLine.indexOf(':');
       if (colonIndex !== -1) {
         const field = trimmedLine.substring(0, colonIndex).trim();
         const value = trimmedLine.substring(colonIndex + 1).trim();
 
-        // Accumulate event data
         if (this.eventBuffer[field]) {
           this.eventBuffer[field] += '\n' + value;
         } else {
@@ -124,16 +114,11 @@ class SSEParser {
     }
   }
 
-  /**
-   * Process accumulated event buffer into structured data
-   */
   private processEvent(): StreamMessageResponse | null {
     try {
-      // Get data field (SSE standard)
       const dataStr = this.eventBuffer['data'];
       if (!dataStr) return null;
 
-      // Parse JSON
       const data = JSON.parse(dataStr);
 
       return {
@@ -151,12 +136,8 @@ class SSEParser {
     }
   }
 
-  /**
-   * Flush any remaining data in buffer (call when stream ends)
-   */
   *flush(): Generator<StreamMessageResponse> {
     if (this.buffer.trim()) {
-      // Try to parse remaining buffer as event
       const trimmedBuffer = this.buffer.trim();
       if (trimmedBuffer.startsWith('data:')) {
         const value = trimmedBuffer.substring(5).trim();
@@ -172,10 +153,6 @@ class SSEParser {
   }
 }
 
-/**
- * Stream a chat message with real-time token streaming
- * Uses hardened SSE parser for reliable token delivery
- */
 export async function* streamChatMessage(
   sessionId: string,
   content: string,
@@ -190,7 +167,7 @@ export async function* streamChatMessage(
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    credentials: 'include', // Include cookies for authentication
+    credentials: 'include',
     body: JSON.stringify({
       content,
       images: images || [],
@@ -215,15 +192,11 @@ export async function* streamChatMessage(
       const { done, value } = await reader.read();
 
       if (done) {
-        // Flush any remaining data
         yield* parser.flush();
         break;
       }
 
-      // Decode chunk
       const chunk = decoder.decode(value, { stream: true });
-
-      // Parse chunk and yield events
       yield* parser.parse(chunk);
     }
   } catch (error) {
@@ -233,6 +206,64 @@ export async function* streamChatMessage(
     reader.releaseLock();
   }
 }
+
+export async function* streamChatMessageWithSession(
+  content: string,
+  images?: string[],
+  token?: string,
+): AsyncGenerator<StreamMessageResponse> {
+  const url = `${API_BASE_URL}/chat/messages/stream`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      content,
+      images: images || [],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stream failed: ${response.status} ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Response body is null');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const parser = new SSEParser();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        yield* parser.flush();
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      yield* parser.parse(chunk);
+    }
+  } catch (error) {
+    console.error('Stream reading error:', error);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+*/
+
+// ============================================================================
+// END SSE IMPLEMENTATION
+// ============================================================================
 
 // Transform API response to frontend Chat type
 function transformSessionToChat(session: ApiChatSession): Chat {
@@ -331,11 +362,18 @@ export const chatApi = {
     );
     return response.data.data;
   },
+
+  // Cleanup stopped messages on page reload
+  cleanupStoppedMessages: async (): Promise<{ deletedCount: number; messageIds: string[] }> => {
+    const response = await baseURL.post<{ data: { deletedCount: number; messageIds: string[] } }>(
+      '/chat/cleanup-stopped'
+    );
+    return response.data.data;
+  },
 };
 
-/**
- * Stream a chat message with new session creation
- */
+/*
+// Duplicate SSE function - Commented out (already commented above)
 export async function* streamChatMessageWithSession(
   content: string,
   images?: string[],
@@ -349,7 +387,7 @@ export async function* streamChatMessageWithSession(
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    credentials: 'include', // Include cookies for authentication
+    credentials: 'include',
     body: JSON.stringify({
       content,
       images: images || [],
@@ -374,15 +412,11 @@ export async function* streamChatMessageWithSession(
       const { done, value } = await reader.read();
 
       if (done) {
-        // Flush any remaining data
         yield* parser.flush();
         break;
       }
 
-      // Decode chunk
       const chunk = decoder.decode(value, { stream: true });
-
-      // Parse chunk and yield events
       yield* parser.parse(chunk);
     }
   } catch (error) {
@@ -392,3 +426,4 @@ export async function* streamChatMessageWithSession(
     reader.releaseLock();
   }
 }
+*/

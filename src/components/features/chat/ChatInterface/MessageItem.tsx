@@ -19,6 +19,7 @@ interface MessageItemProps {
   streamingText?: string | null;
   streamingMessageId?: string | null;
   onEditMessage?: (messageId: string) => void;
+  onInlineEditSave?: (messageId: string, newContent: string) => void;
 }
 
 export default function MessageItem({
@@ -35,6 +36,7 @@ export default function MessageItem({
   streamingText,
   streamingMessageId,
   onEditMessage,
+  onInlineEditSave,
 }: MessageItemProps) {
   // Use smooth streaming hook for assistant messages that are currently streaming
   const isCurrentlyStreaming = streamingText !== null && streamingText !== undefined;
@@ -48,11 +50,10 @@ export default function MessageItem({
     (!message.content || message.content.length === 0) &&
     streamingMessageId !== message.id;
   
-  const { displayedText, addTokens, reset, setFullText, queueLength } = useSmoothStreaming({
-    baseDelay: 8, // Fast base delay for smooth character-by-character feel
-    minDelay: 2, // Very fast when queue is large
-    maxDelay: 15, // Slower when queue is small
-    batchSize: 1, // Render 1 character at a time for smooth display
+  const { displayedText, addTokens, reset, setFullText } = useSmoothStreaming({
+    instant: true, // 🔥 INSTANT MODE: character-by-character rendering
+    batchSize: 5,   // 5 chars per frame (smooth default)
+    charDelay: 0,   // no artificial delay between frames
   });
   
   // Track what we've already queued (not just what's displayed)
@@ -141,65 +142,62 @@ export default function MessageItem({
       }
       // If lengths are equal, don't update (prevents showing duplicate content)
     } else if (!isCurrentlyStreaming && !isWaitingForFirstToken && message.content) {
-      // Not streaming anymore and not waiting - ensure we continue character-by-character display
-      // The key is to compare what's actually displayed vs what should be displayed
-      // and add only the remaining characters gradually
-      const currentDisplayed = displayedText;
-      const alreadyQueuedContent = queuedMessageContentRef.current;
-      
-      // Mark that we're in completion mode (streaming finished, continuing display)
-      if (!isCompletionModeRef.current) {
-        isCompletionModeRef.current = true;
+      // Not streaming anymore and not waiting - sync refs and check if content is complete
+      // When streaming ends, queuedTextRef has what was streamed; sync it to queuedMessageContentRef
+      if (queuedTextRef.current && !queuedMessageContentRef.current) {
+        queuedMessageContentRef.current = queuedTextRef.current;
       }
       
-      // Primary check: if displayed text is shorter than message content, we need to continue
-      if (currentDisplayed.length < message.content.length) {
-        // Verify the message content extends what's displayed (safety check)
-        if (message.content.startsWith(currentDisplayed)) {
-          const remainingText = message.content.slice(currentDisplayed.length);
-          if (remainingText.length > 0) {
-            // CRITICAL: Only add a small chunk at a time to ensure smooth character-by-character display
-            // This prevents large chunks from being added all at once which would cause the remaining
-            // text to appear instantly. We add chunks gradually as displayedText updates.
-            const chunkSize = 10; // Add 10 characters at a time max for smoother display (reduced from 30)
-            const textToAdd = remainingText.slice(0, chunkSize);
-            
-            // Add the chunk to queue (addTokens will split into individual characters)
-            addTokens(textToAdd);
-            
-            // Update queued content to reflect what we've added (not the full remaining text)
-            // This ensures we continue adding in chunks on subsequent renders as displayedText grows
-            queuedMessageContentRef.current = currentDisplayed + textToAdd;
-          }
-        }
-      } else if (message.content.length > alreadyQueuedContent.length) {
-        // Fallback: if displayed is complete but queued content is shorter, add remaining in chunks
-        if (message.content.startsWith(alreadyQueuedContent) || alreadyQueuedContent.length === 0) {
-          const remainingText = message.content.slice(alreadyQueuedContent.length);
-          if (remainingText.length > 0) {
-            // Add in chunks to maintain smooth display
-            const chunkSize = 10; // Reduced from 30 for smoother character-by-character display
-            const textToAdd = remainingText.slice(0, chunkSize);
-            addTokens(textToAdd);
-            queuedMessageContentRef.current = alreadyQueuedContent + textToAdd;
-          }
-        } else {
-          // Content changed (shouldn't happen, but handle it)
-          reset();
-          queuedMessageContentRef.current = '';
-          isCompletionModeRef.current = false;
-          if (message.content.length > 0) {
-            // Even on reset, add in chunks for smooth display
-            const chunkSize = 10; // Reduced from 30 for smoother character-by-character display
-            const textToAdd = message.content.slice(0, chunkSize);
-            addTokens(textToAdd);
-            queuedMessageContentRef.current = textToAdd;
-            isCompletionModeRef.current = true;
-          }
-        }
-      } else if (currentDisplayed.length >= message.content.length) {
-        // Display is complete, exit completion mode
+      const currentDisplayed = displayedText;
+      const alreadyQueuedContent = queuedMessageContentRef.current || queuedTextRef.current;
+      
+      // CRITICAL: If we've already queued/displayed the complete message content during streaming, SKIP
+      // This prevents re-adding the same content and causing duplication
+      if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
+        // Content already fully queued, nothing to do
         isCompletionModeRef.current = false;
+      } else {
+        // Mark that we're in completion mode (streaming finished, continuing display)
+        if (!isCompletionModeRef.current) {
+          isCompletionModeRef.current = true;
+        }
+        
+        // Primary check: if displayed text is shorter than message content, add remaining
+        if (currentDisplayed.length < message.content.length) {
+          // Verify the message content extends what's displayed (safety check)
+          if (message.content.startsWith(currentDisplayed)) {
+            const remainingText = message.content.slice(currentDisplayed.length);
+            if (remainingText.length > 0) {
+              // 🔥 INSTANT MODE: Add ALL remaining content at once (no chunking)
+              addTokens(remainingText);
+              queuedMessageContentRef.current = message.content;
+            }
+          }
+        } else if (message.content.length > alreadyQueuedContent.length) {
+          // Fallback: if displayed is complete but queued content is shorter, add remaining instantly
+          if (message.content.startsWith(alreadyQueuedContent) || alreadyQueuedContent.length === 0) {
+            const remainingText = message.content.slice(alreadyQueuedContent.length);
+            if (remainingText.length > 0) {
+              // 🔥 INSTANT MODE: Add ALL remaining content at once
+              addTokens(remainingText);
+              queuedMessageContentRef.current = message.content;
+            }
+          } else {
+            // Content changed (shouldn't happen, but handle it)
+            reset();
+            queuedMessageContentRef.current = '';
+            isCompletionModeRef.current = false;
+            if (message.content.length > 0) {
+              // 🔥 INSTANT MODE: Set all content immediately
+              setFullText(message.content);
+              queuedMessageContentRef.current = message.content;
+              isCompletionModeRef.current = false;
+            }
+          }
+        } else if (currentDisplayed.length >= message.content.length) {
+          // Display is complete, exit completion mode
+          isCompletionModeRef.current = false;
+        }
       }
       // If displayedText is already complete or longer, let the smooth streaming hook continue
       // Don't call setFullText here - let the queue finish naturally for smooth character-by-character display
@@ -258,6 +256,9 @@ export default function MessageItem({
   
   // Hover state for showing edit button
   const [isHovered, setIsHovered] = useState(false);
+  // Inline edit state
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
+  const [inlineEditValue, setInlineEditValue] = useState('');
 
   return (
     <div 
@@ -297,45 +298,65 @@ export default function MessageItem({
               : 'bg-[#2a3441] text-white'
           }`}
         >
-          {/* Edit button on hover for stopped messages */}
-          {isStoppedMessage && onEditMessage && (
-            <button
-              onClick={() => onEditMessage(message.id)}
-              className={`absolute top-2 right-2 p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all z-10 ${
-                isHovered ? 'opacity-100' : 'opacity-0'
-              }`}
-              title="Edit message"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-          )}
+          {/* Top-right edit removed: inline editing will be triggered from the action row below */}
           {/* For assistant messages, only render if there's content or currently streaming to avoid empty bubbles interfering with streaming display */}
           {((message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken)) || 
             (message.role === 'user' && displayedContent)) && (
           <div className="p-3 min-w-0">
             {message.role === 'assistant' ? (
-              <>
-                {isWaitingForFirstToken ? (
-                  // Show loader while waiting for first token
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
+              isWaitingForFirstToken ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
-                ) : (
-                  <div className="text-base leading-relaxed">
-                    <MarkdownRenderer content={displayedContent || ''} />
-                  </div>
-                )}
-              </>
+                </div>
+              ) : (
+                <div className="text-base leading-relaxed">
+                  <MarkdownRenderer content={displayedContent || ''} />
+                </div>
+              )
             ) : (
-              <p className="text-base whitespace-pre-wrap leading-relaxed break-all" style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>
-                {displayedContent}
-              </p>
+              // User message - support inline edit when stopped
+              isInlineEditing ? (
+                <div>
+                  <textarea
+                    value={inlineEditValue}
+                    onChange={(e) => setInlineEditValue(e.target.value)}
+                    className="w-full min-h-[80px] max-h-64 p-2 rounded-md bg-[#17202a] text-white resize-y"
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600"
+                      onClick={() => {
+                        setIsInlineEditing(false);
+                        setInlineEditValue('');
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white"
+                      onClick={async () => {
+                        if (onInlineEditSave) {
+                          await onInlineEditSave(message.id, inlineEditValue.trim());
+                        }
+                        setIsInlineEditing(false);
+                        setInlineEditValue('');
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-base whitespace-pre-wrap leading-relaxed break-all" style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                  {displayedContent}
+                </p>
+              )
             )}
 
             {/* For user messages, show stop UI if stopped */}
@@ -362,11 +383,15 @@ export default function MessageItem({
                 </p>
                 <div className="flex items-center gap-2">
                   {/* Edit Button - only show for stopped user messages */}
-                  {isStoppedMessage && onEditMessage && (
+                  {isStoppedMessage && (
                     <button
                       className="opacity-60 hover:opacity-100 transition-opacity"
                       title="Edit message"
-                      onClick={() => onEditMessage(message.id)}
+                      onClick={() => {
+                        // Open inline editor by default
+                        setInlineEditValue(message.content || '');
+                        setIsInlineEditing(true);
+                      }}
                     >
                       <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
