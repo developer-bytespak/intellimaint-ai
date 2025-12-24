@@ -13,6 +13,7 @@ interface ChatInterfaceProps {
   streamingText?: { [messageId: string]: string };
   streamingMessageId?: string | null;
   stopStreaming?: () => void;
+  onEndCall?: () => void | Promise<void>;
   startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
@@ -26,6 +27,7 @@ export default function ChatInterface({
   streamingText = {},
   streamingMessageId = null,
   stopStreaming,
+  onEndCall,
   startEditingMessage,
   editingMessageId,
   setEditingMessageId,
@@ -38,6 +40,7 @@ export default function ChatInterface({
     streamingText={streamingText}
     streamingMessageId={streamingMessageId}
     stopStreaming={stopStreaming}
+    onEndCall={onEndCall}
     startEditingMessage={startEditingMessage}
     editingMessageId={editingMessageId}
     setEditingMessageId={setEditingMessageId}

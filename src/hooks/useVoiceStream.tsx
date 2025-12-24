@@ -1,5 +1,6 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useWebSocket } from "./useWebSocket";
+import { useParams, useSearchParams } from "next/navigation";
 
 const DEBUG = process.env.NODE_ENV === "development";
 
@@ -8,13 +9,19 @@ interface UseVoiceStreamOptions {
   externalIsConnected?: boolean;
   onUserInterrupt?: () => void;
   onStopAudio?: () => void;
+  onError?: (error: any) => void;
 }
 
 export function useVoiceStream(
   websocketUrl: string,
   options?: UseVoiceStreamOptions
 ) {
-  const internalWs = useWebSocket(options?.externalSend ? "" : websocketUrl);
+  const internalWs = useWebSocket(options?.externalSend ? "" : websocketUrl, {
+    onError: options?.onError,
+  });
+  const params = useSearchParams();
+  const chat = params?.get("chat") as string | undefined;
+  // console.log("Chat ID in useVoiceStream:", chat);
   const send = options?.externalSend || internalWs.send;
   const isConnected =
     options?.externalIsConnected !== undefined
@@ -25,6 +32,8 @@ export function useVoiceStream(
   const isListeningRef = useRef(false);
   const isBotSpeakingRef = useRef(false);
   const hasInterruptedRef = useRef(false);
+  const isExplicitlyStopped = useRef(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // -----------------------------
   // INIT SpeechRecognition
@@ -52,19 +61,41 @@ export function useVoiceStream(
     recognition.onend = () => {
       isListeningRef.current = false;
       if (DEBUG) console.log("🛑 STT stopped");
+
+      // Auto-restart if not explicitly stopped by user AND not paused for bot speech
+      if (!isExplicitlyStopped.current && !isBotSpeakingRef.current) {
+        if (DEBUG) console.log("🔄 Auto-restarting STT...");
+        try {
+          recognition.start();
+        } catch (e) {
+          // ignore
+        }
+      }
     };
 
     recognition.onerror = (e) => {
+      if (e.error === "no-speech") {
+        // Ignore, let onend handle restart
+        return;
+      }
       console.error("❌ STT error:", e);
+      if (options?.onError) {
+        options.onError(e);
+      }
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const hasInterimResults = Array.from(event.results).some(
+        (result) => !result.isFinal
+      );
+
+      // ✅ Clear processing state when user starts speaking
+      if (hasInterimResults) {
+        setIsProcessing(false);
+      }
+
       // ✅ Detect voice activity during bot speech
       if (isBotSpeakingRef.current && !hasInterruptedRef.current) {
-        const hasInterimResults = Array.from(event.results).some(
-          (result) => !result.isFinal
-        );
-
         if (hasInterimResults) {
           if (DEBUG) console.log("🎤 User started speaking - interrupting bot");
 
@@ -103,6 +134,9 @@ export function useVoiceStream(
       if (finalText.trim()) {
         if (DEBUG) console.log("📝 Final text:", finalText);
 
+        // Set processing state
+        setIsProcessing(true);
+
         // TODO: Commenting out backend send for debugging
         console.log("📤 Would send to backend:", {
           type: "final_text",
@@ -112,6 +146,7 @@ export function useVoiceStream(
           JSON.stringify({
             type: "final_text",
             text: finalText.trim(),
+            sessionId: chat || null,
           })
         );
       }
@@ -160,12 +195,16 @@ export function useVoiceStream(
       return;
     }
 
+    isExplicitlyStopped.current = false;
+
     if (recognitionRef.current && !isListeningRef.current) {
       recognitionRef.current.start();
     }
   };
 
   const stopStreaming = () => {
+    isExplicitlyStopped.current = true;
+
     if (recognitionRef.current && isListeningRef.current) {
       recognitionRef.current.stop();
     }
@@ -186,5 +225,7 @@ export function useVoiceStream(
     startStreaming,
     stopStreaming,
     isConnected,
+    isProcessing,
+    setIsProcessing,
   };
 }

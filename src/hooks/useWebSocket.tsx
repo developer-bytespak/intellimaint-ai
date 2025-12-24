@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 const DEBUG = process.env.NODE_ENV === 'development';
 
-export function useWebSocket(url: string) {
+export function useWebSocket(url: string, options?: { onError?: (error: Event | string) => void }) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectRef = useRef<number | null>(null);
@@ -143,6 +143,9 @@ export function useWebSocket(url: string) {
 
       ws.onerror = (err) => {
         console.error("❌ WebSocket error:", err);
+        if (options?.onError) {
+          options.onError(err);
+        }
       };
 
       ws.onmessage = async (msg) => {
