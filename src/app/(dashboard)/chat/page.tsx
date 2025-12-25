@@ -39,6 +39,7 @@ function ChatPageContent() {
     streamingText,
     streamingMessageId,
     stopStreaming,
+    refreshChatFromUrl,
     startEditingMessage,
     editingMessageId,
     setEditingMessageId,
@@ -390,6 +391,9 @@ function ChatPageContent() {
               streamingText={streamingText}
               streamingMessageId={streamingMessageId}
               stopStreaming={stopStreaming}
+              onEndCall={() => {
+                void refreshChatFromUrl();
+              }}
               startEditingMessage={startEditingMessage}
               editingMessageId={editingMessageId}
               setEditingMessageId={setEditingMessageId}

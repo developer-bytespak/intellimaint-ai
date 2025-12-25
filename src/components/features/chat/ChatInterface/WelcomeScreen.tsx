@@ -19,6 +19,7 @@ interface WelcomeScreenProps {
   streamingText?: { [messageId: string]: string };
   streamingMessageId?: string | null;
   stopStreaming?: () => void;
+  onEndCall?: () => void | Promise<void>;
   startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
@@ -31,6 +32,7 @@ export default function WelcomeScreen({
   streamingText = {}, 
   streamingMessageId = null,
   stopStreaming,
+  onEndCall,
   startEditingMessage,
   editingMessageId,
   setEditingMessageId,
@@ -698,6 +700,7 @@ export default function WelcomeScreen({
       <CallingModal
         isOpen={showCallingModal}
         onClose={() => setShowCallingModal(false)}
+        onEndCall={onEndCall}
         websocketUrl={process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001'}
       />
 

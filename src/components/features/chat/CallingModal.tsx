@@ -7,16 +7,19 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 interface CallingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onEndCall?: () => void | Promise<void>;
   websocketUrl?: string;
 }
 
 export default function CallingModal({
   isOpen,
   onClose,
+  onEndCall,
   websocketUrl = "",
 }: CallingModalProps) {
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [error, setError] = useState<any>(null);
 
   const effectiveUrl = isOpen && websocketUrl ? websocketUrl : "";
 
@@ -26,12 +29,19 @@ export default function CallingModal({
     disconnect: disconnectWebSocket,
     send: wsSend,
     stopAudio,
-  } = useWebSocket(effectiveUrl);
+  } = useWebSocket(effectiveUrl, {
+    onError: (err) => {
+      console.error("WebSocket Error in Modal:", err);
+      setError(err);
+    },
+  });
 
   const {
     startStreaming,
     stopStreaming,
     isConnected: isVoiceConnected,
+    isProcessing,
+    setIsProcessing,
   } = useVoiceStream(effectiveUrl, {
     externalSend: wsSend,
     externalIsConnected: isConnected,
@@ -41,7 +51,18 @@ export default function CallingModal({
     },
     // ✅ Stop audio when user interrupts
     onStopAudio: stopAudio,
+    onError: (err) => {
+      console.error("Voice Stream Error in Modal:", err);
+      setError(err);
+    },
   });
+
+  // ✅ Reset processing state when a new message arrives
+  useEffect(() => {
+    if (messages.length > 0) {
+      setIsProcessing(false);
+    }
+  }, [messages, setIsProcessing]);
 
   // Update call state
   useEffect(() => {
@@ -90,8 +111,20 @@ export default function CallingModal({
     disconnectWebSocket();
     setIsCallActive(false);
     setCallDuration(0);
+    void onEndCall?.();
     onClose();
   };
+
+  // ✅ Handle errors by ending the call
+  useEffect(() => {
+    if (error) {
+      // Optional: Show a toast or alert
+      // alert("An error occurred. The call has ended."); 
+      handleEndCall();
+      setError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   // ✅ Format duration as MM:SS
   const formatDuration = (seconds: number) => {
@@ -181,6 +214,20 @@ export default function CallingModal({
                 {isConnected ? "Connected" : "Connecting"}
               </span>
             </div>
+
+            {/* ✅ Processing Indicator */}
+            {isProcessing && (
+              <div className="flex items-center justify-center gap-2 pt-2 animate-pulse">
+                <span className="text-sm text-blue-400 font-medium">
+                  Processing
+                </span>
+                <div className="flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+                </div>
+              </div>
+            )}
 
             {/* ✅ Call duration */}
             {isCallActive && isConnected && (

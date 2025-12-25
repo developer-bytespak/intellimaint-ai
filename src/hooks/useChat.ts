@@ -1041,6 +1041,40 @@ export function useChat() {
 
   const photoGroups = getPhotoGroups(photos);
 
+  const refreshChatFromUrl = useCallback(async () => {
+    const chatId = searchParams.get('chat');
+    if (!chatId) return null;
+
+    try {
+      setError(null);
+      const refreshedChat = await chatApi.getSession(chatId);
+
+      setActiveChat(refreshedChat);
+      setChats(prev => {
+        const existingIndex = prev.findIndex(c => c.id === chatId);
+        if (existingIndex === -1) return [refreshedChat, ...prev];
+
+        const next = [...prev];
+        next[existingIndex] = refreshedChat;
+        return next;
+      });
+
+      return refreshedChat;
+    } catch (err: unknown) {
+      console.error('Error refreshing chat session:', err);
+      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const errorMessage = axiosError?.response?.data?.message;
+
+      if (axiosError?.response?.status === 401) {
+        setError('Your session has expired. Please refresh the page to continue.');
+      } else {
+        setError(errorMessage || 'Failed to refresh chat session');
+      }
+
+      return null;
+    }
+  }, [searchParams]);
+
   return {
     chats,
     activeChat,
@@ -1069,6 +1103,7 @@ export function useChat() {
     loadMoreChats,
     textToSpeech,
     stopStreaming,
+    refreshChatFromUrl,
     startEditingMessage,
     editingMessageId,
     setEditingMessageId,
