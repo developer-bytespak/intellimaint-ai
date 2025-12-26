@@ -19,6 +19,7 @@ interface WelcomeScreenProps {
   streamingText?: { [messageId: string]: string };
   streamingMessageId?: string | null;
   stopStreaming?: () => void;
+  isRefreshingChatAfterCall?: boolean;
   onEndCall?: () => void | Promise<void>;
   startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
   editingMessageId?: string | null;
@@ -32,6 +33,7 @@ export default function WelcomeScreen({
   streamingText = {}, 
   streamingMessageId = null,
   stopStreaming,
+  isRefreshingChatAfterCall = false,
   onEndCall,
   startEditingMessage,
   editingMessageId,
@@ -476,6 +478,17 @@ export default function WelcomeScreen({
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}
       <div className="shrink-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
+        {!showWelcomeContent && isRefreshingChatAfterCall && (
+          <div className="w-full max-w-4xl mx-auto pb-2">
+            <div className="flex justify-center">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto" noValidate>
           <div className="bg-[#2a3441] rounded-xl sm:rounded-2xl px-3 sm:px-4 md:px-5 py-3 sm:py-3 md:py-4 flex flex-col w-full">
             {/* Attachment Preview - Shows uploaded images and documents */}
