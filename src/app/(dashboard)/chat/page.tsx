@@ -54,12 +54,22 @@ function ChatPageContent() {
   const [repositoryPage, setRepositoryPage] = useState(1);
   const [allRepositoryDocuments, setAllRepositoryDocuments] = useState<Document[]>([]);
   const [hasMoreDocuments, setHasMoreDocuments] = useState(true);
+  const [isRefreshingChatAfterCall, setIsRefreshingChatAfterCall] = useState(false);
 
   const { deleteDocument: deleteRepositoryDocument } = useRepository();
   
   // Fetch repository documents with pagination (10 per page)
   const { data: repositoryDocumentsData, isLoading: isLoadingRepositoryDocuments } = useDocuments(repositoryPage, 10);
   const { logout } = useUser();
+
+  const handleEndCall = async () => {
+    setIsRefreshingChatAfterCall(true);
+    try {
+      await refreshChatFromUrl();
+    } finally {
+      setIsRefreshingChatAfterCall(false);
+    }
+  };
   
   // Transform and accumulate repository documents
   useEffect(() => {
@@ -391,9 +401,8 @@ function ChatPageContent() {
               streamingText={streamingText}
               streamingMessageId={streamingMessageId}
               stopStreaming={stopStreaming}
-              onEndCall={() => {
-                void refreshChatFromUrl();
-              }}
+              isRefreshingChatAfterCall={isRefreshingChatAfterCall}
+              onEndCall={handleEndCall}
               startEditingMessage={startEditingMessage}
               editingMessageId={editingMessageId}
               setEditingMessageId={setEditingMessageId}
