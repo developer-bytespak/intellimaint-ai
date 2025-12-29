@@ -1,8 +1,10 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useVoiceStream } from "@/hooks/useVoiceStream";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { sessionId, useWebSocket } from "@/hooks/useWebSocket";
 
 interface CallingModalProps {
   isOpen: boolean;
@@ -20,8 +22,12 @@ export default function CallingModal({
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [error, setError] = useState<any>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);  // ✅ ADD
+  const router = useRouter();
 
   const effectiveUrl = isOpen && websocketUrl ? websocketUrl : "";
+  // console.log
 
   const {
     isConnected,
@@ -45,33 +51,33 @@ export default function CallingModal({
   } = useVoiceStream(effectiveUrl, {
     externalSend: wsSend,
     externalIsConnected: isConnected,
-    // ✅ Handle user interrupt
     onUserInterrupt: () => {
       console.log("🎤 User interrupted bot - handled in modal");
     },
-    // ✅ Stop audio when user interrupts
     onStopAudio: stopAudio,
+    onListeningChange: setIsListening,
+    onUserSpeaking: setIsSpeaking,
     onError: (err) => {
       console.error("Voice Stream Error in Modal:", err);
       setError(err);
     },
   });
 
-  // ✅ Reset processing state when a new message arrives
+
   useEffect(() => {
     if (messages.length > 0) {
       setIsProcessing(false);
     }
   }, [messages, setIsProcessing]);
 
-  // Update call state
   useEffect(() => {
     if (isConnected && websocketUrl) {
       setIsCallActive(true);
     }
   }, [isConnected, websocketUrl]);
 
-  // Start/stop streaming
+  // console.log("CallingModal Render:", isConnected)
+
   useEffect(() => {
     if (isCallActive && isConnected && websocketUrl) {
       console.log("📞 Starting voice stream...");
@@ -87,7 +93,6 @@ export default function CallingModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCallActive, isConnected, websocketUrl]);
 
-  // ✅ Call duration timer
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
@@ -107,26 +112,40 @@ export default function CallingModal({
   const handleEndCall = () => {
     console.log("📞 Ending call...");
 
+    // Stop any currently playing bot audio immediately
+    stopAudio();
+
     stopStreaming();
     disconnectWebSocket();
     setIsCallActive(false);
     setCallDuration(0);
+
+
+    // ✅ Call the onEndCall callback if provided
     void onEndCall?.();
+
+    // ✅ If sessionId exists, navigate to URL with chat param and reload
+    if (sessionId) {
+      console.log("✅ SessionId exists, navigating to chat:", sessionId);
+
+      // Build the URL with the chat parameter
+      const currentPath = window.location.pathname;
+      const newUrl = `${currentPath}?chat=${sessionId}`;
+
+      // Navigate and reload the page
+      window.location.href = newUrl;
+    }
     onClose();
   };
 
-  // ✅ Handle errors by ending the call
   useEffect(() => {
     if (error) {
-      // Optional: Show a toast or alert
-      // alert("An error occurred. The call has ended."); 
-      handleEndCall();
+      // handleEndCall();
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
-  // ✅ Format duration as MM:SS
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -163,16 +182,14 @@ export default function CallingModal({
           {/* Avatar with animation */}
           <div className="relative">
             <div
-              className={`absolute inset-0 rounded-full border-4 ${
-                isConnected
-                  ? "border-green-500 animate-ping"
-                  : "border-blue-500 animate-pulse"
-              } opacity-75`}
+              className={`absolute inset-0 rounded-full border-4 ${isConnected
+                ? "border-green-500 animate-ping"
+                : "border-blue-500 animate-pulse"
+                } opacity-75`}
             ></div>
             <div
-              className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ${
-                isConnected ? "ring-4 ring-green-500/50" : ""
-              }`}
+              className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ${isConnected ? "ring-4 ring-green-500/50" : ""
+                }`}
             >
               <svg
                 className="w-12 h-12 sm:w-14 sm:h-14 text-white"
@@ -199,23 +216,22 @@ export default function CallingModal({
               {isConnected
                 ? "Voice call is active"
                 : websocketUrl
-                ? "Establishing connection..."
-                : "WebSocket URL not configured"}
+                  ? "Establishing connection..."
+                  : "WebSocket URL not configured"}
             </p>
 
             {/* Connection indicator */}
             <div className="flex items-center justify-center gap-2 pt-2">
               <div
-                className={`w-2 h-2 rounded-full ${
-                  isConnected ? "bg-green-500" : "bg-yellow-500"
-                } ${isConnected ? "animate-pulse" : "animate-ping"}`}
+                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-yellow-500"
+                  } ${isConnected ? "animate-pulse" : "animate-ping"}`}
               ></div>
               <span className="text-xs text-gray-500">
                 {isConnected ? "Connected" : "Connecting"}
               </span>
             </div>
 
-            {/* ✅ Processing Indicator */}
+            {/* Processing Indicator */}
             {isProcessing && (
               <div className="flex items-center justify-center gap-2 pt-2 animate-pulse">
                 <span className="text-sm text-blue-400 font-medium">
@@ -228,14 +244,34 @@ export default function CallingModal({
                 </div>
               </div>
             )}
+            {/* Listening Indicator - jab user bol raha ho */}
+            {isListening && isSpeaking && !isProcessing && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-blue-400 font-medium">
+                  Listening
+                </span>
+              </div>
+            )}
 
-            {/* ✅ Call duration */}
+            {/* Mute Indicator - jab user chup ho */}
+            {isListening && !isSpeaking && !isProcessing && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                <span className="text-sm text-gray-400 font-medium">
+                  Mute
+                </span>
+              </div>
+            )}
+
+            {/* Call duration */}
             {isCallActive && isConnected && (
               <div className="text-gray-400 text-lg font-mono pt-2">
                 {formatDuration(callDuration)}
               </div>
             )}
           </div>
+
 
           {/* End call button */}
           <button
@@ -266,6 +302,7 @@ export default function CallingModal({
             <p>Voice Stream: {isVoiceConnected ? "✅ Active" : "❌ Inactive"}</p>
             <p>Messages: {messages.length}</p>
             <p>Duration: {formatDuration(callDuration)}</p>
+            <p>SessionId: {sessionId || "None"}</p>
           </div>
         )}
       </div>

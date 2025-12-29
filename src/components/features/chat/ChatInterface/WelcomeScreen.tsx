@@ -11,6 +11,8 @@ import MessageList from './MessageList';
 import AttachmentPreview from './AttachmentPreview';
 import { useUser } from '@/hooks/useUser';
 import CallingModal from '../CallingModal';
+import { toast } from 'react-toastify';
+import { set } from 'zod';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -26,11 +28,11 @@ interface WelcomeScreenProps {
   setEditingMessageId?: (id: string | null) => void;
 }
 
-export default function WelcomeScreen({ 
-  activeChat, 
-  onSendMessage, 
-  isSending = false, 
-  streamingText = {}, 
+export default function WelcomeScreen({
+  activeChat,
+  onSendMessage,
+  isSending = false,
+  streamingText = {},
   streamingMessageId = null,
   stopStreaming,
   isRefreshingChatAfterCall = false,
@@ -46,6 +48,9 @@ export default function WelcomeScreen({
   const [showCamera, setShowCamera] = useState(false);
   const [showCallingModal, setShowCallingModal] = useState(false);
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [wsConnection, setWsConnection] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -70,7 +75,7 @@ export default function WelcomeScreen({
 
   // Check if any image is still uploading
   const isUploading = imageUploadStates.some(state => state.status === 'uploading');
-  
+
   // Handle editing message - populate input when editingMessageId changes
   useEffect(() => {
     if (editingMessageId && activeChat && startEditingMessage) {
@@ -93,7 +98,7 @@ export default function WelcomeScreen({
       }, 100);
     }
   }, [activeChat]);
-  
+
   const handleEditMessage = (messageId: string) => {
     if (startEditingMessage) {
       startEditingMessage(messageId);
@@ -108,22 +113,22 @@ export default function WelcomeScreen({
       await onSendMessage(newContent.trim(), undefined, undefined, undefined, messageId);
     }
   };
-  
+
   const handleSubmit = (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     e?.preventDefault();
     // Don't allow sending if images are still uploading
     if (isUploading) return;
     if (!inputValue.trim() && imageUploadStates.length === 0 && selectedDocuments.length === 0) return;
-    
+
     if (onSendMessage) {
       // Use uploaded URLs, fallback to preview URLs if upload failed
-      const imageUrls = imageUploadStates.map(state => 
+      const imageUrls = imageUploadStates.map(state =>
         state.uploadedUrl || state.previewUrl
       );
-      
+
       onSendMessage(
-        inputValue.trim(), 
-        imageUrls.length > 0 ? imageUrls : undefined, 
+        inputValue.trim(),
+        imageUrls.length > 0 ? imageUrls : undefined,
         selectedDocuments.length > 0 ? selectedDocuments : undefined,
         undefined,
         editingMessageId || undefined
@@ -134,7 +139,7 @@ export default function WelcomeScreen({
       if (setEditingMessageId) {
         setEditingMessageId(null);
       }
-      
+
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -204,7 +209,7 @@ export default function WelcomeScreen({
   const uploadImage = async (previewUrl: string, index: number) => {
     if (!user?.id) {
       console.error('User ID not available for image upload');
-      setImageUploadStates(prev => prev.map((state, i) => 
+      setImageUploadStates(prev => prev.map((state, i) =>
         i === index ? { ...state, status: 'error', error: 'User not authenticated' } : state
       ));
       return;
@@ -224,14 +229,14 @@ export default function WelcomeScreen({
       // Upload with progress tracking
       const xhr = new XMLHttpRequest();
       let hasProgress = false;
-      
+
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable && e.total > 0) {
           hasProgress = true;
           const progress = Math.round((e.loaded / e.total) * 100);
           // Only update if progress is meaningful (avoid showing 100% immediately)
           if (progress > 0 && progress < 100) {
-            setImageUploadStates(prev => prev.map((state, i) => 
+            setImageUploadStates(prev => prev.map((state, i) =>
               i === index ? { ...state, progress } : state
             ));
           }
@@ -242,24 +247,24 @@ export default function WelcomeScreen({
         if (xhr.status === 200) {
           const data = JSON.parse(xhr.responseText);
           // Only set progress to 100 if we actually tracked progress, otherwise remove it
-          setImageUploadStates(prev => prev.map((state, i) => 
-            i === index ? { 
-              ...state, 
-              uploadedUrl: data.url, 
+          setImageUploadStates(prev => prev.map((state, i) =>
+            i === index ? {
+              ...state,
+              uploadedUrl: data.url,
               status: 'completed',
               progress: hasProgress ? 100 : undefined
             } : state
           ));
         } else {
           const error = JSON.parse(xhr.responseText);
-          setImageUploadStates(prev => prev.map((state, i) => 
+          setImageUploadStates(prev => prev.map((state, i) =>
             i === index ? { ...state, status: 'error', error: error.error || 'Upload failed' } : state
           ));
         }
       });
 
       xhr.addEventListener('error', () => {
-        setImageUploadStates(prev => prev.map((state, i) => 
+        setImageUploadStates(prev => prev.map((state, i) =>
           i === index ? { ...state, status: 'error', error: 'Network error' } : state
         ));
       });
@@ -268,7 +273,7 @@ export default function WelcomeScreen({
       xhr.send(formData);
     } catch (error) {
       console.error('Error uploading image:', error);
-      setImageUploadStates(prev => prev.map((state, i) => 
+      setImageUploadStates(prev => prev.map((state, i) =>
         i === index ? { ...state, status: 'error', error: 'Failed to upload image' } : state
       ));
     }
@@ -291,10 +296,10 @@ export default function WelcomeScreen({
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const currentLength = imageUploadStates.length;
     const newStates: ImageUploadState[] = [];
-    
+
     for (let i = 0; i < files.length && (currentLength + newStates.length) < 10; i++) {
       const file = files[i];
       if (file.type.startsWith('image/')) {
@@ -307,7 +312,7 @@ export default function WelcomeScreen({
         newStates.push(newState);
       }
     }
-    
+
     setImageUploadStates(prev => {
       const updated = [...prev, ...newStates].slice(0, 10);
       // Start uploading each new image with correct indices
@@ -317,7 +322,7 @@ export default function WelcomeScreen({
       });
       return updated;
     });
-    
+
     e.target.value = '';
   };
 
@@ -392,15 +397,49 @@ export default function WelcomeScreen({
   // Check if we should show welcome content or messages
   const showWelcomeContent = !activeChat || activeChat.messages.length === 0;
 
+ const startCall = async() => {
+  try {
+    setShowPinMenu(false);
+    setShowCallingModal(true);
+    
+    const response = await fetch('/api/ws-auth');
+    
+    if (!response.ok) {
+      throw new Error('Authentication failed');
+    }
+    
+    const { wsTicket, userId } = await response.json();
+    // console.log("🎫 Token:", wsTicket);
+    
+    const encodedTicket = encodeURIComponent(wsTicket);
+    const wsUrl = `${process.env.NEXT_PUBLIC_WEBSOCKET_URL}?ticket=${encodedTicket}`;
+
+    setWsConnection(wsUrl)
+    
+    // console.log("🔗 WebSocket URL:", wsUrl);
+    
+    
+    
+    
+    // Store the WebSocket instance if you need it elsewhere
+    // setWsConnection(ws);
+    
+  } catch (err: any) {
+    console.error("Failed to start call:", err);
+    setError(err.message);
+    toast.error("Failed to authenticate. Please login again.");
+  }
+};
+
   return (
     <div className=" flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden relative">
       {/* Header with Logo and Name - Show when chat is active, fixed at top on mobile */}
       {!showWelcomeContent && (
         <div className="fixed top-0 left-0 right-0 sm:hidden z-20 bg-[#1f2632] px-3 py-2 flex items-center gap-2 border-b border-[#2a3441]">
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
-            <img 
-              src="/Intelliment LOgo.png" 
-              alt="IntelliMaint AI Logo" 
+            <img
+              src="/Intelliment LOgo.png"
+              alt="IntelliMaint AI Logo"
               className="w-full h-full object-contain"
             />
           </div>
@@ -415,9 +454,9 @@ export default function WelcomeScreen({
             {/* Logo or Icon */}
             <div className="flex justify-center mb-3 sm:mb-4 md:mb-6">
               <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 flex items-center justify-center">
-                <img 
-                  src="/Intelliment LOgo.png" 
-                  alt="IntelliMaint AI Logo" 
+                <img
+                  src="/Intelliment LOgo.png"
+                  alt="IntelliMaint AI Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -464,8 +503,8 @@ export default function WelcomeScreen({
         /* Show Message List when chat has messages - Constrained to prompt width */
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 chat-scrollbar">
           <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-14 sm:pt-8 pb-4">
-            <MessageList 
-              activeChat={activeChat} 
+            <MessageList
+              activeChat={activeChat}
               isSending={isSending}
               streamingText={streamingText}
               streamingMessageId={streamingMessageId}
@@ -499,12 +538,12 @@ export default function WelcomeScreen({
               onRemoveDocument={removeDocumentAt}
               onViewImage={(index) => setViewingImageIndex(index)}
             />
-            
+
             {/* Audio Recorder UI - Shows when recording or audio ready */}
             {(audioRecorder.isRecording || audioRecorder.audioUrl) && (
               <div className="mb-3">
                 {!isSending && !isSendingAudio && (
-                  <AudioRecorder 
+                  <AudioRecorder
                     variant="ui"
                     isRecording={audioRecorder.isRecording}
                     recordingTime={audioRecorder.recordingTime}
@@ -518,7 +557,7 @@ export default function WelcomeScreen({
                 )}
               </div>
             )}
-            
+
             {/* Input Field Wrapper - Keeps placeholder and icons aligned in sequence */}
             <div className="flex items-end gap-2 w-full">
               <textarea
@@ -540,16 +579,15 @@ export default function WelcomeScreen({
                   isSendingAudio
                     ? "Transcribing audio..."
                     : (audioRecorder.isRecording || audioRecorder.audioUrl)
-                    ? "Recording audio..."
-                    : "Ask Intellimaint AI."
+                      ? "Recording audio..."
+                      : "Ask Intellimaint AI."
                 }
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
-                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 pr-14 ${
-                  (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
+                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 pr-14 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
-                }`}
+                  }`}
               />
 
               {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
@@ -560,16 +598,15 @@ export default function WelcomeScreen({
                     type="button"
                     onClick={() => setShowPinMenu(!showPinMenu)}
                     disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
-                    className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${
-                      (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`p-1.5 sm:p-2 rounded-lg hover:bg-[#3a4a5a] hover:text-white transition-colors duration-200 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     title="More Options"
                   >
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
-                  
+
                   {/* Plus Dropdown Menu */}
                   {showPinMenu && (
                     <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-100">
@@ -585,21 +622,18 @@ export default function WelcomeScreen({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                         </button>
-                        
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
-                          onClick={() => {
-                            setShowPinMenu(false);
-                            setShowCallingModal(true);
-                          }}
+                          onClick={startCall}
                           title="Call"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
                         </button>
-                        
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
@@ -610,7 +644,7 @@ export default function WelcomeScreen({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </button>
-                        
+
                         <button
                           type="button"
                           className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
@@ -625,7 +659,7 @@ export default function WelcomeScreen({
                     </div>
                   )}
                 </div>
-                
+
                 {/* Stop Button (when streaming or sending) or Send Button (when typing or attachments present) or Voice Button (Microphone) - Right side */}
                 {(streamingMessageId || isSending) && stopStreaming ? (
                   // Show stop button when streaming or sending
@@ -639,14 +673,14 @@ export default function WelcomeScreen({
                     title="Stop generating"
                   >
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M6 6h12v12H6z"/>
+                      <path d="M6 6h12v12H6z" />
                     </svg>
                   </button>
                 ) : (
                   <div className="flex items-center gap-1">
                     {/* Voice button left of send - small right margin to avoid overlap */}
                     <div className="mr-1">
-                      <AudioRecorder 
+                      <AudioRecorder
                         variant="button"
                         isRecording={audioRecorder.isRecording}
                         recordingTime={audioRecorder.recordingTime}
@@ -663,11 +697,9 @@ export default function WelcomeScreen({
                     <button
                       type="submit"
                       disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio || isUploading || (!inputValue.trim() && imageUploadStates.length === 0 && selectedDocuments.length === 0)}
-                      className={`p-1 sm:p-1 rounded-lg transition-colors duration-200 ${
-                        (inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-transparent text-gray-400 hover:bg-[#3a4a5a]'
-                      } ${
-                        (audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`p-1 sm:p-1 rounded-lg transition-colors duration-200 ${(inputValue.trim() || imageUploadStates.length > 0 || selectedDocuments.length > 0) ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-transparent text-gray-400 hover:bg-[#3a4a5a]'
+                        } ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio) ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       title={isUploading ? 'Uploading images...' : 'Send message'}
                       onClick={(e) => {
                         e.preventDefault();
@@ -714,12 +746,12 @@ export default function WelcomeScreen({
         isOpen={showCallingModal}
         onClose={() => setShowCallingModal(false)}
         onEndCall={onEndCall}
-        websocketUrl={process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:3001'}
+        websocketUrl={(wsConnection) as string | undefined }
       />
 
       {/* Image Overlay */}
       {viewingImageIndex !== null && imageUploadStates[viewingImageIndex] && (
-        <div 
+        <div
           className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
           onClick={() => setViewingImageIndex(null)}
         >

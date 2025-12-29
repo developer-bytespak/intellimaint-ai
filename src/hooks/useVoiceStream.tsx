@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { useWebSocket } from "./useWebSocket";
+import { sessionId, useWebSocket } from "./useWebSocket";
 import { useParams, useSearchParams } from "next/navigation";
 
 const DEBUG = process.env.NODE_ENV === "development";
@@ -9,8 +9,12 @@ interface UseVoiceStreamOptions {
   externalIsConnected?: boolean;
   onUserInterrupt?: () => void;
   onStopAudio?: () => void;
+  onListeningChange?: (isListening: boolean) => void;  // ✅ YEH ADD KARO
+  onUserSpeaking?: (isSpeaking: boolean) => void
   onError?: (error: any) => void;
 }
+
+
 
 export function useVoiceStream(
   websocketUrl: string,
@@ -19,14 +23,23 @@ export function useVoiceStream(
   const internalWs = useWebSocket(options?.externalSend ? "" : websocketUrl, {
     onError: options?.onError,
   });
+
+  // console.log("useVoiceStream internalWs:", internalWs);
+
   const params = useSearchParams();
-  const chat = params?.get("chat") as string | undefined;
-  // console.log("Chat ID in useVoiceStream:", chat);
+  let chat = params?.get("chat") as string | undefined;
+  // console.log("useVoiceStream chat param:", sessionId);
+  // if(!chat && sessionId) chat = sessionId;
   const send = options?.externalSend || internalWs.send;
   const isConnected =
     options?.externalIsConnected !== undefined
       ? options.externalIsConnected
       : internalWs.isConnected;
+
+
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isSpeakingRef = useRef(false);
+
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
@@ -34,6 +47,7 @@ export function useVoiceStream(
   const hasInterruptedRef = useRef(false);
   const isExplicitlyStopped = useRef(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // const {} = useWebSocket();
 
   // -----------------------------
   // INIT SpeechRecognition
@@ -55,11 +69,13 @@ export function useVoiceStream(
 
     recognition.onstart = () => {
       isListeningRef.current = true;
+      options?.onListeningChange?.(true);
       if (DEBUG) console.log("🎤 STT started");
     };
 
     recognition.onend = () => {
       isListeningRef.current = false;
+      options?.onListeningChange?.(false);  // ✅ ADD
       if (DEBUG) console.log("🛑 STT stopped");
 
       // Auto-restart if not explicitly stopped by user AND not paused for bot speech
@@ -92,7 +108,29 @@ export function useVoiceStream(
       // ✅ Clear processing state when user starts speaking
       if (hasInterimResults) {
         setIsProcessing(false);
+        // options?.onListeningChange?.(true);  // ✅ ADD - explicitly set listening
       }
+
+       if (!isSpeakingRef.current) {
+      isSpeakingRef.current = true;
+      options?.onUserSpeaking?.(true);
+      if (DEBUG) console.log("🎤 User started speaking");
+    }
+
+     if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+     silenceTimerRef.current = setTimeout(() => {
+      if (isSpeakingRef.current) {
+        isSpeakingRef.current = false;
+        options?.onUserSpeaking?.(false);
+        if (DEBUG) console.log("🔇 User stopped speaking (silence detected)");
+      }
+    }, 1500);
+
+      
 
       // ✅ Detect voice activity during bot speech
       if (isBotSpeakingRef.current && !hasInterruptedRef.current) {
@@ -142,11 +180,13 @@ export function useVoiceStream(
           type: "final_text",
           text: finalText.trim(),
         });
+        // console.log("Current chat sessionId:", chat);
+        console.log("Current chat sessionId:", chat ? chat : (sessionId ? sessionId : null));
         send(
           JSON.stringify({
             type: "final_text",
             text: finalText.trim(),
-            sessionId: chat || null,
+            sessionId: chat ? chat : (sessionId ? sessionId : null),
           })
         );
       }
@@ -183,6 +223,10 @@ export function useVoiceStream(
     return () => {
       window.removeEventListener("pause-mic", pauseMic);
       window.removeEventListener("resume-mic", resumeMic);
+      // ✅ Cleanup silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
     };
   }, []);
 
