@@ -63,10 +63,12 @@ export default function BatchStatusPage() {
   // ----------------------------------
   // SSE CONNECTION
   // ----------------------------------
-  useEffect(() => {
+useEffect(() => {
     if (!batchId) return;
 
     console.log("[SSE] connecting to batch", batchId);
+    
+    let isClosed = false;  // 🆕 Track if we intentionally closed
 
     const evtSource = new EventSource(
       `http://localhost:8000/api/v1/batches/events/${batchId}`
@@ -83,42 +85,43 @@ export default function BatchStatusPage() {
 
       try {
         const parsed = JSON.parse(event.data);
-        
-        const jobsList: BatchJob[] = Array.isArray(parsed)
-          ? parsed
-          : [parsed];
+        const jobsList: BatchJob[] = Array.isArray(parsed) ? parsed : [parsed];
 
-        // ✅ Backend sends full snapshot, so replace entire jobs state
         const next: Record<string, BatchJob> = {};
-        
         jobsList.forEach((job) => {
-          // Use real jobId from backend
           next[job.jobId] = job;
-
-          // Log individual job status changes
-          console.log(`[Job ${job.jobId}] ${job.fileName}: ${job.status} - ${job.progress}%`);
-
-          if (job.status === "completed" && job?.content) {
-            console.log("✅ File content received for job:", job.jobId);
-            console.log("Content length:", job.content.length);
-          }
         });
         
-        // Replace all jobs (this clears temp jobs and shows real backend data)
         setJobs(next);
+        
+        // 🆕 Check if all done and close connection
+        const allDone = jobsList.every(
+          job => job.status === "completed" || job.status === "failed"
+        );
+        
+        if (allDone && jobsList.length > 0) {
+          console.log("[SSE] All jobs done, closing connection");
+          isClosed = true;
+          evtSource.close();
+          setConnected(false);
+        }
+        
       } catch (err) {
-        console.error("[SSE] JSON PARSE FAILED ❌", err);
+        console.error("[SSE] JSON PARSE FAILED", err);
       }
     });
 
     evtSource.onerror = (err) => {
-      console.warn("[SSE] disconnected", err);
-      setConnected(false);
+      console.warn("[SSE] error/disconnected", err);
+      if (!isClosed) {  // 🆕 Only reconnect if not intentionally closed
+        setConnected(false);
+        // Don't auto-reconnect, let user refresh if needed
+      }
       evtSource.close();
     };
 
     return () => {
-      console.log("[SSE] cleanup");
+      isClosed = true;
       evtSource.close();
     };
   }, [batchId]);
