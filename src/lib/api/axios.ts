@@ -69,7 +69,10 @@ baseURL.interceptors.response.use(
       isRefreshing = false;
       console.error("Refresh token itself failed or expired. Redirecting to login...");
       if (typeof window !== "undefined") {
-        window.location.href = "/login";
+        // Don't redirect if already on login page (prevents infinite loop)
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = "/login";
+        }
       }
       return Promise.reject(error);
     }
@@ -114,7 +117,10 @@ baseURL.interceptors.response.use(
         if (typeof window !== "undefined") {
           // Note: Cookies delete karna backend ki zimmedari hai,
           // magar frontend par redirect lazmi hai.
-          window.location.href = "/login";
+          // Don't redirect if already on login page (prevents infinite loop)
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = "/login";
+          }
         }
 
         return Promise.reject(refreshError);

@@ -114,12 +114,12 @@ export function useRepository() {
       queryClient.invalidateQueries({ queryKey: ['repository', 'documents'] });
       // Show success toast
       toast.success('Document uploaded and saved successfully!');
-      localStorage.clear();
+      // Note: Don't clear localStorage here - batch manager handles cleanup
     },
     onError: (error: Error) => {
+      // Note: Don't clear localStorage here - batch manager handles cleanup on full batch error
       // Show error toast
       toast.error(error.message || 'Failed to upload document');
-      // localStorage.removeItem('currentBatchId');
     },
   });
 

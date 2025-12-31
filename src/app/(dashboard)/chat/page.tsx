@@ -44,9 +44,8 @@ function ChatPageContent() {
     editingMessageId,
     setEditingMessageId,
   } = useChat();
-  
-  
 
+  const { user, isLoading: userLoading } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [currentView, setCurrentView] = useState<NavigationTab>('chat');
@@ -57,6 +56,13 @@ function ChatPageContent() {
   const [isRefreshingChatAfterCall, setIsRefreshingChatAfterCall] = useState(false);
 
   const { deleteDocument: deleteRepositoryDocument } = useRepository();
+
+  // Redirect to login if user is not authenticated
+  React.useEffect(() => {
+    if (!userLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, userLoading, router]);
   
   // Fetch repository documents with pagination (10 per page)
   const { data: repositoryDocumentsData, isLoading: isLoadingRepositoryDocuments } = useDocuments(repositoryPage, 10);

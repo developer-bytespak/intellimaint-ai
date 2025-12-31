@@ -90,7 +90,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log('[useUser] Token in localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
         
         const res = await baseURL.get('/user/profile');
-        console.log('[useUser] User profile response:', res?.data);
+        console.log('[useUser] User profile response:', res);
         
         // Backend returns { statusCode, message, data }
         const user = res?.data?.data || res?.data;
@@ -116,20 +116,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     },
     // ✅ IMPORTANT: Only fetch user profile if:
     // 1. We have a pathname (component is mounted)
-    // 2. We're not on a public route
-    // 3. Either:
-    //    a. We have an access token in localStorage (stored during login)
-    //    b. OR login just happened (backend set cookies)
-    //    c. OR we have cookies already (returning user with active session)
-    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && (
-      !!localStorage.getItem('accessToken') || 
-      loginJustHappened ||
-      document.cookie.includes('local_accessToken')
-    ),
+    // 2. We're not on a public route (skip fetch on login/signup/etc.)
+    enabled: !!pathname && !isPublicRoute,
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
   });
+
+  console.log('[useUser] userData:', userData, 'isLoading:', isLoading, 'userError:', userError);
 
   // Map backend response to frontend format
   const user: IUser | null | undefined = userData ? {

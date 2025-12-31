@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
@@ -18,7 +18,13 @@ export default function LoginPage() {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const { loginUser,googleAuth  } = useUser();
+  const { loginUser, googleAuth, user, isLoading: userLoading } = useUser();
+  // Redirect to /chat if already authenticated
+  useEffect(() => {
+    if (!userLoading && user) {
+      router.replace('/chat');
+    }
+  }, [user, userLoading, router]);
 
   const handleSignIn = () => {
     // Navigate to verify page with sign-in flow
