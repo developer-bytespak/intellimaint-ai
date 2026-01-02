@@ -399,34 +399,65 @@ export default function WelcomeScreen({
 
  const startCall = async() => {
   try {
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    console.log("🔵 [startCall] Button clicked - initiating call sequence");
+    
     setShowPinMenu(false);
     setShowCallingModal(true);
     
-    const response = await fetch('/api/ws-auth');
-    
-    if (!response.ok) {
-      throw new Error('Authentication failed');
+    // Debug: Environment variables (only in development)
+    if (isDev) {
+      console.log("🔍 [startCall] NEXT_PUBLIC_WEBSOCKET_URL:", process.env.NEXT_PUBLIC_WEBSOCKET_URL);
+      console.log("🔍 [startCall] NODE_ENV:", process.env.NODE_ENV);
     }
     
-    const { wsTicket, userId } = await response.json();
-    // console.log("🎫 Token:", wsTicket);
+    // Fetch auth ticket
+    console.log("📡 [startCall] Fetching /api/ws-auth...");
+    const response = await fetch('/api/ws-auth');
+    console.log("📡 [startCall] /api/ws-auth response status:", response.status);
+    console.log("📡 [startCall] /api/ws-auth response ok:", response.ok);
     
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ [startCall] /api/ws-auth failed:", response.status, errorText);
+      throw new Error(`Authentication failed: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log("✅ [startCall] /api/ws-auth success, response keys:", Object.keys(data));
+    
+    const { wsTicket, userId } = data;
+    console.log("🎫 [startCall] wsTicket received:", wsTicket ? `YES (length: ${wsTicket.length})` : "NO - MISSING!");
+    console.log("👤 [startCall] userId received:", userId ? `YES` : "NO - MISSING!");
+    
+    if (!wsTicket) {
+      throw new Error("No wsTicket in response");
+    }
+    
+    // Construct WebSocket URL
     const encodedTicket = encodeURIComponent(wsTicket);
     const wsUrl = `${process.env.NEXT_PUBLIC_WEBSOCKET_URL}?ticket=${encodedTicket}`;
-
-    setWsConnection(wsUrl)
     
-    // console.log("🔗 WebSocket URL:", wsUrl);
+    console.log("🔗 [startCall] WebSocket URL set successfully");
     
+    // Only log full URL in development
+    if (isDev) {
+      console.log("🔗 [startCall] Full WebSocket URL:", wsUrl);
+      console.log("🔗 [startCall] Ticket (first 50 chars):", encodedTicket.substring(0, 50) + "...");
+    }
     
-    
-    
-    // Store the WebSocket instance if you need it elsewhere
-    // setWsConnection(ws);
+    setWsConnection(wsUrl);
+    console.log("✅ [startCall] setWsConnection called successfully");
     
   } catch (err: any) {
-    console.error("Failed to start call:", err);
+    console.error("❌ [startCall] Exception caught:", err);
+    console.error("❌ [startCall] Error message:", err.message);
+    if (process.env.NODE_ENV === 'development') {
+      console.error("❌ [startCall] Error stack:", err.stack);
+    }
     setError(err.message);
+    setShowCallingModal(false);
     toast.error("Failed to authenticate. Please login again.");
   }
 };

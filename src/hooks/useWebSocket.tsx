@@ -131,14 +131,22 @@ export function useWebSocket(url: string, options?: { onError?: (error: Event | 
     try {
       manualDisconnectRef.current = false;
 
-      // if (DEBUG) console.log("Connecting WebSocket:", url);
+      console.log("🔌 [useWebSocket.connect()] Attempting WebSocket connection");
+      console.log("🔌 [useWebSocket.connect()] URL:", url);
+      console.log("🔌 [useWebSocket.connect()] URL is empty?:", url === "");
+      
+      if (!url) {
+        console.log("⚠️ [useWebSocket.connect()] URL is empty, skipping connection");
+        return;
+      }
+      
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.binaryType = "blob";
 
       ws.onopen = () => {
-        if (DEBUG) console.log("✅ WebSocket connected");
+        console.log("✅ [useWebSocket] Connected successfully to:", url);
         setIsConnected(true);
         if (reconnectRef.current !== null) {
           window.clearTimeout(reconnectRef.current);
@@ -147,10 +155,21 @@ export function useWebSocket(url: string, options?: { onError?: (error: Event | 
       };
 
       ws.onerror = (err) => {
-        console.error("❌ WebSocket error:", err);
+        console.error("❌ [useWebSocket] Connection error:", err);
+        console.error("❌ [useWebSocket] Attempted URL:", url);
+        console.error("❌ [useWebSocket] Error type:", err.type);
+        console.error("❌ [useWebSocket] ReadyState:", wsRef.current?.readyState);
         if (options?.onError) {
           options.onError(err);
         }
+      };
+
+      ws.onclose = (event) => {
+        console.log("🔌 [useWebSocket] Connection closed");
+        console.log("🔌 [useWebSocket] Close code:", event.code);
+        console.log("🔌 [useWebSocket] Close reason:", event.reason);
+        console.log("🔌 [useWebSocket] Was clean?:", event.wasClean);
+        setIsConnected(false);
       };
 
       ws.onmessage = async (msg) => {
