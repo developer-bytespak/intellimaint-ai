@@ -410,17 +410,39 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     //* LOGOUT USER :
-    // Call logout endpoint - backend will clear cookies and redirect to /login
-    const logout =useMutation({
+    // Call logout endpoint - backend will clear cookies
+    // Frontend clears localStorage and redirects to /login
+    const logout = useMutation({
       mutationFn: async () => {
-        const res = await baseURL.get('/auth/logout');
-        return res?.data;
-      },
-      onSuccess: () => {
-        // Clear stored tokens
+        // Always clear localStorage first (regardless of API success)
+        // This ensures logout works even if backend is unreachable
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        // Clear user data and redirect to login
+        console.log('[useUser] Cleared tokens from localStorage');
+        
+        try {
+          const res = await baseURL.get('/auth/logout');
+          console.log('[useUser] Backend logout successful');
+          return res?.data;
+        } catch (error) {
+          // Even if backend logout fails, we've already cleared localStorage
+          // So the user will be effectively logged out on the client side
+          console.warn('[useUser] Backend logout failed, but localStorage cleared:', error);
+          return { success: true, clientOnly: true };
+        }
+      },
+      onSuccess: () => {
+        // Clear user data from react-query cache
+        queryClient.clear();
+        console.log('[useUser] Redirecting to /login');
+        router.push('/login');
+      },
+      onError: (error) => {
+        // This shouldn't happen since we catch errors in mutationFn
+        // But just in case, still clear everything and redirect
+        console.error('[useUser] Logout error:', error);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
         queryClient.clear();
         router.push('/login');
       }

@@ -21,11 +21,11 @@ export default function DashboardLayout({
   // Check authentication on mount
   useEffect(() => {
     console.log('[DashboardLayout] Checking authentication status...',user)
-    // const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     console.log('[DashboardLayout] Auth check:', { 
       isLoading,
       user: user?.email,
-      // token: token ? `${token.substring(0, 20)}...` : 'null'
+      token: token ? `${token.substring(0, 20)}...` : 'null'
     });
     
     // If user data is still loading, wait for it
@@ -34,9 +34,17 @@ export default function DashboardLayout({
       return
     }
 
+    // CROSS-DOMAIN FIX: Check both user data AND localStorage token
+    // If no token in localStorage, user is definitely logged out
+    if (!token) {
+      console.log('[DashboardLayout] No token in localStorage, redirecting to login')
+      router.replace('/login')
+      return
+    }
+
     // If user is not authenticated and loading is done, redirect to login
     if (!user && !isLoading) {
-      // console.log('[DashboardLayout] User not authenticated, redirecting to login', { user, isLoading, token: token ? 'exists' : 'missing' })
+      console.log('[DashboardLayout] User not authenticated, redirecting to login', { user, isLoading, token: token ? 'exists' : 'missing' })
       router.replace('/login')
     } else if (user) {
       // User is authenticated
