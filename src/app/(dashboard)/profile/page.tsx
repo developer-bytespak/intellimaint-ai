@@ -408,7 +408,7 @@ export default function ProfilePage() {
                 </div>
               ) : profileImage ? (
                 <img
-                  src={profileImage}
+                  src={profileImage  }
                   alt="Profile avatar"
                   className="h-full w-full object-cover"
                 />
@@ -449,7 +449,7 @@ export default function ProfilePage() {
             
             {/* Camera menu dropdown */}
             {showCameraMenu && !isUploadingImage && (
-              <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl border border-gray-400 dark:border-gray-600 py-2 min-w-[180px] z-20">
+              <div className="absolute top-10 z-50 mt-2 left-1/2 -translate-x-1/2 md:left-full md:translate-x-0 md:ml-4 md:top-1/2 md:-translate-y-1/2 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl border border-gray-400 dark:border-gray-600 py-2 min-w-[180px] z-[999]">
                 <button
                   type="button"
                   onClick={handleCaptureImage}
@@ -499,9 +499,9 @@ export default function ProfilePage() {
 
           {/* Camera Modal */}
           {showCameraModal && (
-            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 max-w-md w-full">
-                <div className="relative bg-black rounded-lg overflow-hidden mb-4 aspect-video">
+            <div className="fixed inset-0  z-20 bg-black/80 z-50 flex items-center justify-center p-2 sm:p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 max-w-md w-full mx-2">
+                <div className="relative bg-black rounded-lg overflow-hidden mb-3 sm:mb-4 aspect-video">
                   <video
                     ref={videoRef}
                     autoPlay
@@ -510,18 +510,18 @@ export default function ProfilePage() {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="flex gap-4 justify-center">
+                <div className="flex gap-2 sm:gap-4 justify-center">
                   <button
                     type="button"
                     onClick={handleCloseCamera}
-                    className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    className="px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex-1 sm:flex-initial"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleTakePhoto}
-                    className="px-6 py-2 bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 sm:px-6 sm:py-2 text-sm sm:text-base bg-blue-500 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-700 transition-colors flex-1 sm:flex-initial"
                   >
                     Capture
                   </button>

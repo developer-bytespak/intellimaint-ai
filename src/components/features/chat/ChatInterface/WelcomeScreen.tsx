@@ -12,7 +12,8 @@ import AttachmentPreview from './AttachmentPreview';
 import { useUser } from '@/hooks/useUser';
 import CallingModal from '../CallingModal';
 import { toast } from 'react-toastify';
-import { set } from 'zod';
+import { useSearchParams } from 'next/navigation';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 interface WelcomeScreenProps {
   activeChat?: Chat | null;
@@ -26,6 +27,7 @@ interface WelcomeScreenProps {
   startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
+  onCloseSidebar?: () => void;
 }
 
 export default function WelcomeScreen({
@@ -40,6 +42,7 @@ export default function WelcomeScreen({
   startEditingMessage,
   editingMessageId,
   setEditingMessageId,
+  onCloseSidebar,
 }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [imageUploadStates, setImageUploadStates] = useState<ImageUploadState[]>([]);
@@ -55,6 +58,11 @@ export default function WelcomeScreen({
   const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useUser();
+  const searchParams = useSearchParams();
+   const chatId = searchParams.get('chat') || '';
+  // console.log('MessageList: current chat ID from URL params:', activeChat);
+
+ 
 
   // Cleanup object URLs when component unmounts
   useEffect(() => {
@@ -462,9 +470,11 @@ export default function WelcomeScreen({
   }
 };
 
+
   return (
     <div className=" flex-1 bg-[#1f2632] text-white flex flex-col h-full overflow-hidden relative">
       {/* Header with Logo and Name - Show when chat is active, fixed at top on mobile */}
+     
       {!showWelcomeContent && (
         <div className="fixed top-0 left-0 right-0 sm:hidden z-20 bg-[#1f2632] px-3 py-2 flex items-center gap-2 border-b border-[#2a3441]">
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
@@ -478,9 +488,10 @@ export default function WelcomeScreen({
         </div>
       )}
 
+
       {/* Show Welcome Content only when no active chat or chat has no messages */}
       {showWelcomeContent ? (
-        <div className="flex-1 overflow-y-auto items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 flex">
+        <div className="flex-1 mb-14 overflow-y-auto items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 flex">
           <div className="max-w-2xl lg:max-w-4xl text-center space-y-3 sm:space-y-4 md:space-y-6 w-full px-2 sm:px-4">
             {/* Logo or Icon */}
             <div className="flex justify-center mb-3 sm:mb-4 md:mb-6">
@@ -532,7 +543,7 @@ export default function WelcomeScreen({
         </div>
       ) : (
         /* Show Message List when chat has messages - Constrained to prompt width */
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 chat-scrollbar">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 ">
           <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-14 sm:pt-8 pb-4">
             <MessageList
               activeChat={activeChat}
@@ -547,7 +558,7 @@ export default function WelcomeScreen({
       )}
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}
-      <div className="shrink-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
+      <div className="shrink-0 fixed sm:h-fit h-[170px]  bottom-0 sm:bottom-0 w-full   px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
         {!showWelcomeContent && isRefreshingChatAfterCall && (
           <div className="w-full max-w-4xl mx-auto pb-2">
             <div className="flex justify-center">
@@ -619,6 +630,9 @@ export default function WelcomeScreen({
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                   }`}
+                  onClick={()=>{
+                    onCloseSidebar && onCloseSidebar();
+                  }}
               />
 
               {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}

@@ -123,7 +123,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     refetchOnWindowFocus: false,
   });
 
-  console.log('[useUser] userData:', userData, 'isLoading:', isLoading, 'userError:', userError);
+  // console.log('[useUser] userData:', userData, 'isLoading:', isLoading, 'userError:', userError);
 
   // Map backend response to frontend format
   const user: IUser | null | undefined = userData ? {
