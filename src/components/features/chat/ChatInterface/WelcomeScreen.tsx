@@ -412,9 +412,17 @@ export default function WelcomeScreen({
       console.log("🔍 [startCall] NODE_ENV:", process.env.NODE_ENV);
     }
     
-    // Fetch auth ticket
+    // CROSS-DOMAIN FIX: Get token from localStorage and send in Authorization header
+    // This works in production where cookies are cross-domain and can't be read by Next.js API routes
+    const token = localStorage.getItem('accessToken');
+    console.log("🔑 [startCall] Token from localStorage:", token ? `YES (length: ${token.length})` : "NO - MISSING!");
+    
+    // Fetch auth ticket with Authorization header
     console.log("📡 [startCall] Fetching /api/ws-auth...");
-    const response = await fetch('/api/ws-auth');
+    const response = await fetch('/api/ws-auth', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      credentials: 'include', // Still include credentials for cookie fallback (local dev)
+    });
     console.log("📡 [startCall] /api/ws-auth response status:", response.status);
     console.log("📡 [startCall] /api/ws-auth response ok:", response.ok);
     
