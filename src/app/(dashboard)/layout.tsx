@@ -34,9 +34,17 @@ export default function DashboardLayout({
       return
     }
 
+    // CROSS-DOMAIN FIX: Check both user data AND localStorage token
+    // If no token in localStorage, user is definitely logged out
+    if (!token) {
+      console.log('[DashboardLayout] No token in localStorage, redirecting to login')
+      router.replace('/login')
+      return
+    }
+
     // If user is not authenticated and loading is done, redirect to login
     if (!user && !isLoading) {
-      // console.log('[DashboardLayout] User not authenticated, redirecting to login', { user, isLoading, token: token ? 'exists' : 'missing' })
+      console.log('[DashboardLayout] User not authenticated, redirecting to login', { user, isLoading, token: token ? 'exists' : 'missing' })
       router.replace('/login')
     } else if (user) {
       // User is authenticated
