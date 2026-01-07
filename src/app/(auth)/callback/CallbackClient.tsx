@@ -8,39 +8,14 @@ export default function CallbackClient() {
   const router = useRouter();
 
   const error = params.get('error');
-<<<<<<< HEAD
-=======
   // Support both old format (token) and new format (accessToken, refreshToken)
   const token = params.get('token');
->>>>>>> 2ee376fe95110c9cc15d9202da241e0a2cc887a7
   const accessToken = params.get('accessToken');
   const refreshToken = params.get('refreshToken');
 
   useEffect(() => {
     if (error) return;
 
-<<<<<<< HEAD
-    if (accessToken && refreshToken) {
-      // Store tokens in localStorage
-      try {
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-        console.log('Successfully stored tokens in localStorage');
-        
-        // Set cookie for middleware to detect authentication
-        const maxAge = 60 * 60 * 24 * 7; // 7 days
-        const isProduction = window.location.hostname !== 'localhost';
-        const sameSite = isProduction ? 'Lax' : 'Lax';
-        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `google_access=true; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
-        console.log('Successfully set google_access cookie');
-        router.replace("/chat");
-      } catch (err) {
-        console.error('Failed to store tokens:', err);
-      }
-    }
-  }, [error, accessToken, refreshToken, router]);
-=======
     // CROSS-DOMAIN FIX: Store tokens in localStorage for production
     // This works when frontend and backend are on different domains
     if (accessToken) {
@@ -64,7 +39,6 @@ export default function CallbackClient() {
       router.replace("/chat");
     }
   }, [error, token, accessToken, refreshToken, router]);
->>>>>>> 2ee376fe95110c9cc15d9202da241e0a2cc887a7
 
   const handleGoToLogin = () => router.push('/login');
 
