@@ -75,12 +75,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
       const accessToken = localStorage.getItem('accessToken');
+      // Only log when transitioning from logged out to logged in
       if (accessToken && isLoggedOut) {
         console.log('[useUser] Access token detected in localStorage after logout - resetting isLoggedOut flag');
         setIsLoggedOut(false);
       }
     }
-  }, [isLoggedOut, pathname]); // Check on pathname change too (when redirecting to /chat from callback)
+  }, [isLoggedOut]);
 
   //* GOOGLE AUTH :
 
@@ -97,6 +98,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   });
 
   //* GET USER PROFILE :
+
+  // Calculate authentication state outside of useQuery
+  const hasAccessToken = typeof window !== 'undefined' && !!localStorage.getItem('accessToken');
+  const canAuthenticate = hasAccessToken || loginJustHappened || (typeof window !== 'undefined' && document.cookie.includes('local_accessToken'));
 
   const { data: userData, isLoading, error: userError } = useQuery<IUser>({
     queryKey: ["user"],
@@ -139,11 +144,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     //    a. We have an access token in localStorage (stored during login)
     //    b. OR login just happened (backend set cookies)
     //    c. OR we have cookies already (returning user with active session)
-    enabled: !!pathname && !isPublicRoute && !isLoggedOut && typeof window !== 'undefined' && (
-      !!localStorage.getItem('accessToken') || 
-      loginJustHappened ||
-      document.cookie.includes('local_accessToken')
-    ),
+    enabled: !!pathname && !isPublicRoute && !isLoggedOut && typeof window !== 'undefined' && canAuthenticate,
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
