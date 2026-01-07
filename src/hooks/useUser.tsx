@@ -80,7 +80,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setIsLoggedOut(false);
       }
     }
-  }, [isLoggedOut]);
+  }, [isLoggedOut, pathname]); // Check on pathname change too (when redirecting to /chat from callback)
 
   //* GOOGLE AUTH :
 
