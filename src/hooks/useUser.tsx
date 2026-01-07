@@ -70,14 +70,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
   const isPublicRoute = pathname ? (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) : true;
 
+  // ✅ FIX: Reset isLoggedOut flag when tokens appear in localStorage
+  // This handles Google OAuth login after logout, where tokens are stored by callback page
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken && isLoggedOut) {
+        console.log('[useUser] Access token detected in localStorage after logout - resetting isLoggedOut flag');
+        setIsLoggedOut(false);
+      }
+    }
+  }, [isLoggedOut]);
+
   //* GOOGLE AUTH :
 
   const googleAuth = useMutation({
     mutationFn: async ({role,company}:{role:string,company:string}) => {
       const data = {role,company};
       console.log(data)
-      const res = router.push(`${API_BASE}/auth/google?role=${role}&company=${company}`);
-      console.log(res)
+      // Use window.location for full page redirect to backend OAuth endpoint
+      // router.push() is client-side navigation and won't work for backend OAuth flows
+      if (typeof window !== 'undefined') {
+        window.location.href = `${API_BASE}/auth/google?role=${role}&company=${company}`;
+      }
     },
   });
 
