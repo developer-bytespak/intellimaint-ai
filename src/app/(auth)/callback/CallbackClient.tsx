@@ -8,22 +8,32 @@ export default function CallbackClient() {
   const router = useRouter();
 
   const error = params.get('error');
-  const token = params.get('token');
+  const accessToken = params.get('accessToken');
+  const refreshToken = params.get('refreshToken');
 
   useEffect(() => {
     if (error) return;
 
-    if (token) {
-      // Set cookie for middleware to detect authentication
-      const maxAge = 60 * 60 * 24 * 7; // 7 days
-      const isProduction = window.location.hostname !== 'localhost';
-      const sameSite = isProduction ? 'Lax' : 'Lax';
-      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-      document.cookie = `google_access=true; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
-      console.log('Successfully set google_access cookie');
-      router.replace("/chat");
+    if (accessToken && refreshToken) {
+      // Store tokens in localStorage
+      try {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        console.log('Successfully stored tokens in localStorage');
+        
+        // Set cookie for middleware to detect authentication
+        const maxAge = 60 * 60 * 24 * 7; // 7 days
+        const isProduction = window.location.hostname !== 'localhost';
+        const sameSite = isProduction ? 'Lax' : 'Lax';
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `google_access=true; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
+        console.log('Successfully set google_access cookie');
+        router.replace("/chat");
+      } catch (err) {
+        console.error('Failed to store tokens:', err);
+      }
     }
-  }, [error, token, router]);
+  }, [error, accessToken, refreshToken, router]);
 
   const handleGoToLogin = () => router.push('/login');
 
