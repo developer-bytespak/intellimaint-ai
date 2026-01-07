@@ -63,6 +63,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Track if login just happened (to trigger user profile fetch)
   const [loginJustHappened, setLoginJustHappened] = React.useState(false);
+  // Track if user has logged out to prevent auto re-authentication
+  const [isLoggedOut, setIsLoggedOut] = React.useState(false);
 
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
@@ -117,11 +119,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // ✅ IMPORTANT: Only fetch user profile if:
     // 1. We have a pathname (component is mounted)
     // 2. We're not on a public route
-    // 3. Either:
+    // 3. User hasn't logged out
+    // 4. Either:
     //    a. We have an access token in localStorage (stored during login)
     //    b. OR login just happened (backend set cookies)
     //    c. OR we have cookies already (returning user with active session)
-    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && (
+    enabled: !!pathname && !isPublicRoute && !isLoggedOut && typeof window !== 'undefined' && (
       !!localStorage.getItem('accessToken') || 
       loginJustHappened ||
       document.cookie.includes('local_accessToken')
@@ -328,6 +331,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 localStorage.setItem('refreshToken', refreshToken);
               }
               
+              // Reset logout flag to allow user query to run
+              setIsLoggedOut(false);
+              
               console.log('[useUser] Backend also set cookies - check Set-Cookie headers in network tab');
               return res.data;
             } catch (error) {
@@ -423,10 +429,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return res?.data;
       },
       onSuccess: () => {
+        console.log('[useUser] Logout mutation onSuccess triggered');
+        // Set logout flag to prevent query from re-running
+        setIsLoggedOut(true);
         // Clear stored tokens
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        // Clear user data and redirect to login
+        console.log('[useUser] Cleared tokens from localStorage');
+        // Invalidate and remove all queries to prevent auto-refetch
+        queryClient.removeQueries({ queryKey: ["user"] });
+        queryClient.clear();
+        console.log('[useUser] Redirecting to /login');
+        router.push('/login');
+      },
+      onError: () => {
+        console.error('[useUser] Logout mutation failed');
+        // Even if logout fails, clear local state to prevent auto-reauth
+        setIsLoggedOut(true);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        queryClient.removeQueries({ queryKey: ["user"] });
         queryClient.clear();
         router.push('/login');
       }
