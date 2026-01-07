@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense, useEffect } from 'react';
 import { Chat, MessageDocument, Document } from '@/types/chat';
-import { useChat } from '@/hooks/useChat';
+import { chatstate, useChat } from '@/hooks/useChat';
 import { useUser } from '@/hooks/useUser';
 import { useDocuments, useRepository } from '@/hooks/useRepository';
 import { TopNavigation } from '@/components/features/chat/Navigation';
@@ -43,6 +43,7 @@ function ChatPageContent() {
     startEditingMessage,
     editingMessageId,
     setEditingMessageId,
+    chatLoadingState
   } = useChat();
 
   const { user, isLoading: userLoading } = useUser();
@@ -56,6 +57,8 @@ function ChatPageContent() {
   const [isRefreshingChatAfterCall, setIsRefreshingChatAfterCall] = useState(false);
 
   const { deleteDocument: deleteRepositoryDocument } = useRepository();
+
+  // console.log('Chat loading state:', chatstate);
 
   // Redirect to login if user is not authenticated
   React.useEffect(() => {
@@ -175,7 +178,7 @@ function ChatPageContent() {
   };
 
   const handleViewPhoto = (photoId: string) => {
-    console.log('View photo:', photoId);
+    // console.log('View photo:', photoId);
   };
 
   const handleLogout = async () => {
@@ -317,6 +320,7 @@ function ChatPageContent() {
                 hasMoreChats={hasMoreChats}
                 isLoadingChats={isLoadingMoreChats || isLoading}
                 
+                
               />
             </div>
             {/* Logout Button at bottom of sidebar */}
@@ -346,7 +350,7 @@ function ChatPageContent() {
       }`} onClick={handleMainContentClick}>
         {/* Top Header - Desktop only */}
         {!isMobile && (
-          <div className="flex-shrink-0 bg-[#1f2632] border-b border-[#2a3441]">
+          <div className=" fixed top-0 z-50 w-full  bg-[#1f2632] border-b border-[#2a3441]">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-3">
                 {!isSidebarOpen && (
@@ -412,6 +416,7 @@ function ChatPageContent() {
               startEditingMessage={startEditingMessage}
               editingMessageId={editingMessageId}
               setEditingMessageId={setEditingMessageId}
+              onCloseSidebar={() => setIsSidebarOpen(false)}  
             />
           )}
         </div>

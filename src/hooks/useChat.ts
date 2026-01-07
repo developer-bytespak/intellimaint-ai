@@ -12,6 +12,8 @@ import { API_BASE } from '@/lib/api/axios';
 import { useUser } from '@/hooks/useUser';
 import { useChatSocket, SocketStreamResponse } from '@/hooks/useChatSocket';
 
+export let chatstate = false
+
 // Use the properly configured API_BASE which already includes /api/v1
 const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
 
@@ -33,6 +35,7 @@ export function useChat() {
   const [hasReceivedFirstToken, setHasReceivedFirstToken] = useState<{ [messageId: string]: boolean }>({});
   const [streamingAbortController, setStreamingAbortController] = useState<AbortController | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [chatLoadingState, setChatLoadingState] = useState<boolean>(false); // Track loading state per chat
   // Track if current stream was aborted to prevent onComplete from running
   const isStreamAbortedRef = useRef<boolean>(false);
   // Track streaming completion for smooth handoff
@@ -40,6 +43,7 @@ export function useChat() {
   const searchParams = useSearchParams();
   const activeChatRef = useRef<Chat | null>(null);
   const chatsRef = useRef<Chat[]>([]);
+  // console.log('useChat hook initialized, chatstate:',chatstate);
 
   const router = useRouter();
   const { user, isLoading: isUserLoading } = useUser();
@@ -299,6 +303,8 @@ export function useChat() {
 
   // Check URL params and set active chat from URL
   useEffect(() => {
+    chatstate=true
+    // console.log('useChat: Checking URL params for chat ID',chatstate);
     const chatId = searchParams.get('chat');
     const currentActiveChat = activeChatRef.current;
     const currentChats = chatsRef.current;
@@ -357,6 +363,8 @@ export function useChat() {
           }
         }
       };
+      setChatLoadingState(false);
+      chatstate=false
       
       loadChatFromUrl();
     } else if (!chatId && currentActiveChat && currentActiveChat.id && currentActiveChat.id !== '') {
@@ -1107,5 +1115,6 @@ export function useChat() {
     startEditingMessage,
     editingMessageId,
     setEditingMessageId,
+    chatLoadingState,
   };
 }

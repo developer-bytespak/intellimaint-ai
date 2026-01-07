@@ -84,7 +84,7 @@ export default function LoginPage() {
 const handleGoogleSignIn = () => {
     googleAuth.mutate({role:'',company:''},{
       onSuccess: (data) => {
-        console.log('Google sign in successful:', data);
+        // console.log('Google sign in successful:', data);
         // const response = data as any;
         // toast.success(response.message);
         // router.push('/chat');
