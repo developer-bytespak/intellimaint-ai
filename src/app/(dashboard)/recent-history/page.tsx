@@ -1,10 +1,11 @@
 
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef, useCallback } from 'react';
 import { Chat, TabType, Photo, Document as ChatDocument } from '@/types/chat';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
+import { useDocuments, useRepository } from '@/hooks/useRepository';
 import DocumentsList from '@/components/features/chat/History/DocumentsList';
 import PhotosGrid from '@/components/features/chat/History/PhotosGrid';
 import ChatSkeleton from '@/components/ui/ChatSkeleton';
@@ -23,9 +24,67 @@ function RecentHistoryContent() {
   const [viewingDocument, setViewingDocument] = useState<ChatDocument | null>(null);
   const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  const { chats, searchingofSpecificChat, deleteChat, photoGroups, deletePhoto, documents, deleteDocument, isLoading } = useChat();
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const { chats, searchingofSpecificChat, deleteChat, updateChat, photoGroups, deletePhoto, documents, deleteDocument, isLoading, loadMoreChats, hasMoreChats, isLoadingMoreChats } = useChat();
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  
+  const [repositoryPage, setRepositoryPage] = useState(1);
+  const [allRepositoryDocuments, setAllRepositoryDocuments] = useState<ChatDocument[]>([]);
+  const [hasMoreDocuments, setHasMoreDocuments] = useState(true);
+  
+  const { deleteDocument: deleteRepositoryDocument } = useRepository();
+  const { data: repositoryDocumentsData, isLoading: isLoadingRepositoryDocuments } = useDocuments(repositoryPage, 10);
+
   const router = useRouter();
   const searchParams = useSearchParams();
+  console.log("chats in recent history:", chats);
+
+  // Transform and accumulate repository documents
+  useEffect(() => {
+    if (!repositoryDocumentsData?.documents) return;
+    
+    const newDocuments = repositoryDocumentsData.documents
+      .filter(doc => doc.status === 'ready')
+      .map((repoDoc) => {
+        const formatFileSize = (bytes: number): string => {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+
+        return {
+          id: repoDoc.id,
+          title: repoDoc.fileName,
+          type: 'PDF' as const,
+          size: formatFileSize(repoDoc.fileSize),
+          date: new Date(repoDoc.uploadedAt),
+          url: repoDoc.fileUrl,
+        };
+      });
+
+    if (repositoryPage === 1) {
+      setAllRepositoryDocuments(newDocuments);
+    } else {
+      setAllRepositoryDocuments(prev => [...prev, ...newDocuments]);
+    }
+
+    setHasMoreDocuments(
+      repositoryDocumentsData.pagination.page < repositoryDocumentsData.pagination.totalPages
+    );
+  }, [repositoryDocumentsData, repositoryPage]);
+
+  // Load more documents handler
+  const loadMoreDocuments = useCallback(() => {
+    if (hasMoreDocuments && !isLoadingRepositoryDocuments) {
+      setRepositoryPage(prev => prev + 1);
+    }
+  }, [hasMoreDocuments, isLoadingRepositoryDocuments]);
+
+  // Combine chat documents with repository documents
+  const allDocuments = allRepositoryDocuments.length > 0 ? allRepositoryDocuments : documents;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -33,6 +92,38 @@ function RecentHistoryContent() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Infinite scroll setup for chats
+  const handleLoadMore = useCallback(() => {
+    if (activeTab === 'chats' && !isLoadingMoreChats && hasMoreChats) {
+      loadMoreChats();
+    }
+  }, [activeTab, isLoadingMoreChats, hasMoreChats, loadMoreChats]);
+
+  useEffect(() => {
+    if (activeTab !== 'chats') return;
+
+    const currentTrigger = loadMoreTriggerRef.current;
+    if (!currentTrigger) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreChats && !isLoadingMoreChats) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(currentTrigger);
+    observerRef.current = observer;
+
+    return () => {
+      if (observerRef.current && currentTrigger) {
+        observerRef.current.unobserve(currentTrigger);
+      }
+    };
+  }, [activeTab, hasMoreChats, isLoadingMoreChats, handleLoadMore]);
 
   // If on mobile, ensure photos tab is not active
   useEffect(() => {
@@ -75,14 +166,14 @@ function RecentHistoryContent() {
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredDocuments = documents.filter(doc =>
+  const filteredDocuments = allDocuments.filter(doc =>
     doc.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Handle view document - find the document and set it for overlay
   const handleViewDocument = (documentId: string) => {
     // Find the document in the documents array
-    const document = documents.find(doc => doc.id === documentId);
+    const document = allDocuments.find(doc => doc.id === documentId);
     if (document) {
       setViewingDocument(document);
     }
@@ -731,41 +822,124 @@ function RecentHistoryContent() {
               {isLoading && (!chats || chats.length === 0) ? (
                 <ChatSkeleton count={5} />
               ) : (
-                filteredChats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    onClick={() => handleChatSelect(chat)}
-                    className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${
-                      activeChat?.id === chat.id
-                        ? 'bg-[#3a4a5a] border border-blue-500'
-                        : 'hover:bg-[#3a4a5a]'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium mb-1">{chat.title}</p>
-                        {chat.messages.length > 0 && (
-                          <p className="text-gray-400 text-xs">
-                            {chat.messages[chat.messages.length - 1].content.substring(0, 50)}...
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        <button 
-                          className="p-1 hover:bg-red-500/20 rounded transition-colors duration-200"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteChat(chat.id);
-                          }}
-                        >
-                          <svg className="w-5 h-5 text-red-400 hover:text-red-300" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                          </svg>
-                        </button>
+                <>
+                  {filteredChats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      onClick={() => !editingChatId && handleChatSelect(chat)}
+                      className={`p-3 rounded-xl transition-all duration-200 ${
+                        activeChat?.id === chat.id
+                          ? 'bg-[#3a4a5a] border border-blue-500'
+                          : 'hover:bg-[#3a4a5a]'
+                      } ${editingChatId === chat.id ? '' : 'cursor-pointer'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          {editingChatId === chat.id ? (
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onBlur={async () => {
+                                if (updateChat && editTitle.trim() && editTitle !== chat.title) {
+                                  try {
+                                    await updateChat(chat.id, { title: editTitle.trim() });
+                                  } catch (error) {
+                                    // Error handling is done in the hook
+                                  }
+                                }
+                                setEditingChatId(null);
+                                setEditTitle('');
+                              }}
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (updateChat && editTitle.trim() && editTitle !== chat.title) {
+                                    try {
+                                      await updateChat(chat.id, { title: editTitle.trim() });
+                                    } catch (error) {
+                                      // Error handling is done in the hook
+                                    }
+                                  }
+                                  setEditingChatId(null);
+                                  setEditTitle('');
+                                } else if (e.key === 'Escape') {
+                                  setEditingChatId(null);
+                                  setEditTitle('');
+                                }
+                              }}
+                              className="w-full bg-[#2a3441] text-white text-sm font-medium mb-1 px-2 py-1 rounded border border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                          ) : (
+                            <p className="text-white text-sm font-medium mb-1">{chat.title}</p>
+                          )}
+                          {chat.messages.length > 0 && (
+                            <p className="text-gray-400 text-xs">
+                              {chat.messages[chat.messages.length - 1].content.substring(0, 50)}...
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          {editingChatId !== chat.id && (
+                            <button 
+                              className="p-1 hover:bg-blue-500/20 rounded transition-colors duration-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingChatId(chat.id);
+                                setEditTitle(chat.title);
+                                // Focus input after state update
+                                setTimeout(() => {
+                                  editInputRef.current?.focus();
+                                  editInputRef.current?.select();
+                                }, 0);
+                              }}
+                              title="Rename chat"
+                            >
+                              <svg className="w-5 h-5 text-blue-400 hover:text-blue-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button 
+                            className="p-1 hover:bg-red-500/20 rounded transition-colors duration-200"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChat(chat.id);
+                            }}
+                            title="Delete chat"
+                          >
+                            <svg className="w-5 h-5 text-red-400 hover:text-red-300" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  
+                  {/* Infinite scroll trigger */}
+                  <div ref={loadMoreTriggerRef} className="h-4" />
+                  
+                  {/* Loading more skeleton */}
+                  {isLoadingMoreChats && (
+                    <div className="mt-2">
+                      <ChatSkeleton count={3} />
+                    </div>
+                  )}
+                  
+                  {/* Load more button as fallback */}
+                  {hasMoreChats && !isLoadingMoreChats && filteredChats.length > 0 && (
+                    <button
+                      onClick={handleLoadMore}
+                      className="w-full mt-2 px-4 py-2 bg-[#3a4a5a] hover:bg-[#4a5a6a] text-white rounded-xl text-sm font-medium transition-colors duration-200"
+                    >
+                      Load More Chats
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -785,12 +959,15 @@ function RecentHistoryContent() {
         {/* Documents Tab */}
         {activeTab === 'documents' && (
           <div className="pb-24">
-            {isLoading && (!documents || documents.length === 0) ? (
+            {isLoadingRepositoryDocuments && (!allDocuments || allDocuments.length === 0) ? (
               <DocumentsSkeleton />
             ) : (
               <DocumentsList
                 documents={filteredDocuments}
                 onViewDocument={handleViewDocument}
+                onLoadMore={loadMoreDocuments}
+                hasMore={hasMoreDocuments}
+                isLoading={isLoadingRepositoryDocuments}
               />
             )}
           </div>
@@ -1083,6 +1260,40 @@ function RecentHistoryContent() {
                 </button>
                 <button
                   onClick={confirmDeleteDocument}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Chat Confirmation Dialog */}
+      {showDeleteChatConfirm && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={cancelDeleteChat}
+        >
+          <div 
+            className="relative bg-[#1f2632] rounded-xl overflow-hidden max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-white text-lg font-semibold mb-2">Delete Chat</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Are you sure you want to delete this chat? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDeleteChat}
+                  className="px-4 py-2 bg-[#2a3441] hover:bg-[#3a4a5a] text-white rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteChat}
                   className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200"
                 >
                   Delete

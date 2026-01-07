@@ -12,6 +12,8 @@ import { API_BASE } from '@/lib/api/axios';
 import { useUser } from '@/hooks/useUser';
 import { useChatSocket, SocketStreamResponse } from '@/hooks/useChatSocket';
 
+export let chatstate = false
+
 // Use the properly configured API_BASE which already includes /api/v1
 const API_BASE_URL = API_BASE.replace(/\/api\/v1\/?$/, ''); // Remove /api/v1 since we'll add it in specific endpoints
 
@@ -33,6 +35,7 @@ export function useChat() {
   const [hasReceivedFirstToken, setHasReceivedFirstToken] = useState<{ [messageId: string]: boolean }>({});
   const [streamingAbortController, setStreamingAbortController] = useState<AbortController | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [chatLoadingState, setChatLoadingState] = useState<boolean>(false); // Track loading state per chat
   // Track if current stream was aborted to prevent onComplete from running
   const isStreamAbortedRef = useRef<boolean>(false);
   // Track streaming completion for smooth handoff
@@ -40,6 +43,7 @@ export function useChat() {
   const searchParams = useSearchParams();
   const activeChatRef = useRef<Chat | null>(null);
   const chatsRef = useRef<Chat[]>([]);
+  // console.log('useChat hook initialized, chatstate:',chatstate);
 
   const router = useRouter();
   const { user, isLoading: isUserLoading } = useUser();
@@ -299,6 +303,8 @@ export function useChat() {
 
   // Check URL params and set active chat from URL
   useEffect(() => {
+    chatstate=true
+    // console.log('useChat: Checking URL params for chat ID',chatstate);
     const chatId = searchParams.get('chat');
     const currentActiveChat = activeChatRef.current;
     const currentChats = chatsRef.current;
@@ -357,6 +363,8 @@ export function useChat() {
           }
         }
       };
+      setChatLoadingState(false);
+      chatstate=false
       
       loadChatFromUrl();
     } else if (!chatId && currentActiveChat && currentActiveChat.id && currentActiveChat.id !== '') {
@@ -1041,6 +1049,40 @@ export function useChat() {
 
   const photoGroups = getPhotoGroups(photos);
 
+  const refreshChatFromUrl = useCallback(async () => {
+    const chatId = searchParams.get('chat');
+    if (!chatId) return null;
+
+    try {
+      setError(null);
+      const refreshedChat = await chatApi.getSession(chatId);
+
+      setActiveChat(refreshedChat);
+      setChats(prev => {
+        const existingIndex = prev.findIndex(c => c.id === chatId);
+        if (existingIndex === -1) return [refreshedChat, ...prev];
+
+        const next = [...prev];
+        next[existingIndex] = refreshedChat;
+        return next;
+      });
+
+      return refreshedChat;
+    } catch (err: unknown) {
+      console.error('Error refreshing chat session:', err);
+      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const errorMessage = axiosError?.response?.data?.message;
+
+      if (axiosError?.response?.status === 401) {
+        setError('Your session has expired. Please refresh the page to continue.');
+      } else {
+        setError(errorMessage || 'Failed to refresh chat session');
+      }
+
+      return null;
+    }
+  }, [searchParams]);
+
   return {
     chats,
     activeChat,
@@ -1069,8 +1111,10 @@ export function useChat() {
     loadMoreChats,
     textToSpeech,
     stopStreaming,
+    refreshChatFromUrl,
     startEditingMessage,
     editingMessageId,
     setEditingMessageId,
+    chatLoadingState,
   };
 }

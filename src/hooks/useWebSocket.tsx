@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 
 const DEBUG = process.env.NODE_ENV === 'development';
 
-export function useWebSocket(url: string) {
+export let sessionId="";
+
+export function useWebSocket(url: string, options?: { onError?: (error: Event | string) => void }) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectRef = useRef<number | null>(null);
@@ -18,7 +20,7 @@ export function useWebSocket(url: string) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      
+
       // Store audio reference for interruption
       audioRef.current = audio;
       isPlayingAudioRef.current = true;
@@ -80,9 +82,9 @@ export function useWebSocket(url: string) {
             `📤 WebSocket.send() called: ${dataType}, size: ${dataSize} bytes`
           );
         }
-        
+
         wsRef.current.send(data);
-        
+
         if (DEBUG) console.log(`✅ Data sent successfully`);
       } else {
         const readyState = wsRef.current?.readyState;
@@ -109,6 +111,9 @@ export function useWebSocket(url: string) {
     if (DEBUG) console.log("🔌 Disconnecting WebSocket...");
     manualDisconnectRef.current = true;
 
+    // Ensure any in-flight audio stops immediately
+    stopAudio();
+
     if (reconnectRef.current !== null) {
       window.clearTimeout(reconnectRef.current);
       reconnectRef.current = null;
@@ -126,14 +131,22 @@ export function useWebSocket(url: string) {
     try {
       manualDisconnectRef.current = false;
 
-      if (DEBUG) console.log("Connecting WebSocket:", url);
+      console.log("🔌 [useWebSocket.connect()] Attempting WebSocket connection");
+      console.log("🔌 [useWebSocket.connect()] URL:", url);
+      console.log("🔌 [useWebSocket.connect()] URL is empty?:", url === "");
+      
+      if (!url) {
+        console.log("⚠️ [useWebSocket.connect()] URL is empty, skipping connection");
+        return;
+      }
+      
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.binaryType = "blob";
 
       ws.onopen = () => {
-        if (DEBUG) console.log("✅ WebSocket connected");
+        console.log("✅ [useWebSocket] Connected successfully to:", url);
         setIsConnected(true);
         if (reconnectRef.current !== null) {
           window.clearTimeout(reconnectRef.current);
@@ -142,12 +155,27 @@ export function useWebSocket(url: string) {
       };
 
       ws.onerror = (err) => {
-        console.error("❌ WebSocket error:", err);
+        console.error("❌ [useWebSocket] Connection error:", err);
+        console.error("❌ [useWebSocket] Attempted URL:", url);
+        console.error("❌ [useWebSocket] Error type:", err.type);
+        console.error("❌ [useWebSocket] ReadyState:", wsRef.current?.readyState);
+        if (options?.onError) {
+          options.onError(err);
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log("🔌 [useWebSocket] Connection closed");
+        console.log("🔌 [useWebSocket] Close code:", event.code);
+        console.log("🔌 [useWebSocket] Close reason:", event.reason);
+        console.log("🔌 [useWebSocket] Was clean?:", event.wasClean);
+        setIsConnected(false);
       };
 
       ws.onmessage = async (msg) => {
         try {
           if (DEBUG) console.log("🔵 Backend Response Received");
+          console.log("WebSocket message data:", msg.data);
 
           setMessages((prev) => [...prev, msg.data]);
 
@@ -173,7 +201,18 @@ export function useWebSocket(url: string) {
             if (DEBUG) console.log("📩 Text message received:", msg.data);
             try {
               const parsed = JSON.parse(msg.data);
-              if (DEBUG) console.log("📦 Parsed JSON Response:", parsed);
+              // ✅ If fakeSessionId exists, update state
+              // console.log("Parsed message:", parsed);
+              if (parsed.fakeSessionId) {
+                // if (DEBUG) console.log("✅ Setting sessionId:", parsed.fakeSessionId);
+                // ✅ Inject into URL params as 'chat'
+                // const currentUrl = new URL(window.location.href);
+                // currentUrl.searchParams.set("chat", parsed.fakeSessionId);
+                // window.history.replaceState({}, "", currentUrl.toString());
+                sessionId = parsed.fakeSessionId;
+
+              }
+
             } catch {
               if (DEBUG) console.log("📝 Plain Text Response");
             }
@@ -183,9 +222,9 @@ export function useWebSocket(url: string) {
           else if (msg.data instanceof ArrayBuffer) {
             if (DEBUG) console.log("🔊 ArrayBuffer received");
             const blob = new Blob([msg.data], { type: "audio/mpeg" });
-            
+
             window.dispatchEvent(new Event("pause-mic"));
-            
+
             try {
               await playAudioBlob(blob);
             } finally {
@@ -208,6 +247,9 @@ export function useWebSocket(url: string) {
           });
         }
         setIsConnected(false);
+
+        // If we got disconnected while audio was playing, stop it.
+        stopAudio();
 
         if (
           url &&
@@ -246,6 +288,7 @@ export function useWebSocket(url: string) {
 
     return () => {
       manualDisconnectRef.current = true;
+      stopAudio();
       wsRef.current?.close();
       if (reconnectRef.current !== null) {
         window.clearTimeout(reconnectRef.current);
@@ -257,3 +300,5 @@ export function useWebSocket(url: string) {
 
   return { isConnected, send, disconnect, lastTextMessage, messages, stopAudio };
 }
+
+

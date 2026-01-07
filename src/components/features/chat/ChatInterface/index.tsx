@@ -13,9 +13,12 @@ interface ChatInterfaceProps {
   streamingText?: { [messageId: string]: string };
   streamingMessageId?: string | null;
   stopStreaming?: () => void;
+  isRefreshingChatAfterCall?: boolean;
+  onEndCall?: () => void | Promise<void>;
   startEditingMessage?: (messageId: string) => { content: string; images?: string[]; documents?: MessageDocument[]; } | null;
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
+  onCloseSidebar?: () => void;
 }
 
 export default function ChatInterface({ 
@@ -26,9 +29,12 @@ export default function ChatInterface({
   streamingText = {},
   streamingMessageId = null,
   stopStreaming,
+  isRefreshingChatAfterCall,
+  onEndCall,
   startEditingMessage,
   editingMessageId,
   setEditingMessageId,
+  onCloseSidebar,
 }: ChatInterfaceProps) {
   // Always show WelcomeScreen, but pass activeChat so it can show messages when chat exists
   return <WelcomeScreen 
@@ -38,9 +44,12 @@ export default function ChatInterface({
     streamingText={streamingText}
     streamingMessageId={streamingMessageId}
     stopStreaming={stopStreaming}
+    isRefreshingChatAfterCall={isRefreshingChatAfterCall}
+    onEndCall={onEndCall}
     startEditingMessage={startEditingMessage}
     editingMessageId={editingMessageId}
     setEditingMessageId={setEditingMessageId}
+    onCloseSidebar={onCloseSidebar}
   />;
 }
 

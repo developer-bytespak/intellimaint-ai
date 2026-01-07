@@ -92,7 +92,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log('[useUser] Token in localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
         
         const res = await baseURL.get('/user/profile');
-        console.log('[useUser] User profile response:', res?.data);
+        console.log('[useUser] User profile response:', res);
         
         // Backend returns { statusCode, message, data }
         const user = res?.data?.data || res?.data;
@@ -133,6 +133,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     retryOnMount: false,
     refetchOnWindowFocus: false,
   });
+
+  // console.log('[useUser] userData:', userData, 'isLoading:', isLoading, 'userError:', userError);
 
   // Map backend response to frontend format
   const user: IUser | null | undefined = userData ? {
@@ -422,11 +424,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     //* LOGOUT USER :
-    // Call logout endpoint - backend will clear cookies and redirect to /login
-    const logout =useMutation({
+    // Call logout endpoint - backend will clear cookies
+    // Frontend clears localStorage and redirects to /login
+    const logout = useMutation({
       mutationFn: async () => {
-        const res = await baseURL.get('/auth/logout');
-        return res?.data;
+        // Always clear localStorage first (regardless of API success)
+        // This ensures logout works even if backend is unreachable
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        console.log('[useUser] Cleared tokens from localStorage');
+        
+        try {
+          const res = await baseURL.get('/auth/logout');
+          console.log('[useUser] Backend logout successful');
+          return res?.data;
+        } catch (error) {
+          // Even if backend logout fails, we've already cleared localStorage
+          // So the user will be effectively logged out on the client side
+          console.warn('[useUser] Backend logout failed, but localStorage cleared:', error);
+          return { success: true, clientOnly: true };
+        }
       },
       onSuccess: () => {
         console.log('[useUser] Logout mutation onSuccess triggered');

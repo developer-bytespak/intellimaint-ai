@@ -25,8 +25,8 @@ export function useAudio() {
       const formData = new FormData();
       formData.append('file', audioDocument.file, audioDocument.file.name);
 
-      const endpoint = '/api/v1/asr/transcribe';
-      const fullUrl = `${API_BASE_URL}${endpoint}`;
+      const endpoint = '/asr/transcribe';
+      const fullUrl = `${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}${endpoint}`;
 
       try {
         console.log(`[Audio] Sending transcription request to: ${fullUrl}`);
@@ -130,7 +130,7 @@ export function useAudio() {
 
       try {
         const response = await axios.post(
-          `${API_BASE_URL}/api/v1/asr/synthesize`,
+          `${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/asr/synthesize`,
           { text },
           {
             headers: {
