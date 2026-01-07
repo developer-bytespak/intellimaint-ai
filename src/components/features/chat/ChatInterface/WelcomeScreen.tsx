@@ -508,7 +508,12 @@ export default function WelcomeScreen({
             <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white px-2">Welcome to IntelliMaint AI</h1>
 
             {/* Feature Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-4 sm:mt-6 md:mt-8 items-stretch">
+            {
+              (chatId && activeChat === null) ? (
+                <h2 className='text-xl '>Fetching Chats <span className='animation-pulse'>...</span></h2>
+              ):(
+                <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-4 sm:mt-6 md:mt-8 items-stretch">
               <Animation animation="slideUp" delay={180} duration={600}>
                 <div className="bg-[#2a3441] p-3 sm:p-4 md:p-5 rounded-xl hover:bg-[#3a4a5a] transition-colors duration-200 h-full flex flex-col justify-center">
                   <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-400 mx-auto mb-2 sm:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,6 +544,9 @@ export default function WelcomeScreen({
                 </div>
               </Animation>
             </div>
+                </>
+              )
+            }
           </div>
         </div>
       ) : (
