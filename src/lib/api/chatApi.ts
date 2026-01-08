@@ -308,14 +308,18 @@ export const chatApi = {
       totalPages: number;
     };
   }> => {
+    console.log('[chatApi.listSessions] Fetching sessions with query:', query);
     const response = await baseURL.get<{ data: ListSessionsResponse }>('/chat/sessions', {
       params: query,
     });
+    console.log('[chatApi.listSessions] Raw response:', response?.data);
     const body = response?.data?.data as ListSessionsResponse | undefined;
     if (!body || !Array.isArray(body.sessions)) {
-      console.error('Unexpected listSessions response shape:', response);
+      console.error('[chatApi.listSessions] Unexpected response shape:', response);
       throw new Error('Invalid response from listSessions: missing sessions');
     }
+    
+    console.log('[chatApi.listSessions] Found', body.sessions.length, 'sessions');
 
     return {
       chats: body.sessions.map(transformSessionToChat),

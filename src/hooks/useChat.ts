@@ -210,10 +210,18 @@ export function useChat() {
   // Load chat sessions on mount
   useEffect(() => {
     const loadSessions = async () => {
+      // Don't load sessions if user is still loading or not available
+      if (isUserLoading || !user?.id) {
+        console.log('[useChat] Skipping loadSessions - user not ready:', { isUserLoading, userId: user?.id });
+        return;
+      }
+      
       try {
         setIsLoading(true);
         setError(null);
         setChatPage(1);
+        
+        console.log('[useChat] Loading chat sessions for user:', user.id);
         
         // Check if this is a page reload
         const isPageReload = sessionStorage.getItem('chatPageReloaded') === 'true';
@@ -232,6 +240,7 @@ export function useChat() {
         
         const result = await chatApi.listSessions({ page: 1, limit: 10 });
         
+        console.log('[useChat] Loaded sessions:', result.chats.length, 'chats');
         setChats(result.chats);
         setHasMoreChats(result.pagination.page < result.pagination.totalPages);
       } catch (err: unknown) {
@@ -265,7 +274,7 @@ export function useChat() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [user?.id]);
+  }, [user?.id, isUserLoading]);
 
   // Load more chats for infinite scroll
   const loadMoreChats = useCallback(async () => {
