@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageTransition from "@/components/ui/PageTransition";
+import { useUser } from "@/hooks/useUser";
 
 type JobStatus = "queued" | "processing" | "completed" | "failed";
 
@@ -26,6 +27,8 @@ export default function BatchStatusPage() {
   const [connected, setConnected] = useState(false);
   const [initializing, setInitializing] = useState(true);
 
+  const { user } = useUser();
+
   // ----------------------------------
   // LOAD INITIAL STATE FROM LOCALSTORAGE
   // ----------------------------------
@@ -36,12 +39,12 @@ export default function BatchStatusPage() {
       // Initialize jobs with "processing" status
       const uploadedKey = `batch_files_${batchId}`;
       const storedFiles = localStorage.getItem(uploadedKey);
-      
+
       if (storedFiles) {
         try {
           const fileNames: string[] = JSON.parse(storedFiles);
           const initialJobs: Record<string, BatchJob> = {};
-          
+
           fileNames.forEach((fileName, index) => {
             initialJobs[`temp-${index}`] = {
               jobId: `temp-${index}`,
@@ -50,7 +53,7 @@ export default function BatchStatusPage() {
               progress: "start"
             };
           });
-          
+
           setJobs(initialJobs);
           setInitializing(false);
         } catch (e) {
@@ -63,17 +66,24 @@ export default function BatchStatusPage() {
   // ----------------------------------
   // SSE CONNECTION
   // ----------------------------------
-useEffect(() => {
+  useEffect(() => {
     if (!batchId) return;
 
     console.log("[SSE] connecting to batch", batchId);
-    
+
+    console.log("User ID:", user);
+    if (!user?.id) {
+      console.error("[SSE] userId missing, aborting SSE connection");
+      return;
+    }
+
+
     let isClosed = false;  // 🆕 Track if we intentionally closed
 
     const evtSource = new EventSource(
-      `http://localhost:8000/api/v1/batches/events/${batchId}`
+      `http://localhost:8000/api/v1/batches/events/${batchId}?userId=${user?.id}`
     );
-    
+
     evtSource.onopen = () => {
       console.log("[SSE] connected");
       setConnected(true);
@@ -91,21 +101,21 @@ useEffect(() => {
         jobsList.forEach((job) => {
           next[job.jobId] = job;
         });
-        
+
         setJobs(next);
-        
+
         // 🆕 Check if all done and close connection
         const allDone = jobsList.every(
           job => job.status === "completed" || job.status === "failed"
         );
-        
+
         if (allDone && jobsList.length > 0) {
           console.log("[SSE] All jobs done, closing connection");
           isClosed = true;
           evtSource.close();
           setConnected(false);
         }
-        
+
       } catch (err) {
         console.error("[SSE] JSON PARSE FAILED", err);
       }
@@ -193,15 +203,14 @@ useEffect(() => {
                     </td>
                     <td className="p-3 capitalize">
                       <span
-                        className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                          job.status === "completed"
+                        className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${job.status === "completed"
                             ? "bg-green-500/20 text-green-400"
                             : job.status === "failed"
-                            ? "bg-red-500/20 text-red-400"
-                            : job.status === "queued"
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        }`}
+                              ? "bg-red-500/20 text-red-400"
+                              : job.status === "queued"
+                                ? "bg-yellow-500/20 text-yellow-400"
+                                : "bg-blue-500/20 text-blue-400"
+                          }`}
                       >
                         {job.status}
                       </span>
@@ -210,8 +219,8 @@ useEffect(() => {
                       {job.progress !== undefined && job.progress !== "start"
                         ? `${job.progress}%`
                         : job.progress === "start"
-                        ? "0%"
-                        : "-"}
+                          ? "0%"
+                          : "-"}
                     </td>
                     <td className="p-3 text-red-400 max-w-[200px] truncate" title={job.error || "-"}>
                       {job.error || "-"}

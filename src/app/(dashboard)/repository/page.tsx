@@ -353,14 +353,14 @@ export default function RepositoryPage() {
       
       // Reload page
       setTimeout(() => {
-        window.location.reload();
+        // window.location.reload();
       }, 1000);
       
     } catch (err) {
       console.error("Cancel failed", err);
       // Still try to reload
-      localStorage.clear();
-      window.location.reload();
+      // localStorage.clear();
+      // window.location.reload();
     }
   };
 
