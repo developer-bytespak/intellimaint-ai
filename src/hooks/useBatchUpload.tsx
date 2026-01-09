@@ -276,8 +276,9 @@ class BatchUploadManager {
     console.log("[BatchUploadManager] Connecting to SSE for batch:", batchId);
 
     const userIdParam = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     this.eventSource = new EventSource(
-      `http://localhost:8000/api/v1/batches/events/${batchId}${userIdParam}`
+      `${apiUrl}/api/v1/batches/events/${batchId}${userIdParam}`
     );
 
     this.eventSource.onopen = () => {
