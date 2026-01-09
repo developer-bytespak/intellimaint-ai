@@ -6,6 +6,7 @@ import {
   getFile,
   clearStoredFiles,
 } from "@/hooks/useRepository";
+import { useUser } from "./useUser";
 
 // Types for batch upload state
 export interface FileUploadState {
@@ -166,7 +167,7 @@ class BatchUploadManager {
     this.uploadDocumentFn = fn;
   }
 
-  async startBatch(batchId: string, fileNames: string[], fileMetadata: FileMetadata[]) {
+  async startBatch(batchId: string, fileNames: string[], fileMetadata: FileMetadata[], userId?: string) {
     // Reset cancelled flag for new batch
     this.isCancelled = false;
     
@@ -204,7 +205,7 @@ class BatchUploadManager {
     this.startProgressSimulation();
 
     // Connect to SSE
-    this.connectSSE(batchId);
+    this.connectSSE(batchId, userId);
   }
 
   private startProgressSimulation() {
@@ -267,15 +268,16 @@ class BatchUploadManager {
     }
   }
 
-  private connectSSE(batchId: string) {
+  private connectSSE(batchId: string, userId?: string) {
     if (this.eventSource) {
       this.eventSource.close();
     }
 
     console.log("[BatchUploadManager] Connecting to SSE for batch:", batchId);
 
+    const userIdParam = userId ? `?userId=${encodeURIComponent(userId)}` : '';
     this.eventSource = new EventSource(
-      `http://localhost:8000/api/v1/batches/events/${batchId}`
+      `http://localhost:8000/api/v1/batches/events/${batchId}${userIdParam}`
     );
 
     this.eventSource.onopen = () => {
@@ -474,10 +476,10 @@ class BatchUploadManager {
     console.error("[BatchUploadManager] Batch processing error - cleaning up and reloading");
     
     // Disconnect SSE first
-    this.disconnect();
+    // this.disconnect();
     
     // Clear ALL localStorage
-    localStorage.clear();
+    // localStorage.clear();
     
     // Clear IndexedDB
     clearStoredFiles();
@@ -487,7 +489,7 @@ class BatchUploadManager {
     
     // Reload page after a short delay to show the toast
     setTimeout(() => {
-      window.location.reload();
+      // window.location.reload();
     }, 1500);
   }
 
@@ -557,7 +559,11 @@ export function useBatchUpload() {
     hasError: false,
   });
 
+  const {user} = useUser();
+  
+
   const managerRef = useRef<BatchUploadManager | null>(null);
+  
 
   useEffect(() => {
     // Get singleton instance
@@ -575,9 +581,9 @@ export function useBatchUpload() {
 
   const startBatch = useCallback(
     async (batchId: string, fileNames: string[], fileMetadata: FileMetadata[]) => {
-      managerRef.current?.startBatch(batchId, fileNames, fileMetadata);
+      managerRef.current?.startBatch(batchId, fileNames, fileMetadata, user?.id);
     },
-    []
+    [user?.id]
   );
 
   const setUploadDocumentFn = useCallback(
