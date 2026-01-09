@@ -155,8 +155,9 @@ export function useRepository() {
       }
       console.log('data', data);
 
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const res = await axios.post(
-        `http://localhost:8000/api/v1/extract/extract/full`,
+        `${apiUrl}/api/v1/extract/extract/full`,
         formData,
         {
     params: {
