@@ -314,6 +314,9 @@ class BatchUploadManager {
 
         const backendProgress = Number(job.progress) || 0;
         const status = job.status as FileUploadState["status"];
+        const errorMsg = job.error;
+
+        console.log(`[BatchUploadManager] Job details - fileName: ${fileName}, status: ${status}, progress: ${backendProgress}, error: ${errorMsg}`);
 
         // Initialize simulated progress if not set
         if (this.simulatedProgress[fileName] === undefined) {
@@ -350,7 +353,9 @@ class BatchUploadManager {
           allInTerminalState = false;
         }
 
-        if (status === "failed") {
+        // Only mark as error if status is explicitly "failed" AND there's an error message
+        if (status === "failed" && errorMsg && errorMsg.length > 0) {
+          console.warn(`[BatchUploadManager] Job failed: ${fileName} - ${errorMsg}`);
           hasError = true;
         }
 
