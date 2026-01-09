@@ -616,29 +616,31 @@ export default function AccountPage() {
               />
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-white">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  {...register("password")}
-                  type="password"
-                  id="password"
-                  disabled
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={handleChangePassword}
-                  className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
-                >
-                  Change
-                </button>
+            {/* Password Field - Only show for accounts with passwords (email/password login) */}
+            {user?.hasPassword && (
+              <div className="space-y-2">
+                <label htmlFor="password" className="block text-sm font-medium text-white">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    {...register("password")}
+                    type="password"
+                    id="password"
+                    disabled
+                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleChangePassword}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+                  >
+                    Change
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Account Type Field */}
             <div className="space-y-2">
