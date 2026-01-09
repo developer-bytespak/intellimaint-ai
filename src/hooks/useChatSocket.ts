@@ -115,50 +115,60 @@ export function useChatSocket(options: UseChatSocketOptions) {
       console.log('✅ Server acknowledged event:', data);
     });
 
-    socketInstance.on('message-chunk', (data: SocketStreamResponse) => {
-      console.log('📨 Received chunk:', { 
-        done: data.done,
-        stopped: data.stopped,
+    socketInstance.on('pipeline-chunk', (data: any) => {
+      console.log('📨 Received pipeline chunk:', { 
+        stage: data.stage,
         hasToken: !!data.token,
         tokenLength: data.token?.length,
-        hasPartialContent: !!data.partialContent,
-        sessionId: data.sessionId,
-        messageId: data.messageId
+        done: data.done,
+        messageId: data.messageId,
+        metadata: !!data.metadata,
       });
 
-      if (data.done) {
-        if (data.stopped) {
-          console.log('⏹️ Stream stopped with partial content');
-        } else {
-          console.log('✅ Stream completed');
+      // Handle pipeline stages
+      if (data.stage === 'image-analysis') {
+        console.log('🖼️ Image analysis stage');
+      } else if (data.stage === 'embedding') {
+        console.log('🧠 Embedding generated');
+      } else if (data.stage === 'retrieval') {
+        console.log('📚 Knowledge chunks retrieved:', data.metadata?.chunkCount);
+      } else if (data.stage === 'context') {
+        console.log('📋 Context prepared');
+      } else if (data.stage === 'llm-generation' && data.token) {
+        // Append token for LLM response
+        setStreamingText(prev => prev + data.token);
+        
+        if (onChunkRef.current) {
+          onChunkRef.current({ token: data.token, done: false } as SocketStreamResponse);
         }
+      } else if (data.stage === 'complete') {
+        // Stream completed successfully
+        console.log('✅ Pipeline completed with messageId:', data.messageId);
         setIsStreaming(false);
         isStreamingRef.current = false;
         
         if (onChunkRef.current) {
-          onChunkRef.current(data);
+          onChunkRef.current({
+            done: true,
+            messageId: data.messageId,
+            tokenUsage: data.tokenUsage,
+          } as SocketStreamResponse);
         }
-      } else if (data.token) {
-        setStreamingText(prev => prev + data.token);
+      } else if (data.stage === 'error') {
+        // Error occurred in pipeline
+        console.error('❌ Pipeline error:', data.errorMessage);
+        setError(data.errorMessage || 'Pipeline error');
+        setIsStreaming(false);
+        isStreamingRef.current = false;
         
-        if (onChunkRef.current) {
-          onChunkRef.current(data);
+        if (onErrorRef.current) {
+          onErrorRef.current(data.errorMessage || 'Pipeline error');
         }
       }
     });
 
-    socketInstance.on('message-stopped', (data: { reason: string }) => {
-      console.log('⏹️ Stream stopped:', data.reason);
-      setIsStreaming(false);
-      isStreamingRef.current = false;
-      
-      if (onStoppedRef.current) {
-        onStoppedRef.current(data.reason);
-      }
-    });
-
-    socketInstance.on('message-error', (data: { error: string }) => {
-      console.error('❌ Stream error:', data.error);
+    socketInstance.on('pipeline-error', (data: { error: string }) => {
+      console.error('❌ Pipeline error event:', data.error);
       setError(data.error);
       setIsStreaming(false);
       isStreamingRef.current = false;
@@ -215,9 +225,9 @@ export function useChatSocket(options: UseChatSocketOptions) {
         userId: currentUserId,
       };
 
-      console.log('📤 Emitting stream-message:', payload);
+      console.log('📤 Emitting stream-pipeline-message:', payload);
 
-      socketRef.current.emit('stream-message', payload, (ack: any) => {
+      socketRef.current.emit('stream-pipeline-message', payload, (ack: any) => {
         console.log('✅ Emit acknowledged by server:', ack);
       });
     },
@@ -255,9 +265,9 @@ export function useChatSocket(options: UseChatSocketOptions) {
         userId: currentUserId,
       };
 
-      console.log('📤 Emitting stream-message-new:', payload);
+      console.log('📤 Emitting stream-pipeline-message-new:', payload);
 
-      socketRef.current.emit('stream-message-new', payload, (ack: any) => {
+      socketRef.current.emit('stream-pipeline-message-new', payload, (ack: any) => {
         console.log('✅ Emit acknowledged by server:', ack);
       });
     },
@@ -268,7 +278,7 @@ export function useChatSocket(options: UseChatSocketOptions) {
     console.log('⏹️ stopStreaming called');
 
     if (socketRef.current?.connected && isStreamingRef.current) {
-      socketRef.current.emit('stop-stream');
+      socketRef.current.emit('stop-pipeline');
       setIsStreaming(false);
       isStreamingRef.current = false;
     }

@@ -613,39 +613,30 @@ export function useChat() {
       // Setup promise to wait for streaming completion
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
         const cleanup = () => {
-          socketHook.socket?.off('message-chunk', chunkHandler);
-          socketHook.socket?.off('message-error', errorHandler);
-          socketHook.socket?.off('message-stopped', stoppedHandler);
+          // Unsubscribe the actual listeners we attach below
+          socketHook.socket?.off('pipeline-chunk', pipelineChunkHandler);
+          socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
         };
 
-        const chunkHandler = (chunk: SocketStreamResponse) => {
-          if (chunk.done) {
+        const pipelineChunkHandler = (data: any) => {
+          // Resolve on pipeline completion
+          if (data?.stage === 'complete') {
             cleanup();
-            // Resolve with stopped flag and partial content if stream was stopped
-            resolve({ 
-              sessionId: chunk.sessionId, 
-              messageId: chunk.messageId,
-              stopped: chunk.stopped,
-              partialContent: chunk.partialContent,
+            resolve({
+              sessionId: data.sessionId,
+              messageId: data.messageId,
+              stopped: false,
             });
           }
         };
 
-        const errorHandler = (data: { error: string }) => {
+        const pipelineErrorHandler = (data: { error: string }) => {
           cleanup();
           reject(new Error(data.error));
         };
 
-        const stoppedHandler = () => {
-          cleanup();
-          // This handler is kept for backwards compatibility but shouldn't fire
-          // since stopped is now handled in message-chunk
-          resolve({ stopped: true });
-        };
-
-        socketHook.socket?.on('message-chunk', chunkHandler);
-        socketHook.socket?.on('message-error', errorHandler);
-        socketHook.socket?.on('message-stopped', stoppedHandler);
+        socketHook.socket?.on('pipeline-chunk', pipelineChunkHandler);
+        socketHook.socket?.on('pipeline-error', pipelineErrorHandler);
       });
 
       try {
@@ -662,6 +653,9 @@ export function useChat() {
         actualAssistantMessageId = result.messageId;
 
         setStreamingAbortController(null);
+        setIsSending(false); // Clear sending state immediately on completion
+        // Ensure socket streaming state is cleared
+        try { socketHook.stopStreaming(); } catch {}
         
         // Mark streaming as complete
         streamingCompleteRef.current[tempAssistantMessageId] = true;
@@ -796,6 +790,9 @@ export function useChat() {
       } catch (streamError) {
         console.error('Error during streaming:', streamError);
         setStreamingAbortController(null);
+        setIsSending(false); // Clear sending state on error
+        // Ensure socket streaming state is cleared on error
+        try { socketHook.stopStreaming(); } catch {}
         setStreamingText(prev => {
           const updated = { ...prev };
           delete updated[tempAssistantMessageId];
@@ -819,8 +816,6 @@ export function useChat() {
         ));
         setActiveChat(finalChatToUse);
       }
-
-      setIsSending(false);
     } catch (err: unknown) {
       console.error('Error sending message:', err);
       const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
@@ -929,7 +924,13 @@ export function useChat() {
 
   // Stop streaming response
   const stopStreaming = useCallback(async () => {
-    // 1) Use Socket.IO to stop streaming on backend (aborts Gemini request immediately)
+    // Guard: only apply "stopped" state if an active stream is ongoing
+    const hasActiveStream = !!streamingMessageId || socketHook.isStreaming || isSending;
+    if (!hasActiveStream) {
+      return; // Ignore stop requests after completion
+    }
+
+    // 1) Use Socket.IO to stop streaming on backend (aborts request immediately)
     socketHook.stopStreaming();
     
     // 2) Immediately abort local controller and flip UI
@@ -991,7 +992,7 @@ export function useChat() {
         // ignore
       }
     }
-  }, [streamingAbortController, activeChat, socketHook]);
+  }, [streamingAbortController, activeChat, socketHook, streamingMessageId, isSending]);
 
   // Start editing a message - returns message data for populating input
   const startEditingMessage = useCallback((messageId: string) => {
