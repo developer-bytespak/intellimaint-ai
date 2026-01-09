@@ -85,9 +85,18 @@ export function useRepository() {
       formData.append('file', file);
       console.log('Uploading file:', file.name);
 
+      // Get auth token from localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      
+      const headers: HeadersInit = {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      };
+
       const res = await fetch('/api/upload-repository-document', {
         method: 'POST',
         body: formData,
+        headers,
+        credentials: 'include',
       });
 
       if (!res.ok) {
