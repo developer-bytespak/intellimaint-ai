@@ -63,10 +63,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Track if login just happened (to trigger user profile fetch)
   const [loginJustHappened, setLoginJustHappened] = React.useState(false);
+  // Track if user has logged out to prevent auto re-authentication
+  const [isLoggedOut, setIsLoggedOut] = React.useState(false);
 
   // Public routes where we shouldn't try to fetch user profile
   const publicRoutes = ['/login', '/signup', '/reset-password', '/verify', '/callback', '/form', '/representative'];
   const isPublicRoute = pathname ? (pathname === '/' || publicRoutes.some(route => pathname.startsWith(route))) : true;
+
+  // ✅ FIX: Reset isLoggedOut flag when tokens appear in localStorage
+  // This handles Google OAuth login after logout, where tokens are stored by callback page
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const accessToken = localStorage.getItem('accessToken');
+      // Only log when transitioning from logged out to logged in
+      if (accessToken && isLoggedOut) {
+        console.log('[useUser] Access token detected in localStorage after logout - resetting isLoggedOut flag');
+        setIsLoggedOut(false);
+      }
+    }
+  }, [isLoggedOut]);
 
   //* GOOGLE AUTH :
 
@@ -74,12 +89,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     mutationFn: async ({role,company}:{role:string,company:string}) => {
       const data = {role,company};
       console.log(data)
-      const res = router.push(`${API_BASE}/auth/google?role=${role}&company=${company}`);
-      console.log(res)
+      // Use window.location for full page redirect to backend OAuth endpoint
+      // router.push() is client-side navigation and won't work for backend OAuth flows
+      if (typeof window !== 'undefined') {
+        window.location.href = `${API_BASE}/auth/google?role=${role}&company=${company}`;
+      }
     },
   });
 
   //* GET USER PROFILE :
+
+  // Calculate authentication state outside of useQuery
+  const hasAccessToken = typeof window !== 'undefined' && !!localStorage.getItem('accessToken');
+  const canAuthenticate = hasAccessToken || loginJustHappened || (typeof window !== 'undefined' && document.cookie.includes('local_accessToken'));
 
   const { data: userData, isLoading, error: userError } = useQuery<IUser>({
     queryKey: ["user"],
@@ -90,7 +112,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log('[useUser] Token in localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
         
         const res = await baseURL.get('/user/profile');
-        console.log('[useUser] User profile response:', res?.data);
+        console.log('[useUser] User profile response:', res);
         
         // Backend returns { statusCode, message, data }
         const user = res?.data?.data || res?.data;
@@ -117,19 +139,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // ✅ IMPORTANT: Only fetch user profile if:
     // 1. We have a pathname (component is mounted)
     // 2. We're not on a public route
-    // 3. Either:
+    // 3. User hasn't logged out
+    // 4. Either:
     //    a. We have an access token in localStorage (stored during login)
     //    b. OR login just happened (backend set cookies)
     //    c. OR we have cookies already (returning user with active session)
-    enabled: !!pathname && !isPublicRoute && typeof window !== 'undefined' && (
-      !!localStorage.getItem('accessToken') || 
-      loginJustHappened ||
-      document.cookie.includes('local_accessToken')
-    ),
+    enabled: !!pathname && !isPublicRoute && !isLoggedOut && typeof window !== 'undefined' && canAuthenticate,
     retry: 1,
     retryOnMount: false,
     refetchOnWindowFocus: false,
   });
+
+  // console.log('[useUser] userData:', userData, 'isLoading:', isLoading, 'userError:', userError);
 
   // Map backend response to frontend format
   const user: IUser | null | undefined = userData ? {
@@ -328,6 +349,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 localStorage.setItem('refreshToken', refreshToken);
               }
               
+              // Reset logout flag to allow user query to run
+              setIsLoggedOut(false);
+              
               console.log('[useUser] Backend also set cookies - check Set-Cookie headers in network tab');
               return res.data;
             } catch (error) {
@@ -416,17 +440,48 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     });
 
     //* LOGOUT USER :
-    // Call logout endpoint - backend will clear cookies and redirect to /login
-    const logout =useMutation({
+    // Call logout endpoint - backend will clear cookies
+    // Frontend clears localStorage and redirects to /login
+    const logout = useMutation({
       mutationFn: async () => {
-        const res = await baseURL.get('/auth/logout');
-        return res?.data;
+        // Always clear localStorage first (regardless of API success)
+        // This ensures logout works even if backend is unreachable
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        console.log('[useUser] Cleared tokens from localStorage');
+        
+        try {
+          const res = await baseURL.get('/auth/logout');
+          console.log('[useUser] Backend logout successful');
+          return res?.data;
+        } catch (error) {
+          // Even if backend logout fails, we've already cleared localStorage
+          // So the user will be effectively logged out on the client side
+          console.warn('[useUser] Backend logout failed, but localStorage cleared:', error);
+          return { success: true, clientOnly: true };
+        }
       },
       onSuccess: () => {
+        console.log('[useUser] Logout mutation onSuccess triggered');
+        // Set logout flag to prevent query from re-running
+        setIsLoggedOut(true);
         // Clear stored tokens
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        // Clear user data and redirect to login
+        console.log('[useUser] Cleared tokens from localStorage');
+        // Invalidate and remove all queries to prevent auto-refetch
+        queryClient.removeQueries({ queryKey: ["user"] });
+        queryClient.clear();
+        console.log('[useUser] Redirecting to /login');
+        router.push('/login');
+      },
+      onError: () => {
+        console.error('[useUser] Logout mutation failed');
+        // Even if logout fails, clear local state to prevent auto-reauth
+        setIsLoggedOut(true);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        queryClient.removeQueries({ queryKey: ["user"] });
         queryClient.clear();
         router.push('/login');
       }

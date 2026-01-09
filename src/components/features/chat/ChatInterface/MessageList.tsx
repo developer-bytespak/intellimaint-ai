@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Chat } from '@/types/chat';
 import { useAudio } from '@/hooks/useAudio';
 import MessageItem from './MessageItem';
+import { useSearchParams } from 'next/navigation';
 
 interface MessageListProps {
   activeChat: Chat | null;
@@ -29,6 +30,8 @@ export default function MessageList({
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [isUserNearBottom, setIsUserNearBottom] = useState(true);
   const { textToSpeech, currentPlayingId, playAudio, stopAudio } = useAudio();
+  
+ 
 
   // Check if user is near bottom of scroll (helper function for initial check)
   const checkIfNearBottom = () => {
@@ -189,7 +192,7 @@ export default function MessageList({
   };
 
   return (
-    <div className="w-full" ref={messagesContainerRef}>
+    <div className="w-full overflow-y-auto sm:mb-18 mb-16 mt-0 md:mt-10" ref={messagesContainerRef}>
       <div className="space-y-4 pb-4">
         {activeChat.messages.map((message, index) => {
           const isLastMessage = index === activeChat.messages.length - 1;

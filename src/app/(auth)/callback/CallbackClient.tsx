@@ -8,22 +8,37 @@ export default function CallbackClient() {
   const router = useRouter();
 
   const error = params.get('error');
+  // Support both old format (token) and new format (accessToken, refreshToken)
   const token = params.get('token');
+  const accessToken = params.get('accessToken');
+  const refreshToken = params.get('refreshToken');
 
   useEffect(() => {
     if (error) return;
 
-    if (token) {
-      // Set cookie for middleware to detect authentication
+    // CROSS-DOMAIN FIX: Store tokens in localStorage for production
+    // This works when frontend and backend are on different domains
+    if (accessToken) {
+      console.log('[Callback] Storing accessToken in localStorage');
+      localStorage.setItem('accessToken', accessToken);
+    }
+    
+    if (refreshToken) {
+      console.log('[Callback] Storing refreshToken in localStorage');
+      localStorage.setItem('refreshToken', refreshToken);
+    }
+
+    if (token || accessToken) {
+      // Set cookie for middleware to detect authentication (fallback for local dev)
       const maxAge = 60 * 60 * 24 * 7; // 7 days
       const isProduction = window.location.hostname !== 'localhost';
       const sameSite = isProduction ? 'Lax' : 'Lax';
       const secure = window.location.protocol === 'https:' ? '; Secure' : '';
       document.cookie = `google_access=true; Path=/; Max-Age=${maxAge}; SameSite=${sameSite}${secure}`;
-      console.log('Successfully set google_access cookie');
+      console.log('[Callback] Successfully set google_access cookie, redirecting to /chat');
       router.replace("/chat");
     }
-  }, [error, token, router]);
+  }, [error, token, accessToken, refreshToken, router]);
 
   const handleGoToLogin = () => router.push('/login');
 

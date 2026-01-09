@@ -31,7 +31,7 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 bg-black">
+    <section className="relative  min-h-screen flex items-center justify-center overflow-hidden pt-20 bg-black">
       {/* Lightning effect - bottom layer (z-0) */}
       <div className="pointer-events-none absolute inset-0 z-0 opacity-40">
         <Lightning

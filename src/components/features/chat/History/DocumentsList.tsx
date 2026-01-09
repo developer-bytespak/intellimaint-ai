@@ -54,8 +54,10 @@ export default function DocumentsList({
     <div>
       <h2 className="text-gray-400 text-sm font-medium mb-4">Documents</h2>
       <div className="space-y-2">
-        {documents.map((doc) => (
-          <div 
+        {documents?.length > 0 ? (
+          documents.map((doc)=>(
+            <>
+              <div 
             key={doc.id} 
             className="p-3 bg-[#2a3441] rounded-xl group relative cursor-pointer hover:bg-[#3a4a5a] transition-colors duration-200"
             onClick={() => onViewDocument(doc.id)}
@@ -73,7 +75,11 @@ export default function DocumentsList({
               </div>
             </div>
           </div>
-        ))}
+            </>
+          ))
+        ):(
+          <p className="text-gray-500 text-sm">No documents available.</p>
+        )}
       </div>
       
       {/* Infinite scroll trigger */}
