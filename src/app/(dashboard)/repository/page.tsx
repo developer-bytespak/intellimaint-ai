@@ -289,8 +289,9 @@ export default function RepositoryPage() {
       // Store files globally so they persist if user navigates away
       await storeFiles(selectedFiles.map(item => item.file));
 
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const res = await fetch(
-        "http://localhost:8000/api/v1/batches/upload-pdfs",
+        `${apiUrl}/api/v1/batches/upload-pdfs`,
         {
           method: "POST",
           body: formData,
@@ -336,7 +337,8 @@ export default function RepositoryPage() {
     
     try {
       // Call backend to cancel
-      fetch(`http://localhost:8000/api/v1/batches/${batchState.batchId}/cancel`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      fetch(`${apiUrl}/api/v1/batches/${batchState.batchId}/cancel`, {
         method: 'DELETE'
       }).catch(err => console.error("Cancel API error", err));
       

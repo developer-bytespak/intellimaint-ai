@@ -80,8 +80,9 @@ export default function BatchStatusPage() {
 
     let isClosed = false;  // 🆕 Track if we intentionally closed
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const evtSource = new EventSource(
-      `http://localhost:8000/api/v1/batches/events/${batchId}?userId=${user?.id}`
+      `${apiUrl}/api/v1/batches/events/${batchId}?userId=${user?.id}`
     );
 
     evtSource.onopen = () => {
