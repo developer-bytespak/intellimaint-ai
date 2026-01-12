@@ -76,6 +76,14 @@ export function useChatSocket(options: UseChatSocketOptions) {
 
     console.log('🔌 Initializing Socket.IO connection to:', `${GATEWAY_URL}/chat`);
 
+    // Ensure only one active connection and avoid duplicate listeners/streams
+    if (socketRef.current) {
+      try {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+      } catch {}
+    }
+
     const socketInstance = io(`${GATEWAY_URL}/chat`, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
@@ -85,7 +93,8 @@ export function useChatSocket(options: UseChatSocketOptions) {
       timeout: 10000,
       withCredentials: true,
       autoConnect: true,
-      forceNew: true,
+      // Do not force new connection on every mount; helps prevent duplicates
+      forceNew: false,
     });
 
     socketRef.current = socketInstance;
@@ -177,6 +186,9 @@ export function useChatSocket(options: UseChatSocketOptions) {
 
     return () => {
       console.log('🔌 Disconnecting socket');
+      try {
+        socketInstance.removeAllListeners();
+      } catch {}
       socketInstance.disconnect();
     };
   }, [userId]);
