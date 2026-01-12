@@ -1,5 +1,15 @@
 interface IAxiosResponse {
   message: string;
+  data?: {
+    role?: string;
+    id?: string;
+    _id?: string;
+    email?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    [key: string]: any;
+  };
 }
 
 interface IAxiosError {

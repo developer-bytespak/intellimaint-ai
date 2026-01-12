@@ -35,9 +35,15 @@ export default function LoginPage() {
     // console.log(data);
     loginUser.mutate(data, {
       onSuccess: (data) => {
-        console.log("Login successful:", data);
         const response = data as IAxiosResponse;
+        console.log("Login successful:", response);
+
         toast.success(response.message || "Login successful");
+        if(response?.data?.role === "admin"){
+          console.log("User role:", response?.data?.role);
+          router.push('/admin')
+          return;
+        }
         
         // Set transition state for smooth UI transition
         setIsTransitioning(true);
