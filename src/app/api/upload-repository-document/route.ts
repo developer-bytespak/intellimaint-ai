@@ -33,18 +33,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user ID from backend using cookies
-    const cookieStore = await cookies();
-    // Convert cookies to header string
-    const cookieHeader = cookieStore.getAll()
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('; ');
+    // CROSS-DOMAIN FIX: Get token from Authorization header (works in production)
+    // This works when frontend and backend are on different domains
+    const authHeader = request.headers.get('authorization');
+    let authHeaders: HeadersInit = {};
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      // Use Authorization header from client
+      authHeaders = {
+        'Authorization': authHeader,
+      };
+      console.log('[upload-repository] Using Authorization header from client');
+    } else {
+      // Fallback: Try cookies (for local development)
+      const cookieStore = await cookies();
+      const cookieHeader = cookieStore.getAll()
+        .map(cookie => `${cookie.name}=${cookie.value}`)
+        .join('; ');
+      if (cookieHeader) {
+        authHeaders = {
+          'Cookie': cookieHeader,
+        };
+        console.log('[upload-repository] Using cookies from client');
+      }
+    }
+    
+    if (!authHeader && !Object.keys(authHeaders).length) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in.' },
+        { status: 401 }
+      );
+    }
     
     const userResponse = await fetch(`${API_BASE_URL}/user/profile`, {
       method: 'GET',
-      headers: {
-        'Cookie': cookieHeader,
-      },
+      headers: authHeaders,
     });
 
     if (!userResponse.ok) {
@@ -115,7 +138,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': cookieHeader,
+        ...authHeaders,
       },
       body: JSON.stringify({
         documents: [{
