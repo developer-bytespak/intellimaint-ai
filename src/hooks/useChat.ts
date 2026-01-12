@@ -63,6 +63,10 @@ export function useChat() {
   // Socket.IO hook for streaming - only initialize when user is loaded and valid
   const shouldInitializeSocket = !isUserLoading && !!user?.id;
 
+  // Ref to store streaming result for sendMessage completion (avoid duplicate listeners)
+  const streamingResultRef = useRef<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string } | null>(null);
+  const streamingCompleteRef_local = useRef<boolean>(false);
+
   const socketHook = useChatSocket({
     userId: shouldInitializeSocket && user?.id ? user.id : '', // Only connect with valid userId when ready
     onChunk: useCallback((chunk: SocketStreamResponse) => {
@@ -70,7 +74,14 @@ export function useChat() {
       if (!tempMessageId) return;
 
       if (chunk.done) {
-        // Streaming complete - handled in sendMessage logic
+        // Streaming complete - store result for sendMessage to retrieve
+        streamingResultRef.current = {
+          sessionId: chunk.sessionId,
+          messageId: chunk.messageId,
+          stopped: chunk.stopped,
+          partialContent: chunk.partialContent,
+        };
+        streamingCompleteRef_local.current = true;
         return;
       }
 
@@ -634,42 +645,42 @@ export function useChat() {
       let actualSessionId: string;
       let actualAssistantMessageId: string | undefined;
 
+      // Reset completion tracking for this message
+      streamingCompleteRef_local.current = false;
+      streamingResultRef.current = null;
+
       // Setup promise to wait for streaming completion
+      // Note: We rely on onChunk callback to update streamingText AND set streamingResultRef
+      // This promise just waits for the done signal via polling
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
-        const cleanup = () => {
-          socketHook.socket?.off('message-chunk', chunkHandler);
-          socketHook.socket?.off('message-error', errorHandler);
-          socketHook.socket?.off('message-stopped', stoppedHandler);
-        };
-
-        const chunkHandler = (chunk: SocketStreamResponse) => {
-          if (chunk.done) {
-            cleanup();
-            // Resolve with stopped flag and partial content if stream was stopped
-            resolve({ 
-              sessionId: chunk.sessionId, 
-              messageId: chunk.messageId,
-              stopped: chunk.stopped,
-              partialContent: chunk.partialContent,
-            });
+        const maxWaitTime = 120000; // 2 minutes max
+        const startTime = Date.now();
+        
+        // Poll for completion instead of adding listeners (avoids duplicate listeners on socket)
+        const pollInterval = setInterval(() => {
+          // Check if streaming is marked as complete
+          if (streamingCompleteRef_local.current && streamingResultRef.current) {
+            clearInterval(pollInterval);
+            resolve(streamingResultRef.current);
+            return;
           }
-        };
 
+          // Timeout after max wait
+          if (Date.now() - startTime > maxWaitTime) {
+            clearInterval(pollInterval);
+            reject(new Error('Streaming timeout - no response from server'));
+            return;
+          }
+        }, 50); // Poll every 50ms
+
+        // Also listen for error on socket (only once to avoid duplicates)
         const errorHandler = (data: { error: string }) => {
-          cleanup();
+          clearInterval(pollInterval);
+          socketHook.socket?.off('message-error', errorHandler);
           reject(new Error(data.error));
         };
 
-        const stoppedHandler = () => {
-          cleanup();
-          // This handler is kept for backwards compatibility but shouldn't fire
-          // since stopped is now handled in message-chunk
-          resolve({ stopped: true });
-        };
-
-        socketHook.socket?.on('message-chunk', chunkHandler);
-        socketHook.socket?.on('message-error', errorHandler);
-        socketHook.socket?.on('message-stopped', stoppedHandler);
+        socketHook.socket?.once('message-error', errorHandler);
       });
 
       try {
