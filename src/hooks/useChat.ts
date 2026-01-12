@@ -650,34 +650,24 @@ export function useChat() {
       streamingResultRef.current = null;
 
       // Setup promise to wait for streaming completion
-      // Note: We rely on onChunk callback to update streamingText AND set streamingResultRef
-      // This promise just waits for the done signal via polling
+      // The onChunk callback will populate streamingResultRef when done=true
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
-        const cleanup = () => {
-          // Unsubscribe the actual listeners we attach below
-          socketHook.socket?.off('pipeline-chunk', pipelineChunkHandler);
+        // Setup a one-time error listener
+        const pipelineErrorHandler = (data: { error: string }) => {
+          reject(new Error(data.error));
           socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
         };
 
-        const pipelineChunkHandler = (data: any) => {
-          // Resolve on pipeline completion
-          if (data?.stage === 'complete') {
-            cleanup();
-            resolve({
-              sessionId: data.sessionId,
-              messageId: data.messageId,
-              stopped: false,
-            });
-          }
-        };
-
-        const pipelineErrorHandler = (data: { error: string }) => {
-          cleanup();
-          reject(new Error(data.error));
-        };
-
-        socketHook.socket?.on('pipeline-chunk', pipelineChunkHandler);
         socketHook.socket?.on('pipeline-error', pipelineErrorHandler);
+
+        // Poll for streaming completion (via onChunk callback setting streamingResultRef)
+        const checkCompletion = setInterval(() => {
+          if (streamingCompleteRef_local.current && streamingResultRef.current) {
+            clearInterval(checkCompletion);
+            socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
+            resolve(streamingResultRef.current);
+          }
+        }, 50); // Check every 50ms
       });
 
       try {
@@ -789,45 +779,42 @@ export function useChat() {
             ));
           }
           
-          // THEN clear streaming state after React has updated
-          setTimeout(() => {
-            setStreamingText(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              delete updated[realMessageId];
-              return updated;
-            });
-            setHasReceivedFirstToken(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setStreamingMessageId(null);
-            streamingCompleteRef.current = {};
-            currentStreamingMessageIdRef.current = null;
-          }, 200);
+          // IMMEDIATELY clear streaming state when fetching complete chat
+          // This prevents the component from re-queuing tokens after getting message.content from server
+          setStreamingText(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            delete updated[realMessageId];
+            return updated;
+          });
+          setHasReceivedFirstToken(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          setStreamingMessageId(null);
+          streamingCompleteRef.current = {};
+          currentStreamingMessageIdRef.current = null;
           
           if (isNewChat) {
             router.push(`/chat?chat=${actualSessionId}`);
           }
         } catch (err) {
           console.error('Error fetching complete chat:', err);
-          // Clear streaming state even on error
-          setTimeout(() => {
-            setStreamingText(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setHasReceivedFirstToken(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setStreamingMessageId(null);
-            streamingCompleteRef.current = {};
-            currentStreamingMessageIdRef.current = null;
-          }, 200);
+          // Clear streaming state immediately even on error to prevent double rendering
+          setStreamingText(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          setHasReceivedFirstToken(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          setStreamingMessageId(null);
+          streamingCompleteRef.current = {};
+          currentStreamingMessageIdRef.current = null;
         }
       } catch (streamError) {
         console.error('Error during streaming:', streamError);
