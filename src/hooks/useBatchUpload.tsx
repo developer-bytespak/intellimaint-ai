@@ -276,8 +276,9 @@ class BatchUploadManager {
     console.log("[BatchUploadManager] Connecting to SSE for batch:", batchId);
 
     const userIdParam = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     this.eventSource = new EventSource(
-      `http://localhost:8000/api/v1/batches/events/${batchId}${userIdParam}`
+      `${apiUrl}/api/v1/batches/events/${batchId}${userIdParam}`
     );
 
     this.eventSource.onopen = () => {
@@ -313,6 +314,9 @@ class BatchUploadManager {
 
         const backendProgress = Number(job.progress) || 0;
         const status = job.status as FileUploadState["status"];
+        const errorMsg = job.error;
+
+        console.log(`[BatchUploadManager] Job details - fileName: ${fileName}, status: ${status}, progress: ${backendProgress}, error: ${errorMsg}`);
 
         // Initialize simulated progress if not set
         if (this.simulatedProgress[fileName] === undefined) {
@@ -349,7 +353,9 @@ class BatchUploadManager {
           allInTerminalState = false;
         }
 
-        if (status === "failed") {
+        // Only mark as error if status is explicitly "failed" AND there's an error message
+        if (status === "failed" && errorMsg && errorMsg.length > 0) {
+          console.warn(`[BatchUploadManager] Job failed: ${fileName} - ${errorMsg}`);
           hasError = true;
         }
 

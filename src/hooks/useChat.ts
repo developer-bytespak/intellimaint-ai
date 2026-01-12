@@ -63,6 +63,10 @@ export function useChat() {
   // Socket.IO hook for streaming - only initialize when user is loaded and valid
   const shouldInitializeSocket = !isUserLoading && !!user?.id;
 
+  // Ref to store streaming result for sendMessage completion (avoid duplicate listeners)
+  const streamingResultRef = useRef<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string } | null>(null);
+  const streamingCompleteRef_local = useRef<boolean>(false);
+
   const socketHook = useChatSocket({
     userId: shouldInitializeSocket && user?.id ? user.id : '', // Only connect with valid userId when ready
     onChunk: useCallback((chunk: SocketStreamResponse) => {
@@ -70,7 +74,14 @@ export function useChat() {
       if (!tempMessageId) return;
 
       if (chunk.done) {
-        // Streaming complete - handled in sendMessage logic
+        // Streaming complete - store result for sendMessage to retrieve
+        streamingResultRef.current = {
+          sessionId: chunk.sessionId,
+          messageId: chunk.messageId,
+          stopped: chunk.stopped,
+          partialContent: chunk.partialContent,
+        };
+        streamingCompleteRef_local.current = true;
         return;
       }
 
@@ -210,10 +221,18 @@ export function useChat() {
   // Load chat sessions on mount
   useEffect(() => {
     const loadSessions = async () => {
+      // Don't load sessions if user is still loading or not available
+      if (isUserLoading || !user?.id) {
+        console.log('[useChat] Skipping loadSessions - user not ready:', { isUserLoading, userId: user?.id });
+        return;
+      }
+      
       try {
         setIsLoading(true);
         setError(null);
         setChatPage(1);
+        
+        console.log('[useChat] Loading chat sessions for user:', user.id);
         
         // Check if this is a page reload
         const isPageReload = sessionStorage.getItem('chatPageReloaded') === 'true';
@@ -232,6 +251,7 @@ export function useChat() {
         
         const result = await chatApi.listSessions({ page: 1, limit: 10 });
         
+        console.log('[useChat] Loaded sessions:', result.chats.length, 'chats');
         setChats(result.chats);
         setHasMoreChats(result.pagination.page < result.pagination.totalPages);
       } catch (err: unknown) {
@@ -265,7 +285,7 @@ export function useChat() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [user?.id]);
+  }, [user?.id, isUserLoading]);
 
   // Load more chats for infinite scroll
   const loadMoreChats = useCallback(async () => {
@@ -385,10 +405,15 @@ export function useChat() {
       updatedAt: new Date(),
     };
     
-    // Remove any existing empty chats (chats with no ID or no messages)
-    setChats(prev => prev.filter(chat => chat.id && chat.messages.length > 0));
+    // Remove any existing empty chats (chats with no ID) but keep all chats with IDs
+    // This ensures previous chats remain visible when creating a new chat
+    setChats(prev => {
+      // Filter out only the old empty chats (no ID), keep all chats with real IDs
+      const filtered = prev.filter(chat => chat.id && chat.id !== '');
+      // Add the new empty chat at the beginning
+      return [newChat, ...filtered];
+    });
     
-    setChats(prev => [newChat, ...prev]);
     setActiveChat(newChat);
     setActiveTab('chats');
     
@@ -403,8 +428,10 @@ export function useChat() {
   const selectChat = useCallback(async (chat: Chat) => {
     try {
       setError(null);
-      // Clean up any empty chats when selecting a real chat
-      setChats(prev => prev.filter(c => (c.id && c.id !== '') || c.id === chat.id));
+      // Clean up any empty chats (except the one being selected) when selecting a real chat
+      if (chat.id && chat.id !== '') {
+        setChats(prev => prev.filter(c => c.id && c.id !== '' || c.id === chat.id));
+      }
       
       // If it's a new chat (no ID), just set it as active without fetching
       if (!chat.id || chat.id === '') {
@@ -618,7 +645,13 @@ export function useChat() {
       let actualSessionId: string;
       let actualAssistantMessageId: string | undefined;
 
+      // Reset completion tracking for this message
+      streamingCompleteRef_local.current = false;
+      streamingResultRef.current = null;
+
       // Setup promise to wait for streaming completion
+      // Note: We rely on onChunk callback to update streamingText AND set streamingResultRef
+      // This promise just waits for the done signal via polling
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
         const cleanup = () => {
           // Unsubscribe the actual listeners we attach below
@@ -746,7 +779,8 @@ export function useChat() {
           setActiveChat(completeChat);
           if (isNewChat) {
             setChats(prev => {
-              const filtered = prev.filter(chat => !chat.id || chat.id === '');
+              // Remove only the old empty chat (no ID) and add the completed one
+              const filtered = prev.filter(chat => chat.id && chat.id !== '');
               return [completeChat, ...filtered];
             });
           } else {
