@@ -35,9 +35,14 @@ const SkeletonBox = ({ className }: { className?: string }) => (
 );
 
 const DashboardOverview = () => {
-  const { dashboardQuery, dashboardYear, setDashboardYear } = useAdmin();
+  const { dashboardQuery, trendsQuery, dashboardYear, setDashboardYear } = useAdmin();
   const { data, isLoading } = dashboardQuery;
+  const { data: trendsData, isLoading: trendsLoading } = trendsQuery;
 
+  // Loading placeholder for charts
+  const ChartSkeleton = () => (
+    <div className="w-full h-72 bg-gradient-to-r from-slate-800/50 via-slate-700/30 to-slate-800/50 rounded-lg animate-pulse" />
+  );
 
   if (isLoading) {
     // Skeleton layout mimicking the dashboard
@@ -141,10 +146,13 @@ const DashboardOverview = () => {
 
   const { analytics, userGrowth, uploadTrends, sessionTrends } = data;
 
+  // Use trends from separate query if available, fallback to dashboard data
+  const displayTrends = trendsData || { userGrowth, uploadTrends, sessionTrends };
+
   // Extract available years from userGrowth data (works for yearly or monthly data)
-  const availableYears = Array.from(
+  const availableYears: string[] = Array.from(
     new Set(
-      (userGrowth || []).map((item: { date: string; value: number }) =>
+      (displayTrends?.userGrowth || []).map((item: { date: string; value: number }) =>
         item.date.length === 4 ? item.date : item.date.slice(0, 4)
       )
     )
@@ -155,9 +163,9 @@ const DashboardOverview = () => {
 
   // Filter userGrowth for selected year (if monthly data)
   const filteredUserGrowth =
-    dashboardYear && dashboardYear !== 'all' && userGrowth && userGrowth.length > 0 && userGrowth[0].date.length > 4
-      ? userGrowth.filter((item: { date: string; value: number }) => item.date.startsWith(dashboardYear))
-      : userGrowth;
+    dashboardYear && dashboardYear !== 'all' && displayTrends?.userGrowth && displayTrends.userGrowth.length > 0 && displayTrends.userGrowth[0].date.length > 4
+      ? displayTrends.userGrowth.filter((item: { date: string; value: number }) => item.date.startsWith(dashboardYear))
+      : displayTrends?.userGrowth;
 
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
   const userRoleData = [
@@ -232,7 +240,7 @@ const DashboardOverview = () => {
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableYears.map((year: string) => (
+                    {(availableYears as string[]).map((year: string) => (
                       <SelectItem key={year} value={year}>
                         {year === 'all' ? 'All Years' : year}
                       </SelectItem>
@@ -243,29 +251,33 @@ const DashboardOverview = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={filteredUserGrowth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#fff',
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#3b82f6"
-                  dot={false}
-                  strokeWidth={2}
-                  isAnimationActive={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {trendsLoading ? (
+              <ChartSkeleton />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={filteredUserGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    dot={false}
+                    strokeWidth={2}
+                    isAnimationActive={true}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -328,7 +340,7 @@ const DashboardOverview = () => {
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableYears.map((year: string) => (
+                    {(availableYears as string[]).map((year: string) => (
                       <SelectItem key={year} value={year}>
                         {year === 'all' ? 'All Years' : year}
                       </SelectItem>
@@ -339,22 +351,23 @@ const DashboardOverview = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={uploadTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    // border: 'none',
-                    // borderRadius: '8px',
-                    // color: '#fff',
-                  }}
-                />
-                <Bar dataKey="value" fill="#8b5cf6"  isAnimationActive={true}  />
-              </BarChart>
-            </ResponsiveContainer>
+            {trendsLoading ? (
+              <ChartSkeleton />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={displayTrends?.uploadTrends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                    }}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" isAnimationActive={true} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -369,7 +382,7 @@ const DashboardOverview = () => {
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableYears.map((year: string) => (
+                    {(availableYears as string[]).map((year: string) => (
                       <SelectItem key={year} value={year}>
                         {year === 'all' ? 'All Years' : year}
                       </SelectItem>
@@ -380,29 +393,33 @@ const DashboardOverview = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={sessionTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#fff',
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#10b981"
-                  dot={false}
-                  strokeWidth={2}
-                  isAnimationActive={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {trendsLoading ? (
+              <ChartSkeleton />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={displayTrends?.sessionTrends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#10b981"
+                    dot={false}
+                    strokeWidth={2}
+                    isAnimationActive={true}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>

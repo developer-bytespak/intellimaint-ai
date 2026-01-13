@@ -101,14 +101,14 @@ export default function DashboardLayout({
         <>
           {/* Main content */}
           <main
-            className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden flex flex-col ${isMobile ? 'pb-20' : ''}`}
-            style={isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+            className={`flex-1 transition-all duration-300 ease-in-out overflow-x-hidden flex flex-col ${!pathname.includes('/admin') && isMobile ? 'pb-20' : ''}`}
+            style={!pathname.includes('/admin') && isMobile ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
           >
             {children}
           </main>
 
-          {/* Mobile Bottom Navigation - Only visible on mobile */}
-          {isMobile && (
+          {/* Mobile Bottom Navigation - Only visible on mobile AND NOT on admin route */}
+          {isMobile && !pathname.includes('/admin') && (
             <BottomNavigation 
               activeTab={activeTab} 
               onTabChange={handleTabChange} 

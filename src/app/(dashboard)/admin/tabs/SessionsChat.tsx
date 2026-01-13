@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +30,7 @@ const SessionsChat = () => {
 
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+  const [priceFilter, setPriceFilter] = useState('all');
 
   const handleSearch = () => {
     setSearchQuery(localSearch);
@@ -43,6 +43,18 @@ const SessionsChat = () => {
     setFilters(newFilters);
     setStatusFilter(value);
     setPagination({ ...pagination, page: 1 });
+  };
+
+  const sortData = (dataToSort: AdminSession[]) => {
+    let sorted = [...dataToSort];
+    
+    if (priceFilter === 'low-to-high') {
+      sorted.sort((a, b) => a.totalPrice - b.totalPrice);
+    } else if (priceFilter === 'high-to-low') {
+      sorted.sort((a, b) => b.totalPrice - a.totalPrice);
+    }
+    
+    return sorted;
   };
 
   const formatDuration = (minutes?: number) => {
@@ -90,17 +102,16 @@ const SessionsChat = () => {
               </Button>
             </div>
 
-            {/* <Select value={statusFilter} onValueChange={handleStatusChange}>
+            <Select value={priceFilter} onValueChange={setPriceFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder="Filter by price" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="ended">Ended</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="all">All Prices</SelectItem>
+                <SelectItem value="low-to-high">Low to High</SelectItem>
+                <SelectItem value="high-to-low">High to Low</SelectItem>
               </SelectContent>
-            </Select> */}
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -133,12 +144,6 @@ const SessionsChat = () => {
                       <th className=" text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">
                         Messages
                       </th>
-                      {/* <th className=" text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                        User Token
-                      </th>
-                      <th className=" text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                        System Token
-                      </th> */}
                       <th className=" text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">
                         Total Tokens
                       </th>
@@ -148,7 +153,7 @@ const SessionsChat = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.data.map((session: AdminSession) => (
+                    {sortData(data.data).map((session: AdminSession) => (
                       <tr
                         key={session.id}
                         className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
@@ -182,42 +187,53 @@ const SessionsChat = () => {
                 </table>
               </div>
 
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-4">
-                {data.data.map((session: AdminSession) => (
-                  <div
-                    key={session.id}
-                    className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+              {/* Mobile Horizontal Scrollable Table */}
+              <div className="md:hidden overflow-x-auto">
+                <table className="w-full min-w-max">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700">
+                      <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                        Email
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                        Sessions
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                        Messages
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                        Total Tokens
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                        Total Price
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortData(data.data).map((session: AdminSession) => (
+                      <tr
+                        key={session.id}
+                        className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                      >
+                        <td className="py-3 px-4 text-sm font-medium text-slate-900 dark:text-white whitespace-nowrap">
                           {session.email}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {session.totalSessions}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {session.totalMessages}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {session.totalToken}
-                        </p>
-                      </div>
-                        <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           ${session.totalPrice.toFixed(4)}
-                        </p>
-                        </div>
-                    </div>
-                      </div>
-                ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               {/* Pagination */}
