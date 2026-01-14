@@ -151,7 +151,7 @@ export default function ProfilePage() {
   const items = [
     { label: "Account Details", icon: IconUser, href: "/account" },
     { label: "Credits", icon: IconWallet, href: "/credits" },
-    { label: "Saved Prompts", icon: IconHeart, href: "/saved-prompts" },
+    // { label: "Saved Prompts", icon: IconHeart, href: "/saved-prompts" },
     { label: "Repository (Military Products)", icon: IconFolder, href: "/repository" },
     { label: "Settings", icon: IconSettings, href: "/settings" },
   ]
