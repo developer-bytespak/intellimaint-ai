@@ -135,7 +135,7 @@ const handleGoogleSignIn = () => {
         {/* Logo */}
         <div className="w-20 h-20 sm:w-24 sm:h-24 mb-6 sm:mb-8 relative">
           <Image
-            src="/logo.svg"
+            src="/Intelliment LOgo.png"
             alt="Intellimaint AI Logo"
             width={96}
             height={96}
@@ -299,7 +299,7 @@ const handleGoogleSignIn = () => {
         {/* Logo */}
         <div className="w-40 h-40 mb-8 relative">
           <Image
-            src="/logo.svg"
+            src="/Intelliment LOgo.png"
             alt="Intellimaint AI Logo"
             width={160}
             height={160}
