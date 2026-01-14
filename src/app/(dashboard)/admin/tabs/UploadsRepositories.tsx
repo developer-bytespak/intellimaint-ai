@@ -247,20 +247,6 @@ const UploadsRepositories = () => {
                         </Badge>
                       </div>
                     </div>
-                    {upload.status === 'ready' && (
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1">
-                          <Download className="w-4 h-4 mr-2" /> Download
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

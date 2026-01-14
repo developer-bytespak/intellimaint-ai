@@ -47,6 +47,7 @@ export interface AdminContextType {
   uploadsQuery: UseQueryResult<{ data: AdminUpload[]; total: number }, Error>;
   sessionsQuery: UseQueryResult<{ data: AdminSession[]; total: number }, Error>;
   subscriptionsQuery: UseQueryResult<{ data: AdminSubscription[]; total: number }, Error>;
+  trendsQuery: UseQueryResult<any, Error>;
 
   // Refetch functions
   refetchAll: () => void;
@@ -68,6 +69,16 @@ const adminApi = {
     const res = await baseURL.get(url);
     console.log("Fetched Dashboard Data:", res.data)
     return res?.data?.data || getMockDashboardData();
+  },
+
+  fetchTrends: async (year?: string | null): Promise<any> => {
+    let url = '/admin/dashboard/trends';
+    if (year && year !== 'all') {
+      url += `?year=${year}`;
+    }
+    const res = await baseURL.get(url);
+    console.log("Fetched Trends Data:", res.data)
+    return res?.data?.data || {};
   },
 
   fetchUsers: async (params: AdminQueryParams): Promise<{ data: AdminUser[]; total: number }> => {
@@ -219,12 +230,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [searchQuery, setSearchQuery] = useState('');
   const [dashboardYear, setDashboardYear] = useState<string | null>('all');
 
-  // Dashboard Query
+  // Dashboard Query (Stats only, not year-dependent)
   const dashboardQuery = useQuery({
-    queryKey: ['admin-dashboard', dashboardYear],
-    queryFn: () => adminApi.fetchDashboard(dashboardYear === 'all' ? undefined : dashboardYear),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: () => adminApi.fetchDashboard(),
+    staleTime: 30 * 60 * 1000, // 30 minutes - long cache since stats don't change often
+    gcTime: 60 * 60 * 1000, // 60 minutes
+  });
+
+  const trendsQuery = useQuery({
+    queryKey: ['admin-dashboard-trends', dashboardYear],
+    queryFn: () => adminApi.fetchTrends(dashboardYear),
+    staleTime: 5 * 60 * 1000, // 5 mins cache
   });
 
   // Users Query
@@ -286,7 +303,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     uploadsQuery.refetch();
     sessionsQuery.refetch();
     subscriptionsQuery.refetch();
-  }, [dashboardQuery, usersQuery, uploadsQuery, sessionsQuery, subscriptionsQuery]);
+    trendsQuery.refetch();
+  }, [dashboardQuery, usersQuery, uploadsQuery, sessionsQuery, subscriptionsQuery, trendsQuery]);
 
   const value: AdminContextType = {
     pagination,
@@ -302,6 +320,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     uploadsQuery,
     sessionsQuery,
     subscriptionsQuery,
+    trendsQuery,
     refetchAll,
   };
 

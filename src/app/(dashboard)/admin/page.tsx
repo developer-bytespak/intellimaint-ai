@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { AdminProvider } from '@/hooks/useAdmin';
 import { useUser } from '@/hooks/useUser';
+import { LogOut } from 'lucide-react';
 import DashboardOverview from './tabs/DashboardOverview';
 import UsersManagement from './tabs/UsersManagement';
 import UploadsRepositories from './tabs/UploadsRepositories';
@@ -15,7 +17,8 @@ import AnalyticsTab from './tabs/AnalyticsTab';
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const router = useRouter();
-  const { user, isLoading } = useUser();
+  const { user, isLoading ,logout} = useUser();
+
 
   // Check if user is admin
   useEffect(() => {
@@ -27,6 +30,13 @@ const AdminPage = () => {
       }
     }
   }, [user, isLoading, router]);
+
+  const handleLogout = async() => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('user');
+    await logout.mutateAsync();
+   
+  };
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -47,13 +57,24 @@ const AdminPage = () => {
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              Admin Dashboard
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Manage users, uploads, sessions, and view analytics
-            </p>
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
+                Admin Dashboard
+              </h1>
+              <p className="text-slate-600 dark:text-slate-400">
+                Manage users, uploads, sessions, and view analytics
+              </p>
+            </div>
+            <Button
+              onClick={handleLogout}
+              variant="destructive"
+              size="lg"
+              className="flex items-center gap-2"
+            >
+              <LogOut className="w-5 h-5" />
+              Logout
+            </Button>
           </div>
 
           {/* Tabs */}

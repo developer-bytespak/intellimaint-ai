@@ -239,14 +239,6 @@ const UsersManagement = () => {
                         <p className="text-slate-500">Sessions: {user.sessions}</p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" className="flex-1 text-red-600">
-                        Delete
-                      </Button>
-                    </div>
                   </div>
                 ))}
               </div>
