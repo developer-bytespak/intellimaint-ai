@@ -25,8 +25,9 @@ export function useAudio() {
       const formData = new FormData();
       formData.append('file', audioDocument.file, audioDocument.file.name);
 
-      const endpoint = '/asr/transcribe';
-      const fullUrl = `${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}${endpoint}`;
+      const endpoint = '/api/v1/asr/transcribe';
+      const pythonBackendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const fullUrl = `${pythonBackendUrl}${endpoint}`;
 
       try {
         console.log(`[Audio] Sending transcription request to: ${fullUrl}`);
@@ -129,8 +130,9 @@ export function useAudio() {
       textToSpeechControllerRef.current = controller;
 
       try {
+        const pythonBackendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_PYTHON_BACKEND_URL}/asr/synthesize`,
+          `${pythonBackendUrl}/api/v1/asr/synthesize`,
           { text },
           {
             headers: {
