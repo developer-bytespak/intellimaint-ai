@@ -114,7 +114,9 @@ export default function CallingModal({
 
     // Stop any currently playing bot audio immediately
     stopAudio();
-
+    setIsProcessing(false);
+    setIsListening(false);
+    setIsSpeaking(false);
     stopStreaming();
     disconnectWebSocket();
     setIsCallActive(false);

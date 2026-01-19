@@ -248,6 +248,7 @@ export function useVoiceStream(
 
   const stopStreaming = () => {
     isExplicitlyStopped.current = true;
+    setIsProcessing(false);
 
     if (recognitionRef.current && isListeningRef.current) {
       recognitionRef.current.stop();

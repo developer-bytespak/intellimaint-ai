@@ -62,7 +62,7 @@ const RecentHistory: React.FC<RecentHistoryProps> = ({
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [showDeleteDocumentConfirm, setShowDeleteDocumentConfirm] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  console.log("Rendering RecentHistory with chats:", chats);
+  // console.log("Rendering RecentHistory with chats:", chats);
   // Filter chats based on search query
   const filteredChats = chats.filter(chat =>
     chat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
