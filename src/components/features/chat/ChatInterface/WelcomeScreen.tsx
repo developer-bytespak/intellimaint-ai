@@ -499,7 +499,7 @@ export default function WelcomeScreen({
 
       {/* Show Welcome Content only when no active chat or chat has no messages */}
       {showWelcomeContent ? (
-        <div className="flex-1 mb-14 overflow-y-auto items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 flex">
+        <div className="flex-1 pb-[200px] sm:pb-0 sm:mb-14 overflow-y-auto items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 flex">
           <div className="max-w-2xl lg:max-w-4xl text-center space-y-3 sm:space-y-4 md:space-y-6 w-full px-2 sm:px-4">
             {/* Logo or Icon */}
             <div className="flex justify-center mb-3 sm:mb-4 md:mb-6">
@@ -559,8 +559,8 @@ export default function WelcomeScreen({
         </div>
       ) : (
         /* Show Message List when chat has messages - Constrained to prompt width */
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 ">
-          <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-14 sm:pt-8 pb-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-14 sm:pt-8 pb-[200px] sm:pb-4">
             <MessageList
               activeChat={activeChat}
               isSending={isSending}
@@ -573,8 +573,8 @@ export default function WelcomeScreen({
         </div>
       )}
 
-      {/* ChatGPT-like Prompt Interface - Fixed at Bottom */}
-      <div className="shrink-0 fixed sm:h-fit h-[170px]  bottom-0 sm:bottom-0 w-full   px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-[#2a3441] bg-[#1f2632]">
+      {/* ChatGPT-like Prompt Interface - Fixed at Bottom, above mobile nav */}
+      <div className="shrink-0 fixed bottom-[80px] sm:bottom-0 left-0 right-0 w-full max-h-[40vh] sm:max-h-none overflow-y-auto px-3 sm:px-4 md:px-6 py-2 sm:py-4 border-t border-[#2a3441] bg-[#1f2632] z-40 sm:z-10">
         {!showWelcomeContent && isRefreshingChatAfterCall && (
           <div className="w-full max-w-4xl mx-auto pb-2">
             <div className="flex justify-center">
@@ -617,7 +617,7 @@ export default function WelcomeScreen({
             )}
 
             {/* Input Field Wrapper - Keeps placeholder and icons aligned in sequence */}
-            <div className="flex items-end gap-2 w-full">
+            <div className="flex items-end gap-2 w-full min-w-0">
               <textarea
                 ref={textareaRef}
                 value={inputValue || ''}
@@ -625,7 +625,7 @@ export default function WelcomeScreen({
                   setInputValue(e.target.value || '');
                   const textarea = e.target;
                   textarea.style.height = 'auto';
-                  textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+                  textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -642,7 +642,7 @@ export default function WelcomeScreen({
                 }
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
-                className={`flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-40 scrollbar-chatgpt py-2 pr-14 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
+                className={`flex-1 min-w-0 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-[120px] scrollbar-chatgpt py-2 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                   }`}
@@ -652,7 +652,7 @@ export default function WelcomeScreen({
               />
 
               {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
-              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0 self-end pb-2">
                 {/* Plus Icon Button with Dropdown */}
                 <div className="relative pin-dropdown">
                   <button
@@ -670,15 +670,15 @@ export default function WelcomeScreen({
 
                   {/* Plus Dropdown Menu */}
                   {showPinMenu && (
-                    <div className="absolute bottom-full right-0 mb-2 bg-[#1f2632] border border-[#3a4a5a] rounded-lg shadow-lg p-1.5 sm:p-2 z-100">
-                      <div className="flex gap-1.5 sm:gap-2">
+                    <div className="fixed bottom-[140px] sm:bottom-[80px] right-4 sm:right-auto bg-[#1f2632] border border-[#3a4a5a] rounded-xl shadow-xl p-2 sm:p-3 z-[200]">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <button
                           type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                          className="w-10 h-10 flex items-center justify-center hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
                           onClick={() => { setShowPinMenu(false); handleOpenCamera(); }}
                           title="Camera"
                         >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
@@ -686,22 +686,22 @@ export default function WelcomeScreen({
 
                         <button
                           type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                          className="w-10 h-10 flex items-center justify-center hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
                           onClick={startCall}
                           title="Call"
                         >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
                         </button>
 
                         <button
                           type="button"
-                          className="p-1.5 sm:p-2 hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
+                          className="w-10 h-10 flex items-center justify-center hover:bg-[#3a4a5a] text-white rounded-lg transition-all duration-200"
                           onClick={() => { setShowPinMenu(false); handleOpenGallery(); }}
                           title="Gallery"
                         >
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </button>
