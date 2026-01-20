@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { storeTokens } from "@/lib/utils/tokenUtils";
 
 export default function CallbackClient() {
   const params = useSearchParams();
@@ -16,16 +17,15 @@ export default function CallbackClient() {
   useEffect(() => {
     if (error) return;
 
+    // ✅ IMPROVED: Use utility function to store tokens
     // CROSS-DOMAIN FIX: Store tokens in localStorage for production
     // This works when frontend and backend are on different domains
-    if (accessToken) {
+    if (accessToken && refreshToken) {
+      console.log('[Callback] Storing both tokens in localStorage');
+      storeTokens(accessToken, refreshToken);
+    } else if (accessToken) {
       console.log('[Callback] Storing accessToken in localStorage');
       localStorage.setItem('accessToken', accessToken);
-    }
-    
-    if (refreshToken) {
-      console.log('[Callback] Storing refreshToken in localStorage');
-      localStorage.setItem('refreshToken', refreshToken);
     }
 
     if (token || accessToken) {

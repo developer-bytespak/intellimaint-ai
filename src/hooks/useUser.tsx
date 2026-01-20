@@ -6,6 +6,13 @@ import { useRouter, usePathname } from "next/navigation";
 // import { useSession } from "next-auth/react";
 import React, { useContext, createContext, ReactNode } from "react";
 import { RegisterFormData } from "@/lib/validations/register";
+import { 
+  isTokenExpired, 
+  getStoredTokens, 
+  storeTokens, 
+  clearTokens,
+  shouldRefreshToken 
+} from "@/lib/utils/tokenUtils";
 
 export interface IUser {
   id?: string;
@@ -82,6 +89,49 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   }, [isLoggedOut]);
+
+  // ✅ AUTO-REFRESH TOKENS ON MOUNT
+  // When page reloads, check if access token is expired and refresh if needed
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isPublicRoute) return; // Don't refresh on public routes
+    if (isLoggedOut) return; // Don't refresh if user logged out
+
+    const refreshTokenIfNeeded = async () => {
+      const { accessToken, refreshToken } = getStoredTokens();
+
+      // No tokens stored - user is not logged in
+      if (!accessToken || !refreshToken) {
+        console.log('[useUser] No tokens found in localStorage');
+        return;
+      }
+
+      // Check if access token is expired or expiring soon
+      if (isTokenExpired(accessToken) || shouldRefreshToken(accessToken)) {
+        console.log('[useUser] Access token expired or expiring soon, attempting refresh...');
+        
+        try {
+          // Call refresh endpoint
+          const response = await baseURL.post('/auth/refresh', {}, { withCredentials: true });
+          console.log('[useUser] Token refresh successful');
+          
+          // The axios interceptor handles updating tokens in storage
+          // But let's also trigger user profile fetch by setting flag
+          setLoginJustHappened(true);
+        } catch (error) {
+          console.warn('[useUser] Token refresh failed, user will be redirected to login on profile fetch');
+          // The axios interceptor will handle redirect to login
+        }
+      } else {
+        console.log('[useUser] Access token is still valid');
+        // Token is valid, but still trigger user profile fetch
+        setLoginJustHappened(true);
+      }
+    };
+
+    refreshTokenIfNeeded();
+  }, []); // Run only on mount
+
 
   //* GOOGLE AUTH :
 
@@ -333,26 +383,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
               const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
               const refreshToken = res.data?.data?.refreshToken || res.data?.refreshToken;
               
-              // Store tokens if provided in response
-              if (accessToken) {
+              // ✅ IMPROVED: Always use utility function for storing tokens
+              if (accessToken && refreshToken) {
+                console.log('[useUser] Storing both tokens in localStorage');
+                storeTokens(accessToken, refreshToken);
+              } else if (accessToken) {
                 console.log('[useUser] Storing accessToken in localStorage');
                 localStorage.setItem('accessToken', accessToken);
               } else {
-                console.warn('[useUser] No accessToken in response body. Backend is using cookies instead.');
+                console.warn('[useUser] No tokens in response body. Backend is using cookies instead.');
                 console.log('[useUser] Response structure:', JSON.stringify(res.data, null, 2));
-                // ✅ Signal that login happened so we can fetch user profile using cookies
-                setLoginJustHappened(true);
               }
               
-              if (refreshToken) {
-                console.log('[useUser] Storing refreshToken in localStorage');
-                localStorage.setItem('refreshToken', refreshToken);
-              }
+              // Signal that login happened so we can fetch user profile
+              setLoginJustHappened(true);
               
               // Reset logout flag to allow user query to run
               setIsLoggedOut(false);
               
-              console.log('[useUser] Backend also set cookies - check Set-Cookie headers in network tab');
+              console.log('[useUser] Login completed, tokens stored and session ready');
               return res.data;
             } catch (error) {
               console.error('[useUser] Login error:', error);
@@ -444,11 +493,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Frontend clears localStorage and redirects to /login
     const logout = useMutation({
       mutationFn: async () => {
-        // Always clear localStorage first (regardless of API success)
-        // This ensures logout works even if backend is unreachable
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        console.log('[useUser] Cleared tokens from localStorage');
+        // ✅ IMPROVED: Use utility function to clear tokens
+        clearTokens();
         
         try {
           const res = await baseURL.get('/auth/logout');
@@ -465,10 +511,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.log('[useUser] Logout mutation onSuccess triggered');
         // Set logout flag to prevent query from re-running
         setIsLoggedOut(true);
-        // Clear stored tokens
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        console.log('[useUser] Cleared tokens from localStorage');
+        // ✅ IMPROVED: Use utility function to clear tokens again (safety measure)
+        clearTokens();
         // Invalidate and remove all queries to prevent auto-refetch
         queryClient.removeQueries({ queryKey: ["user"] });
         queryClient.clear();
@@ -479,8 +523,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.error('[useUser] Logout mutation failed');
         // Even if logout fails, clear local state to prevent auto-reauth
         setIsLoggedOut(true);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        // ✅ IMPROVED: Use utility function to clear tokens
+        clearTokens();
         queryClient.removeQueries({ queryKey: ["user"] });
         queryClient.clear();
         router.push('/login');
