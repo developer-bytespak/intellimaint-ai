@@ -435,372 +435,253 @@
 
 //   return { isConnected, send, disconnect, lastTextMessage, messages, stopAudio };
 // }
-
-
-
-
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 
-const DEBUG = process.env.NODE_ENV === 'development';
+const DEBUG = process.env.NODE_ENV === "development";
 
 export let sessionId = "";
 
-export function useWebSocket(url: string, options?: { onError?: (error: Event | string) => void }) {
+export function useWebSocket(
+  url: string,
+  options?: { onError?: (error: Event | string) => void }
+) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const reconnectRef = useRef<number | null>(null);
-  const manualDisconnectRef = useRef<boolean>(false);
-  const [lastTextMessage, setLastTextMessage] = useState<string | null>(null);
-  const [messages, setMessages] = useState<(string | Blob | ArrayBuffer)[]>([]);
+
+  // Audio state
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const isPlayingRef = useRef(false);
   const micPausedRef = useRef(false);
 
-  const audioQueueRef = useRef<Blob[]>([]);
-  const isPlayingRef = useRef(false);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const audioBufferRef = useRef<Blob[]>([]);
-  const bufferTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // NEW: Accumulate chunks per sentence
+  const currentSentenceChunks = useRef<Uint8Array[]>([]);
+  const audioQueue = useRef<Blob[]>([]);
+
+  // Text state
+  const [lastTextMessage, setLastTextMessage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<(string | Blob)[]>([]);
 
   const getAudioEl = () => {
     if (!audioElRef.current) {
       audioElRef.current = new Audio();
+      audioElRef.current.preload = "auto";
     }
     return audioElRef.current;
   };
 
-  const playBufferedChunks = () => {
-    if (audioBufferRef.current.length === 0 || isPlayingRef.current) return;
+  // ✅ Concatenate WAV files properly (strip headers from subsequent chunks)
+  const concatenateWAV = (chunks: Uint8Array[]): Blob => {
+    if (chunks.length === 0) return new Blob([], { type: "audio/wav" });
+    if (chunks.length === 1) return new Blob([chunks[0].buffer as ArrayBuffer], { type: "audio/wav" });
+
+    // Start with first chunk (includes WAV header)
+    const result = new Uint8Array(chunks.reduce((sum, c) => sum + c.length, 0) - (chunks.length - 1) * 44);
+    let offset = 0;
+
+    // First chunk: include full WAV header
+    result.set(chunks[0], offset);
+    offset += chunks[0].length;
+
+    // Subsequent chunks: skip 44-byte WAV header
+    for (let i = 1; i < chunks.length; i++) {
+      if (chunks[i].length > 44) {
+        result.set(chunks[i].slice(44), offset);
+        offset += chunks[i].length - 44;
+      }
+    }
+
+    return new Blob([result.buffer as ArrayBuffer], { type: "audio/wav" });
+  };
+
+  // ✅ Play next audio from queue
+  const playNext = async () => {
+    if (isPlayingRef.current || audioQueue.current.length === 0) {
+      if (audioQueue.current.length === 0) {
+        // All audio finished, resume mic
+        micPausedRef.current = false;
+        window.dispatchEvent(new Event("resume-mic"));
+        if (DEBUG) console.log("✅ Audio queue empty - mic resumed");
+      }
+      return;
+    }
+
+    const audioBlob = audioQueue.current.shift();
+    if (!audioBlob || audioBlob.size === 0) {
+      playNext();
+      return;
+    }
 
     const audio = getAudioEl();
-    // Combine all buffered chunks into one blob
-    const combinedBlob = new Blob(audioBufferRef.current, { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(combinedBlob);
-
-    console.log(`🎵 Playing ${audioBufferRef.current.length} chunks combined (${combinedBlob.size} bytes)`);
+    const objectUrl = URL.createObjectURL(audioBlob);
 
     isPlayingRef.current = true;
-    audioBufferRef.current = [];
-    audio.src = url;
+    audio.src = objectUrl;
 
     audio.onended = () => {
-      console.log("✅ Audio chunk finished");
-      URL.revokeObjectURL(url);
+      if (DEBUG) console.log("✅ Audio chunk finished");
+      URL.revokeObjectURL(objectUrl);
       isPlayingRef.current = false;
-      playNext();
+      playNext(); // Play next in queue
     };
 
     audio.onerror = (err) => {
-      console.error("❌ Audio playback error:", err);
-      URL.revokeObjectURL(url);
+      console.error("❌ Audio decode error:", err);
+      URL.revokeObjectURL(objectUrl);
       isPlayingRef.current = false;
       playNext();
     };
 
-    audio.play().catch((err) => {
-      console.error("❌ Audio play() failed:", err);
-      URL.revokeObjectURL(url);
+    try {
+      await audio.play();
+      if (DEBUG) console.log(`🔊 Playing audio (${audioBlob.size} bytes)`);
+    } catch (err) {
+      console.error("❌ Audio play failed:", err);
+      URL.revokeObjectURL(objectUrl);
       isPlayingRef.current = false;
       playNext();
-    });
-  };
-
-  const playNext = () => {
-    if (isPlayingRef.current) return;
-
-    const nextBlob = audioQueueRef.current.shift();
-    
-    if (!nextBlob) {
-      // Queue is empty, check if we have buffered chunks to play
-      if (audioBufferRef.current.length > 0) {
-        // Don't play yet if we haven't waited the minimum buffer time
-        if (!bufferTimeoutRef.current) {
-          console.log(`📦 Queue empty, ${audioBufferRef.current.length} chunk(s) buffered - waiting before play`);
-          bufferTimeoutRef.current = setTimeout(() => {
-            if (audioBufferRef.current.length > 0) {
-              playBufferedChunks();
-            }
-            bufferTimeoutRef.current = null;
-          }, 250);
-        }
-      } else {
-        // No chunks buffered and queue empty
-        if (bufferTimeoutRef.current) {
-          clearTimeout(bufferTimeoutRef.current);
-          bufferTimeoutRef.current = null;
-        }
-        console.log("✅ Audio queue empty - resuming mic");
-        micPausedRef.current = false;
-        window.dispatchEvent(new Event("resume-mic"));
-      }
-      return;
     }
-
-    // Buffer the chunk
-    audioBufferRef.current.push(nextBlob);
-    console.log(`📥 Buffered chunk ${audioBufferRef.current.length} (${nextBlob.size} bytes)`);
-    
-    // If we already have a timeout set, don't create another
-    if (bufferTimeoutRef.current) {
-      return;
-    }
-
-    // Check if we have 3+ chunks
-    if (audioBufferRef.current.length >= 3) {
-      console.log(`✅ Reached 3 chunks, playing immediately`);
-      playBufferedChunks();
-      return;
-    }
-
-    // Set timeout to play whatever we have after delay
-    console.log(`⏱️ Setting buffer timeout... (${audioBufferRef.current.length}/3 chunks)`);
-    bufferTimeoutRef.current = setTimeout(() => {
-      bufferTimeoutRef.current = null;
-      if (audioBufferRef.current.length > 0 && !isPlayingRef.current) {
-        console.log(`⏱️ Buffer timeout - playing ${audioBufferRef.current.length} buffered chunk(s)`);
-        playBufferedChunks();
-      }
-    }, 250);
   };
 
   const stopAudio = () => {
-    // Stop current playing audio
-    if (audioElRef.current) {
-      audioElRef.current.pause();
-      audioElRef.current.src = "";
+    if (DEBUG) console.log("🛑 stopAudio called");
+
+    // Clear all buffers
+    currentSentenceChunks.current = [];
+    audioQueue.current = [];
+
+    const audio = audioElRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
     }
 
-    // Clear all buffers and queue
-    audioQueueRef.current = [];
-    audioBufferRef.current = [];
-    if (bufferTimeoutRef.current) {
-      clearTimeout(bufferTimeoutRef.current);
-      bufferTimeoutRef.current = null;
-    }
     isPlayingRef.current = false;
-
-    // Resume mic immediately
     micPausedRef.current = false;
-    window.dispatchEvent(new Event("resume-mic"));
 
-    if (DEBUG) console.log("🛑 Audio queue stopped & cleared");
+    window.dispatchEvent(new Event("resume-mic"));
   };
 
   const send = (data: string | ArrayBuffer) => {
-    try {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        const dataSize =
-          data instanceof ArrayBuffer
-            ? data.byteLength
-            : typeof data === "string"
-              ? data.length
-              : 0;
-        const dataType =
-          data instanceof ArrayBuffer
-            ? "ArrayBuffer"
-            : typeof data === "string"
-              ? "String"
-              : "Unknown";
-
-        if (DEBUG) {
-          console.log(
-            `📤 WebSocket.send() called: ${dataType}, size: ${dataSize} bytes`
-          );
-        }
-
-        wsRef.current.send(data);
-
-        if (DEBUG) console.log(`✅ Data sent successfully`);
-      } else {
-        const readyState = wsRef.current?.readyState;
-        const stateNames: Record<number, string> = {
-          0: "CONNECTING",
-          1: "OPEN",
-          2: "CLOSING",
-          3: "CLOSED",
-        };
-        const stateName =
-          readyState !== undefined
-            ? stateNames[readyState] || "UNKNOWN"
-            : "UNDEFINED";
-        console.warn(
-          `⚠️ WebSocket not open. ReadyState: ${readyState} (${stateName})`
-        );
-      }
-    } catch (err) {
-      console.error("❌ WebSocket send error:", err);
-    }
-  };
-
-  const disconnect = () => {
-    if (DEBUG) console.log("🔌 Disconnecting WebSocket...");
-    manualDisconnectRef.current = true;
-
-    stopAudio();
-
-    if (reconnectRef.current !== null) {
-      window.clearTimeout(reconnectRef.current);
-      reconnectRef.current = null;
-    }
-
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-      setIsConnected(false);
-      if (DEBUG) console.log("✅ WebSocket disconnected");
-    }
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(data);
   };
 
   const connect = () => {
-    try {
-      manualDisconnectRef.current = false;
+    if (!url) return;
 
-      console.log("🔌 [useWebSocket.connect()] Attempting WebSocket connection");
-      console.log("🔌 [useWebSocket.connect()] URL:", url);
+    const ws = new WebSocket(url);
+    ws.binaryType = "arraybuffer"; // ✅ Changed from "blob" to get raw bytes
+    wsRef.current = ws;
 
-      if (!url) {
-        console.log("⚠️ [useWebSocket.connect()] URL is empty, skipping connection");
+    ws.onopen = () => {
+      setIsConnected(true);
+      if (DEBUG) console.log("✅ WS connected");
+    };
+
+    ws.onerror = (err) => {
+      console.error("❌ WS error", err);
+      options?.onError?.(err);
+    };
+
+    ws.onmessage = async (msg) => {
+      setMessages((prev) => [...prev, msg.data]);
+
+      // 🔊 AUDIO CHUNK (raw bytes from Deepgram streaming)
+      if (msg.data instanceof ArrayBuffer) {
+        if (msg.data.byteLength === 0) return;
+
+        // Pause mic on first audio chunk
+        if (!micPausedRef.current) {
+          micPausedRef.current = true;
+          window.dispatchEvent(new Event("pause-mic"));
+        }
+
+        // Accumulate this chunk
+        currentSentenceChunks.current.push(new Uint8Array(msg.data));
+        
+        if (DEBUG) console.log(`📦 Received audio chunk (${msg.data.byteLength} bytes)`);
         return;
       }
 
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.binaryType = "blob";
-
-      ws.onopen = () => {
-        console.log("✅ [useWebSocket] Connected successfully to:", url);
-        setIsConnected(true);
-        if (reconnectRef.current !== null) {
-          window.clearTimeout(reconnectRef.current);
-          reconnectRef.current = null;
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error("❌ [useWebSocket] Connection error:", err);
-        if (options?.onError) {
-          options.onError(err);
-        }
-      };
-
-      ws.onmessage = async (msg) => {
+      // 📝 TEXT MESSAGE
+      if (typeof msg.data === "string") {
         try {
-          if (DEBUG) console.log("🔵 Backend Response Received");
-          console.log("WebSocket message data:", msg.data);
+          const parsed = JSON.parse(msg.data);
 
-          setMessages((prev) => [...prev, msg.data]);
+          // Text content
+          if (parsed.type === "text") {
+            setLastTextMessage((prev) => (prev ? prev + " " : "") + parsed.content);
+          }
 
-          // ✅ Audio blob handling
-          if (msg.data instanceof Blob) {
-            // ✅ FIX 2: Validate blob size
-            if (msg.data.size === 0) {
-              console.warn("⚠️ Received empty audio blob, skipping");
-              return;
+          // Session ID
+          if (parsed.type === "session" && parsed.sessionId) {
+            sessionId = parsed.sessionId;
+          }
+
+          // ✅ SENTENCE COMPLETE - Finalize audio for this sentence
+          if (parsed.type === "sentence_complete") {
+            if (currentSentenceChunks.current.length > 0) {
+              const completeAudio = concatenateWAV(currentSentenceChunks.current);
+              audioQueue.current.push(completeAudio);
+              currentSentenceChunks.current = []; // Reset for next sentence
+              
+              if (DEBUG) console.log(`✅ Sentence audio ready (${completeAudio.size} bytes)`);
+              
+              // Start playing if not already
+              if (!isPlayingRef.current) {
+                playNext();
+              }
             }
+          }
 
-            // Pause mic on first audio chunk
-            if (!micPausedRef.current) {
-              micPausedRef.current = true;
-              window.dispatchEvent(new Event("pause-mic"));
-            }
-
-            // Add to queue
-            audioQueueRef.current.push(msg.data);
+          // ✅ ALL DONE - Finalize remaining audio
+          if (parsed.type === "done") {
+            if (DEBUG) console.log("✅ Stream complete, flushing remaining audio");
             
-            // Start playing if not already
+            // Finalize any remaining chunks
+            if (currentSentenceChunks.current.length > 0) {
+              const completeAudio = concatenateWAV(currentSentenceChunks.current);
+              audioQueue.current.push(completeAudio);
+              currentSentenceChunks.current = [];
+            }
+
+            // Start playback if not already playing
             if (!isPlayingRef.current) {
               playNext();
             }
           }
-          // Text message
-          else if (typeof msg.data === "string") {
-            if (DEBUG) console.log("📩 Text message received:", msg.data);
-            try {
-              const parsed = JSON.parse(msg.data);
-
-              // Handle text responses
-              if (parsed.type === "text") {
-                console.log("💬 LLM Response:", parsed.content);
-                setLastTextMessage((prev) => (prev || "") + " " + parsed.content);
-              }
-
-              // Handle session ID
-              if (parsed.type === "session" && parsed.sessionId) {
-                sessionId = parsed.sessionId;
-                console.log("🆕 Session set:", sessionId);
-              }
-
-              // Handle completion
-              if (parsed.type === "done") {
-                console.log("✅ LLM Response Complete");
-              }
-            } catch {
-              if (DEBUG) console.log("📝 Plain Text Response");
-            }
-          }
-        } catch (err) {
-          console.error("❌ WS message handling error:", err);
+        } catch {
+          /* ignore parse errors */
         }
-      };
+      }
+    };
 
-      ws.onclose = (event) => {
-        if (DEBUG) {
-          console.log("🔌 WebSocket disconnected", {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-          });
-        }
-        setIsConnected(false);
-
-        stopAudio();
-
-        if (
-          url &&
-          url.trim() !== "" &&
-          !manualDisconnectRef.current &&
-          reconnectRef.current === null
-        ) {
-          if (DEBUG) console.log("🔄 Auto-reconnecting in 2 seconds...");
-          reconnectRef.current = window.setTimeout(() => {
-            reconnectRef.current = null;
-            connect();
-          }, 2000);
-        } else if (manualDisconnectRef.current) {
-          if (DEBUG) console.log("✅ Manual disconnect - no auto-reconnect");
-        }
-      };
-    } catch (err) {
-      console.error("❌ WebSocket creation error:", err);
-    }
+    ws.onclose = () => {
+      setIsConnected(false);
+      stopAudio();
+      if (DEBUG) console.log("🔌 WS closed");
+    };
   };
 
   useEffect(() => {
-    if (!url || url.trim() === "") return;
-
-    if (wsRef.current) {
-      manualDisconnectRef.current = false;
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    if (reconnectRef.current !== null) {
-      window.clearTimeout(reconnectRef.current);
-      reconnectRef.current = null;
-    }
-
     connect();
-
     return () => {
-      manualDisconnectRef.current = true;
       stopAudio();
       wsRef.current?.close();
-      if (reconnectRef.current !== null) {
-        window.clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
-      }
+      wsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
-  return { isConnected, send, disconnect, lastTextMessage, messages, stopAudio };
+  return {
+    isConnected,
+    send,
+    disconnect: stopAudio,
+    stopAudio,
+    lastTextMessage,
+    messages,
+  };
 }
