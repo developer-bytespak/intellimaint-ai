@@ -135,6 +135,7 @@ export function useChatSocket(options: UseChatSocketOptions) {
         hasToken: !!data.token,
         tokenLength: data.token?.length,
         done: data.done,
+        sessionId: data.sessionId, // Log sessionId
         messageId: data.messageId,
         metadata: !!data.metadata,
       });
@@ -157,13 +158,14 @@ export function useChatSocket(options: UseChatSocketOptions) {
         }
       } else if (data.stage === 'complete') {
         // Stream completed successfully
-        console.log('✅ Pipeline completed with messageId:', data.messageId);
+        console.log('✅ Pipeline completed with messageId:', data.messageId, 'sessionId:', data.sessionId);
         setIsStreaming(false);
         isStreamingRef.current = false;
         
         if (onChunkRef.current) {
           onChunkRef.current({
             done: true,
+            sessionId: data.sessionId, // CRITICAL: Pass sessionId for new chat sessions
             messageId: data.messageId,
             tokenUsage: data.tokenUsage,
           } as SocketStreamResponse);

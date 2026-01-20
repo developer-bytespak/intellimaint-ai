@@ -96,13 +96,28 @@ baseURL.interceptors.response.use(
       console.log("🔄 Attempting to refresh token...");
 
       try {
-        await axios.post(
+        const refreshResponse = await axios.post(
           `${API_BASE}/auth/refresh`,
           {},
           { withCredentials: true }
         );
 
         isRefreshing = false;
+        
+        // ✅ NEW: Extract tokens from refresh response and store in localStorage
+        // Backend sets tokens in response body for cross-domain scenarios
+        if (refreshResponse.data?.data) {
+          const responseData = refreshResponse.data.data;
+          if (responseData.accessToken) {
+            console.log('[axios] Storing refreshed accessToken in localStorage');
+            localStorage.setItem('accessToken', responseData.accessToken);
+          }
+          if (responseData.refreshToken) {
+            console.log('[axios] Storing refreshed refreshToken in localStorage');
+            localStorage.setItem('refreshToken', responseData.refreshToken);
+          }
+        }
+
         processQueue(null);
 
         /* 4️⃣ Retry the original failed request */

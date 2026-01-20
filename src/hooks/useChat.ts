@@ -353,11 +353,12 @@ export function useChat() {
           // This is especially important on page reload
           const fetchedChat = await chatApi.getSession(chatId);
           
-          // Update active chat
+          // Update active chat and sync ref immediately
           setActiveChat(prev => {
             if (prev?.id === chatId) {
               return prev; // Already set, don't override
             }
+            activeChatRef.current = fetchedChat; // Sync ref immediately
             return fetchedChat;
           });
           
@@ -415,6 +416,7 @@ export function useChat() {
     });
     
     setActiveChat(newChat);
+    activeChatRef.current = newChat; // Sync ref immediately
     setActiveTab('chats');
     
     // Clear URL to prevent useEffect from loading old chat
@@ -436,6 +438,7 @@ export function useChat() {
       // If it's a new chat (no ID), just set it as active without fetching
       if (!chat.id || chat.id === '') {
         setActiveChat(chat);
+        activeChatRef.current = chat; // Sync ref immediately
         setActiveTab('chats');
         return;
       }
@@ -445,6 +448,7 @@ export function useChat() {
       const fullChat = await chatApi.getSession(chat.id);
       
       setActiveChat(fullChat);
+      activeChatRef.current = fullChat; // Sync ref immediately
       setChats(prev => prev.map(c => c.id === fullChat.id ? fullChat : c));
       router.push(`/chat?chat=${chat.id}`);
       setActiveTab('chats');
@@ -484,7 +488,10 @@ export function useChat() {
       return;
     }
 
-    const chatToUse = chatOverride || activeChat;
+    // Use ref to get the latest activeChat value to avoid stale closure issues
+    // This is critical because after creating a new session, the state update may not have
+    // propagated yet when the user sends a second message quickly
+    const chatToUse = chatOverride || activeChatRef.current || activeChat;
     if (!chatToUse) {
       // If no active chat, create a new one first (local only)
       const newChat = createNewChat();
@@ -549,6 +556,14 @@ export function useChat() {
 
       // Check if this is a new chat (empty ID means it hasn't been saved to backend yet)
       const isNewChat = !finalChatToUse.id || finalChatToUse.id === '';
+      
+      console.log('[sendMessage] Session state:', {
+        isNewChat,
+        chatToUseId: chatToUse.id,
+        finalChatToUseId: finalChatToUse.id,
+        activeChatRefId: activeChatRef.current?.id,
+        activeChatStateId: activeChat?.id,
+      });
 
       // When editing, the message was already updated above - don't add a new one
       // When sending new message, create optimistic message for immediate display
@@ -672,6 +687,7 @@ export function useChat() {
 
       try {
         // Start socket streaming
+        console.log('[sendMessage] Starting stream:', { isNewChat, chatId: finalChatToUse.id });
         if (isNewChat) {
           socketHook.sendMessageNew(content, permanentImageUrls.length > 0 ? permanentImageUrls : undefined);
         } else {
@@ -680,8 +696,10 @@ export function useChat() {
 
         // Wait for streaming to complete
         const result = await streamingPromise;
+        console.log('[sendMessage] Stream completed:', { resultSessionId: result.sessionId, fallbackId: finalChatToUse.id });
         actualSessionId = result.sessionId || finalChatToUse.id;
         actualAssistantMessageId = result.messageId;
+        console.log('[sendMessage] Using actualSessionId:', actualSessionId);
 
         setStreamingAbortController(null);
         setIsSending(false); // Clear sending state immediately on completion
@@ -740,7 +758,25 @@ export function useChat() {
         
         // Fetch complete chat for final state
         try {
-          const completeChat = await chatApi.getSession(actualSessionId);
+          let completeChat: Chat;
+          
+          // For new chats, we don't have a sessionId from the backend
+          // So we fetch the latest sessions and find the newest one
+          if (isNewChat && (!actualSessionId || actualSessionId === '')) {
+            console.log('[sendMessage] New chat - fetching latest sessions to find the created session');
+            const sessionsResult = await chatApi.listSessions({ page: 1, limit: 5 });
+            
+            // The newly created session should be the first one
+            if (sessionsResult.chats.length > 0) {
+              completeChat = sessionsResult.chats[0];
+              console.log('[sendMessage] Found new session:', completeChat.id);
+            } else {
+              throw new Error('Failed to find newly created session');
+            }
+          } else {
+            // For existing chats, use the sessionId we have
+            completeChat = await chatApi.getSession(actualSessionId);
+          }
           
           // Find real message ID
           const realMessage = completeChat.messages.find(msg => 
@@ -766,13 +802,17 @@ export function useChat() {
           }
           
           // Update with complete chat FIRST
+          // Also update ref immediately to prevent stale closure issues when user sends messages quickly
           setActiveChat(completeChat);
+          activeChatRef.current = completeChat;
           if (isNewChat) {
             setChats(prev => {
               // Remove only the old empty chat (no ID) and add the completed one
               const filtered = prev.filter(chat => chat.id && chat.id !== '');
               return [completeChat, ...filtered];
             });
+            // Also update chats ref immediately
+            chatsRef.current = [completeChat, ...chatsRef.current.filter(chat => chat.id && chat.id !== '')];
           } else {
             setChats(prev => prev.map(chat => 
               chat.id === actualSessionId ? completeChat : chat
@@ -797,7 +837,8 @@ export function useChat() {
           currentStreamingMessageIdRef.current = null;
           
           if (isNewChat) {
-            router.push(`/chat?chat=${actualSessionId}`);
+            // Use completeChat.id which now has the actual session ID from the server
+            router.push(`/chat?chat=${completeChat.id}`);
           }
         } catch (err) {
           console.error('Error fetching complete chat:', err);
