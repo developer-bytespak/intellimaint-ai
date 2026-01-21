@@ -768,14 +768,15 @@ export function useChat() {
           const realMessageId = realMessage?.id || actualAssistantMessageId || tempAssistantMessageId;
           
           // If stopped, mark the messages in complete chat with isStopped flag
-          if (wasStopped) {
+          if (wasStopped && completeChat) {
+            const messagesLength = completeChat.messages.length;
             completeChat.messages = completeChat.messages.map((msg, idx) => {
               // Mark assistant message as stopped
               if (msg.id === realMessageId || msg.content === finalText) {
                 return { ...msg, isStopped: true };
               }
               // Mark the last user message as stopped (for edit button)
-              if (msg.role === 'user' && idx === completeChat.messages.length - 2) {
+              if (msg.role === 'user' && idx === messagesLength - 2) {
                 return { ...msg, isStopped: true };
               }
               return msg;
@@ -783,16 +784,19 @@ export function useChat() {
           }
           
           // Update with complete chat FIRST
-          setActiveChat(completeChat);
-          if (isNewChat) {
-            setChats(prev => {
-              const filtered = prev.filter(chat => !chat.id || chat.id === '');
-              return [completeChat, ...filtered];
-            });
-          } else {
-            setChats(prev => prev.map(chat => 
-              chat.id === actualSessionId ? completeChat : chat
-            ));
+          if (completeChat) {
+            const finalChat = completeChat;
+            setActiveChat(finalChat);
+            if (isNewChat) {
+              setChats(prev => {
+                const filtered = prev.filter(chat => !chat.id || chat.id === '');
+                return [finalChat, ...filtered];
+              });
+            } else {
+              setChats(prev => prev.map(chat => 
+                chat.id === actualSessionId ? finalChat : chat
+              ));
+            }
           }
           
           // THEN clear streaming state after React has updated
