@@ -135,7 +135,6 @@ export function useChatSocket(options: UseChatSocketOptions) {
         hasToken: !!data.token,
         tokenLength: data.token?.length,
         done: data.done,
-        sessionId: data.sessionId, // Log sessionId
         messageId: data.messageId,
         metadata: !!data.metadata,
       });
@@ -150,22 +149,27 @@ export function useChatSocket(options: UseChatSocketOptions) {
       } else if (data.stage === 'context') {
         console.log('📋 Context prepared');
       } else if (data.stage === 'llm-generation' && data.token) {
-        // Append token for LLM response
-        setStreamingText(prev => prev + data.token);
-        
-        if (onChunkRef.current) {
-          onChunkRef.current({ token: data.token, done: false } as SocketStreamResponse);
+        // Only accept tokens if streaming is still active
+        // This prevents duplicate animations when completion events arrive with delayed tokens
+        if (isStreamingRef.current) {
+          // Append token for LLM response
+          setStreamingText(prev => prev + data.token);
+          
+          if (onChunkRef.current) {
+            onChunkRef.current({ token: data.token, done: false } as SocketStreamResponse);
+          }
+        } else {
+          console.log('⚠️ Ignoring token after streaming completed:', { tokenLength: data.token?.length });
         }
       } else if (data.stage === 'complete') {
         // Stream completed successfully
-        console.log('✅ Pipeline completed with messageId:', data.messageId, 'sessionId:', data.sessionId);
+        console.log('✅ Pipeline completed with messageId:', data.messageId);
         setIsStreaming(false);
         isStreamingRef.current = false;
         
         if (onChunkRef.current) {
           onChunkRef.current({
             done: true,
-            sessionId: data.sessionId, // CRITICAL: Pass sessionId for new chat sessions
             messageId: data.messageId,
             tokenUsage: data.tokenUsage,
           } as SocketStreamResponse);
