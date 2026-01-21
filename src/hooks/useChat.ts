@@ -562,9 +562,9 @@ export function useChat() {
           ...finalChatToUse,
           messages: [...finalChatToUse.messages, optimisticMessage],
           updatedAt: new Date(),
-          title: finalChatToUse.title === 'New Chat' && finalChatToUse.messages.length === 0
-            ? (content.length > 50 ? content.substring(0, 50) + '...' : content)
-            : finalChatToUse.title,
+          // Keep title as 'New Chat' - the LLM-generated title will come from backend
+          // Don't set title to first message content to avoid duplicate entries with different titles
+          title: finalChatToUse.title,
         };
       }
 
@@ -789,13 +789,23 @@ export function useChat() {
             setActiveChat(finalChat);
             if (isNewChat) {
               setChats(prev => {
-                const filtered = prev.filter(chat => !chat.id || chat.id === '');
-                return [finalChat, ...filtered];
+                // Filter out: 1) chats with empty IDs (optimistic new chats), 2) any existing chat with same ID
+                // This prevents duplicate entries when the completeChat arrives with LLM-generated title
+                const filtered = prev.filter(chat => 
+                  (chat.id && chat.id !== '') && chat.id !== finalChat.id
+                );
+                // Add the new chat at the beginning and sort by updatedAt descending
+                const updated = [finalChat, ...filtered];
+                return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
               });
             } else {
-              setChats(prev => prev.map(chat => 
-                chat.id === actualSessionId ? finalChat : chat
-              ));
+              setChats(prev => {
+                const updated = prev.map(chat => 
+                  chat.id === actualSessionId ? finalChat : chat
+                );
+                // Re-sort after update to maintain descending order by updatedAt
+                return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+              });
             }
           }
           
@@ -930,8 +940,12 @@ export function useChat() {
       setError(null);
       const updatedChat = await chatApi.updateSession(chatId, updates);
       
-      // Update the chat in the list
-      setChats(prev => prev.map(chat => chat.id === chatId ? updatedChat : chat));
+      // Update the chat in the list and maintain sort order
+      setChats(prev => {
+        const updated = prev.map(chat => chat.id === chatId ? updatedChat : chat);
+        // Re-sort by updatedAt descending to maintain proper order
+        return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      });
       
       // Update active chat if it's the one being updated
       if (activeChat?.id === chatId) {
