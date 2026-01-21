@@ -143,8 +143,9 @@ export default function MessageItem({
       // If lengths are equal, don't update (prevents showing duplicate content)
     } else if (!isCurrentlyStreaming && !isWaitingForFirstToken && message.content) {
       // Not streaming anymore and not waiting - sync refs and check if content is complete
-      // When streaming ends, queuedTextRef has what was streamed; sync it to queuedMessageContentRef
-      if (queuedTextRef.current && !queuedMessageContentRef.current) {
+      // CRITICAL FIX: Always sync queuedTextRef to queuedMessageContentRef to track what was streamed
+      // This prevents re-animation in production when network latency causes race conditions
+      if (queuedTextRef.current) {
         queuedMessageContentRef.current = queuedTextRef.current;
       }
       
@@ -152,55 +153,54 @@ export default function MessageItem({
       const alreadyQueuedContent = queuedMessageContentRef.current || queuedTextRef.current;
       
       // CRITICAL: If we've already queued/displayed the complete message content during streaming, SKIP
-      // This prevents re-adding the same content and causing duplication
-      if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
-        // Content already fully queued, nothing to do
+      // This prevents re-adding the same content and causing duplication/replay
+      // Check: alreadyQueuedContent matches the entire message.content (or is longer)
+      if (alreadyQueuedContent && message.content && 
+          alreadyQueuedContent === message.content) {
+        // Exact match - content was fully streamed and queued
         isCompletionModeRef.current = false;
-      } else {
-        // Mark that we're in completion mode (streaming finished, continuing display)
+      } else if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
+        // Already queued content is same length or longer - fully processed
+        isCompletionModeRef.current = false;
+      } else if (alreadyQueuedContent && message.content.startsWith(alreadyQueuedContent)) {
+        // Content extends what was already queued during streaming
+        // Only add the remaining part if there's more content from the server
         if (!isCompletionModeRef.current) {
           isCompletionModeRef.current = true;
         }
         
-        // Primary check: if displayed text is shorter than message content, add remaining
-        if (currentDisplayed.length < message.content.length) {
-          // Verify the message content extends what's displayed (safety check)
-          if (message.content.startsWith(currentDisplayed)) {
-            const remainingText = message.content.slice(currentDisplayed.length);
-            if (remainingText.length > 0) {
-              // 🔥 INSTANT MODE: Add ALL remaining content at once (no chunking)
-              addTokens(remainingText);
-              queuedMessageContentRef.current = message.content;
-            }
-          }
-        } else if (message.content.length > alreadyQueuedContent.length) {
-          // Fallback: if displayed is complete but queued content is shorter, add remaining instantly
-          if (message.content.startsWith(alreadyQueuedContent) || alreadyQueuedContent.length === 0) {
-            const remainingText = message.content.slice(alreadyQueuedContent.length);
-            if (remainingText.length > 0) {
-              // 🔥 INSTANT MODE: Add ALL remaining content at once
-              addTokens(remainingText);
-              queuedMessageContentRef.current = message.content;
-            }
-          } else {
-            // Content changed (shouldn't happen, but handle it)
-            reset();
-            queuedMessageContentRef.current = '';
-            isCompletionModeRef.current = false;
-            if (message.content.length > 0) {
-              // 🔥 INSTANT MODE: Set all content immediately
-              setFullText(message.content);
-              queuedMessageContentRef.current = message.content;
-              isCompletionModeRef.current = false;
-            }
-          }
-        } else if (currentDisplayed.length >= message.content.length) {
-          // Display is complete, exit completion mode
+        const remainingText = message.content.slice(alreadyQueuedContent.length);
+        if (remainingText.length > 0 && currentDisplayed.length >= alreadyQueuedContent.length) {
+          // Only add remaining if we've already displayed what was streamed
+          addTokens(remainingText);
+          queuedMessageContentRef.current = message.content;
+        } else if (remainingText.length === 0) {
+          // No remaining content - already fully queued
           isCompletionModeRef.current = false;
         }
+      } else if (!alreadyQueuedContent && currentDisplayed.length < message.content.length) {
+        // No streaming happened yet, but we have message content (e.g., from page reload)
+        // Animate from current display to full content
+        if (!isCompletionModeRef.current) {
+          isCompletionModeRef.current = true;
+        }
+        
+        if (message.content.startsWith(currentDisplayed)) {
+          const remainingText = message.content.slice(currentDisplayed.length);
+          if (remainingText.length > 0) {
+            addTokens(remainingText);
+            queuedMessageContentRef.current = message.content;
+          }
+        } else {
+          // Content doesn't match - set all immediately
+          setFullText(message.content);
+          queuedMessageContentRef.current = message.content;
+          isCompletionModeRef.current = false;
+        }
+      } else if (currentDisplayed.length >= message.content.length) {
+        // Display is complete
+        isCompletionModeRef.current = false;
       }
-      // If displayedText is already complete or longer, let the smooth streaming hook continue
-      // Don't call setFullText here - let the queue finish naturally for smooth character-by-character display
     }
   }, [streamingText, isCurrentlyStreaming, isWaitingForFirstToken, message.content, displayedText, addTokens, reset, setFullText]);
 
