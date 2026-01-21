@@ -66,10 +66,6 @@ export default function MessageItem({
   // Track if we're in completion mode (streaming finished, continuing character-by-character)
   const isCompletionModeRef = useRef(false);
   
-  // CRITICAL FIX: Track the "fingerprint" of content that has been fully animated
-  // This prevents re-animation when both streamingText and message.content are present due to race conditions
-  const animatedContentFingerprintRef = useRef<string>('');
-  
   // Lock to prevent any new addTokens calls once animation is complete for this message
   const isAnimationLockedRef = useRef(false);
 
@@ -159,19 +155,23 @@ export default function MessageItem({
       // If lengths are equal, don't update (prevents showing duplicate content)
     } else if (!isCurrentlyStreaming && !isWaitingForFirstToken && message.content) {
       // Not streaming anymore and not waiting - sync refs and check if content is complete
-      // CRITICAL FIX: Always sync queuedTextRef to queuedMessageContentRef to track what was streamed
+      
+      // CRITICAL FIX #1: On first entry to completion mode after streaming, lock immediately
+      // This prevents the effect from re-running and trying to add content again
+      if (!isCompletionModeRef.current && queuedTextRef.current.length > 0) {
+        // We just transitioned from streaming to completion
+        // Mark that we've queued this content to prevent re-processing
+        queuedMessageContentRef.current = message.content;
+        isCompletionModeRef.current = false;
+        isAnimationLockedRef.current = true;
+        console.log('[MessageItem] Streaming complete, locking animation to prevent replay');
+        return; // EXIT: Content already queued during streaming, lock and stop
+      }
+      
+      // CRITICAL FIX #2: Always sync queuedTextRef to queuedMessageContentRef to track what was streamed
       // This prevents re-animation in production when network latency causes race conditions
       if (queuedTextRef.current) {
         queuedMessageContentRef.current = queuedTextRef.current;
-      }
-      
-      // CRITICAL FIX: Check content fingerprint to prevent re-animation
-      // If this exact content has already been animated, lock and skip
-      const contentFingerprint = message.content.slice(0, 100) + ':' + message.content.length;
-      if (animatedContentFingerprintRef.current === contentFingerprint) {
-        // This exact content was already animated - lock to prevent any re-animation
-        isAnimationLockedRef.current = true;
-        return;
       }
       
       const currentDisplayed = displayedText;
@@ -183,14 +183,14 @@ export default function MessageItem({
       if (alreadyQueuedContent && message.content && 
           alreadyQueuedContent === message.content) {
         // Exact match - content was fully streamed and queued - lock animation
-        animatedContentFingerprintRef.current = contentFingerprint;
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        return; // EXIT: Don't process further
       } else if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
         // Already queued content is same length or longer - fully processed - lock animation
-        animatedContentFingerprintRef.current = contentFingerprint;
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        return; // EXIT: Don't process further
       } else if (alreadyQueuedContent && message.content.startsWith(alreadyQueuedContent)) {
         // Content extends what was already queued during streaming
         // Only add the remaining part if there's more content from the server
@@ -228,9 +228,9 @@ export default function MessageItem({
         }
       } else if (currentDisplayed.length >= message.content.length) {
         // Display is complete - lock animation to prevent replay
-        animatedContentFingerprintRef.current = contentFingerprint;
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        return; // EXIT: Animation is complete, prevent any further processing
       }
     }
   }, [streamingText, isCurrentlyStreaming, isWaitingForFirstToken, message.content, addTokens, reset, setFullText]);
@@ -264,7 +264,6 @@ export default function MessageItem({
         hasStartedStreamingRef.current = false;
         isCompletionModeRef.current = false;
         isAnimationLockedRef.current = false; // Unlock for new message
-        animatedContentFingerprintRef.current = ''; // Clear fingerprint for new message
         queuedTextRef.current = '';
         queuedMessageContentRef.current = '';
         reset();
