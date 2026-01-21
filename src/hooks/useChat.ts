@@ -783,7 +783,24 @@ export function useChat() {
             });
           }
           
-          // Update with complete chat FIRST
+          // CRITICAL FIX: Clear streaming state SYNCHRONOUSLY BEFORE setting activeChat
+          // This prevents the race condition where MessageItem sees both streamingText and message.content
+          // which causes double animation in production (higher latency)
+          setStreamingText(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            if (realMessageId && realMessageId !== tempAssistantMessageId) {
+              delete updated[realMessageId];
+            }
+            return updated;
+          });
+          setHasReceivedFirstToken(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          
+          // Update with complete chat AFTER streaming state is cleared
           if (completeChat) {
             const finalChat = completeChat;
             setActiveChat(finalChat);
@@ -809,23 +826,10 @@ export function useChat() {
             }
           }
           
-          // THEN clear streaming state after React has updated
-          setTimeout(() => {
-            setStreamingText(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              delete updated[realMessageId];
-              return updated;
-            });
-            setHasReceivedFirstToken(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setStreamingMessageId(null);
-            streamingCompleteRef.current = {};
-            currentStreamingMessageIdRef.current = null;
-          }, 200);
+          // Clear remaining streaming refs (streamingText already cleared above)
+          setStreamingMessageId(null);
+          streamingCompleteRef.current = {};
+          currentStreamingMessageIdRef.current = null;
           
           if (isNewChat) {
             // Use completeChat.id which now has the actual session ID from the server
@@ -833,22 +837,20 @@ export function useChat() {
           }
         } catch (err) {
           console.error('Error fetching complete chat:', err);
-          // Clear streaming state even on error
-          setTimeout(() => {
-            setStreamingText(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setHasReceivedFirstToken(prev => {
-              const updated = { ...prev };
-              delete updated[tempAssistantMessageId];
-              return updated;
-            });
-            setStreamingMessageId(null);
-            streamingCompleteRef.current = {};
-            currentStreamingMessageIdRef.current = null;
-          }, 200);
+          // Clear streaming state synchronously on error
+          setStreamingText(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          setHasReceivedFirstToken(prev => {
+            const updated = { ...prev };
+            delete updated[tempAssistantMessageId];
+            return updated;
+          });
+          setStreamingMessageId(null);
+          streamingCompleteRef.current = {};
+          currentStreamingMessageIdRef.current = null;
         }
       } catch (streamError) {
         console.error('Error during streaming:', streamError);

@@ -65,6 +65,13 @@ export default function MessageItem({
   
   // Track if we're in completion mode (streaming finished, continuing character-by-character)
   const isCompletionModeRef = useRef(false);
+  
+  // CRITICAL FIX: Track the "fingerprint" of content that has been fully animated
+  // This prevents re-animation when both streamingText and message.content are present due to race conditions
+  const animatedContentFingerprintRef = useRef<string>('');
+  
+  // Lock to prevent any new addTokens calls once animation is complete for this message
+  const isAnimationLockedRef = useRef(false);
 
   // Helper function to detect duplicate content
   const hasDuplicateContent = (text: string): boolean => {
@@ -85,7 +92,16 @@ export default function MessageItem({
 
   // Handle streaming text updates
   useEffect(() => {
+    // CRITICAL GUARD: If animation is locked for this message, skip all processing
+    // This prevents re-animation in production when race conditions occur
+    if (isAnimationLockedRef.current && !isCurrentlyStreaming) {
+      return;
+    }
+    
     if (isCurrentlyStreaming && streamingText !== null) {
+      // Unlock animation when streaming starts (new content incoming)
+      isAnimationLockedRef.current = false;
+      
       // Use the full streaming text as the source of truth
       const currentFullText = streamingText;
       const alreadyQueuedText = queuedTextRef.current;
@@ -149,6 +165,15 @@ export default function MessageItem({
         queuedMessageContentRef.current = queuedTextRef.current;
       }
       
+      // CRITICAL FIX: Check content fingerprint to prevent re-animation
+      // If this exact content has already been animated, lock and skip
+      const contentFingerprint = message.content.slice(0, 100) + ':' + message.content.length;
+      if (animatedContentFingerprintRef.current === contentFingerprint) {
+        // This exact content was already animated - lock to prevent any re-animation
+        isAnimationLockedRef.current = true;
+        return;
+      }
+      
       const currentDisplayed = displayedText;
       const alreadyQueuedContent = queuedMessageContentRef.current || queuedTextRef.current;
       
@@ -157,10 +182,14 @@ export default function MessageItem({
       // Check: alreadyQueuedContent matches the entire message.content (or is longer)
       if (alreadyQueuedContent && message.content && 
           alreadyQueuedContent === message.content) {
-        // Exact match - content was fully streamed and queued
+        // Exact match - content was fully streamed and queued - lock animation
+        animatedContentFingerprintRef.current = contentFingerprint;
+        isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
       } else if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
-        // Already queued content is same length or longer - fully processed
+        // Already queued content is same length or longer - fully processed - lock animation
+        animatedContentFingerprintRef.current = contentFingerprint;
+        isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
       } else if (alreadyQueuedContent && message.content.startsWith(alreadyQueuedContent)) {
         // Content extends what was already queued during streaming
@@ -198,11 +227,13 @@ export default function MessageItem({
           isCompletionModeRef.current = false;
         }
       } else if (currentDisplayed.length >= message.content.length) {
-        // Display is complete
+        // Display is complete - lock animation to prevent replay
+        animatedContentFingerprintRef.current = contentFingerprint;
+        isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
       }
     }
-  }, [streamingText, isCurrentlyStreaming, isWaitingForFirstToken, message.content, displayedText, addTokens, reset, setFullText]);
+  }, [streamingText, isCurrentlyStreaming, isWaitingForFirstToken, message.content, addTokens, reset, setFullText]);
 
   // Reset when message ID changes (new message)
   // Use a ref to track the previous message ID to avoid unnecessary resets
@@ -232,6 +263,8 @@ export default function MessageItem({
         prevMessageIdRef.current = newId;
         hasStartedStreamingRef.current = false;
         isCompletionModeRef.current = false;
+        isAnimationLockedRef.current = false; // Unlock for new message
+        animatedContentFingerprintRef.current = ''; // Clear fingerprint for new message
         queuedTextRef.current = '';
         queuedMessageContentRef.current = '';
         reset();
