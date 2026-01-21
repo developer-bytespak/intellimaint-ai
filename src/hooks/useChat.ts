@@ -63,10 +63,6 @@ export function useChat() {
   // Socket.IO hook for streaming - only initialize when user is loaded and valid
   const shouldInitializeSocket = !isUserLoading && !!user?.id;
 
-  // Ref to store streaming result for sendMessage completion (avoid duplicate listeners)
-  const streamingResultRef = useRef<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string } | null>(null);
-  const streamingCompleteRef_local = useRef<boolean>(false);
-
   const socketHook = useChatSocket({
     userId: shouldInitializeSocket && user?.id ? user.id : '', // Only connect with valid userId when ready
     onChunk: useCallback((chunk: SocketStreamResponse) => {
@@ -74,14 +70,7 @@ export function useChat() {
       if (!tempMessageId) return;
 
       if (chunk.done) {
-        // Streaming complete - store result for sendMessage to retrieve
-        streamingResultRef.current = {
-          sessionId: chunk.sessionId,
-          messageId: chunk.messageId,
-          stopped: chunk.stopped,
-          partialContent: chunk.partialContent,
-        };
-        streamingCompleteRef_local.current = true;
+        // Streaming complete - handled in sendMessage logic
         return;
       }
 
@@ -221,18 +210,10 @@ export function useChat() {
   // Load chat sessions on mount
   useEffect(() => {
     const loadSessions = async () => {
-      // Don't load sessions if user is still loading or not available
-      if (isUserLoading || !user?.id) {
-        console.log('[useChat] Skipping loadSessions - user not ready:', { isUserLoading, userId: user?.id });
-        return;
-      }
-      
       try {
         setIsLoading(true);
         setError(null);
         setChatPage(1);
-        
-        console.log('[useChat] Loading chat sessions for user:', user.id);
         
         // Check if this is a page reload
         const isPageReload = sessionStorage.getItem('chatPageReloaded') === 'true';
@@ -251,7 +232,6 @@ export function useChat() {
         
         const result = await chatApi.listSessions({ page: 1, limit: 10 });
         
-        console.log('[useChat] Loaded sessions:', result.chats.length, 'chats');
         setChats(result.chats);
         setHasMoreChats(result.pagination.page < result.pagination.totalPages);
       } catch (err: unknown) {
@@ -285,7 +265,7 @@ export function useChat() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [user?.id, isUserLoading]);
+  }, [user?.id]);
 
   // Load more chats for infinite scroll
   const loadMoreChats = useCallback(async () => {
@@ -406,15 +386,10 @@ export function useChat() {
       updatedAt: new Date(),
     };
     
-    // Remove any existing empty chats (chats with no ID) but keep all chats with IDs
-    // This ensures previous chats remain visible when creating a new chat
-    setChats(prev => {
-      // Filter out only the old empty chats (no ID), keep all chats with real IDs
-      const filtered = prev.filter(chat => chat.id && chat.id !== '');
-      // Add the new empty chat at the beginning
-      return [newChat, ...filtered];
-    });
+    // Remove any existing empty chats (chats with no ID or no messages)
+    setChats(prev => prev.filter(chat => chat.id && chat.messages.length > 0));
     
+    setChats(prev => [newChat, ...prev]);
     setActiveChat(newChat);
     activeChatRef.current = newChat; // Sync ref immediately
     setActiveTab('chats');
@@ -430,10 +405,8 @@ export function useChat() {
   const selectChat = useCallback(async (chat: Chat) => {
     try {
       setError(null);
-      // Clean up any empty chats (except the one being selected) when selecting a real chat
-      if (chat.id && chat.id !== '') {
-        setChats(prev => prev.filter(c => c.id && c.id !== '' || c.id === chat.id));
-      }
+      // Clean up any empty chats when selecting a real chat
+      setChats(prev => prev.filter(c => (c.id && c.id !== '') || c.id === chat.id));
       
       // If it's a new chat (no ID), just set it as active without fetching
       if (!chat.id || chat.id === '') {
@@ -660,29 +633,41 @@ export function useChat() {
       let actualSessionId: string;
       let actualAssistantMessageId: string | undefined;
 
-      // Reset completion tracking for this message
-      streamingCompleteRef_local.current = false;
-      streamingResultRef.current = null;
-
       // Setup promise to wait for streaming completion
-      // The onChunk callback will populate streamingResultRef when done=true
+      // Using pipeline-chunk events (current backend implementation)
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
-        // Setup a one-time error listener
-        const pipelineErrorHandler = (data: { error: string }) => {
-          reject(new Error(data.error));
+        const cleanup = () => {
+          socketHook.socket?.off('pipeline-chunk', pipelineChunkHandler);
           socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
         };
 
-        socketHook.socket?.on('pipeline-error', pipelineErrorHandler);
-
-        // Poll for streaming completion (via onChunk callback setting streamingResultRef)
-        const checkCompletion = setInterval(() => {
-          if (streamingCompleteRef_local.current && streamingResultRef.current) {
-            clearInterval(checkCompletion);
-            socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
-            resolve(streamingResultRef.current);
+        const pipelineChunkHandler = (data: { stage: string; messageId?: string; sessionId?: string; done?: boolean; errorMessage?: string }) => {
+          // Only resolve on completion or error stages
+          if (data.stage === 'complete' && data.done) {
+            cleanup();
+            resolve({ 
+              sessionId: data.sessionId, 
+              messageId: data.messageId,
+              stopped: false,
+            });
+          } else if (data.stage === 'error') {
+            cleanup();
+            if (data.errorMessage === 'Pipeline aborted') {
+              // User stopped the stream
+              resolve({ stopped: true });
+            } else {
+              reject(new Error(data.errorMessage || 'Pipeline error'));
+            }
           }
-        }, 50); // Check every 50ms
+        };
+
+        const pipelineErrorHandler = (data: { error: string }) => {
+          cleanup();
+          reject(new Error(data.error));
+        };
+
+        socketHook.socket?.on('pipeline-chunk', pipelineChunkHandler);
+        socketHook.socket?.on('pipeline-error', pipelineErrorHandler);
       });
 
       try {
@@ -702,9 +687,6 @@ export function useChat() {
         console.log('[sendMessage] Using actualSessionId:', actualSessionId);
 
         setStreamingAbortController(null);
-        setIsSending(false); // Clear sending state immediately on completion
-        // Ensure socket streaming state is cleared
-        try { socketHook.stopStreaming(); } catch {}
         
         // Mark streaming as complete
         streamingCompleteRef.current[tempAssistantMessageId] = true;
@@ -757,9 +739,8 @@ export function useChat() {
         }));
         
         // Fetch complete chat for final state
+        let completeChat: Chat | null = null;
         try {
-          let completeChat: Chat;
-          
           // For new chats, we don't have a sessionId from the backend
           // So we fetch the latest sessions and find the newest one
           if (isNewChat && (!actualSessionId || actualSessionId === '')) {
@@ -802,39 +783,35 @@ export function useChat() {
           }
           
           // Update with complete chat FIRST
-          // Also update ref immediately to prevent stale closure issues when user sends messages quickly
           setActiveChat(completeChat);
-          activeChatRef.current = completeChat;
           if (isNewChat) {
             setChats(prev => {
-              // Remove only the old empty chat (no ID) and add the completed one
-              const filtered = prev.filter(chat => chat.id && chat.id !== '');
+              const filtered = prev.filter(chat => !chat.id || chat.id === '');
               return [completeChat, ...filtered];
             });
-            // Also update chats ref immediately
-            chatsRef.current = [completeChat, ...chatsRef.current.filter(chat => chat.id && chat.id !== '')];
           } else {
             setChats(prev => prev.map(chat => 
               chat.id === actualSessionId ? completeChat : chat
             ));
           }
           
-          // IMMEDIATELY clear streaming state when fetching complete chat
-          // This prevents the component from re-queuing tokens after getting message.content from server
-          setStreamingText(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            delete updated[realMessageId];
-            return updated;
-          });
-          setHasReceivedFirstToken(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            return updated;
-          });
-          setStreamingMessageId(null);
-          streamingCompleteRef.current = {};
-          currentStreamingMessageIdRef.current = null;
+          // THEN clear streaming state after React has updated
+          setTimeout(() => {
+            setStreamingText(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              delete updated[realMessageId];
+              return updated;
+            });
+            setHasReceivedFirstToken(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
+            setStreamingMessageId(null);
+            streamingCompleteRef.current = {};
+            currentStreamingMessageIdRef.current = null;
+          }, 200);
           
           if (isNewChat) {
             // Use completeChat.id which now has the actual session ID from the server
@@ -842,27 +819,26 @@ export function useChat() {
           }
         } catch (err) {
           console.error('Error fetching complete chat:', err);
-          // Clear streaming state immediately even on error to prevent double rendering
-          setStreamingText(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            return updated;
-          });
-          setHasReceivedFirstToken(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            return updated;
-          });
-          setStreamingMessageId(null);
-          streamingCompleteRef.current = {};
-          currentStreamingMessageIdRef.current = null;
+          // Clear streaming state even on error
+          setTimeout(() => {
+            setStreamingText(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
+            setHasReceivedFirstToken(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
+            setStreamingMessageId(null);
+            streamingCompleteRef.current = {};
+            currentStreamingMessageIdRef.current = null;
+          }, 200);
         }
       } catch (streamError) {
         console.error('Error during streaming:', streamError);
         setStreamingAbortController(null);
-        setIsSending(false); // Clear sending state on error
-        // Ensure socket streaming state is cleared on error
-        try { socketHook.stopStreaming(); } catch {}
         setStreamingText(prev => {
           const updated = { ...prev };
           delete updated[tempAssistantMessageId];
@@ -886,6 +862,8 @@ export function useChat() {
         ));
         setActiveChat(finalChatToUse);
       }
+
+      setIsSending(false);
     } catch (err: unknown) {
       console.error('Error sending message:', err);
       const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
@@ -994,13 +972,7 @@ export function useChat() {
 
   // Stop streaming response
   const stopStreaming = useCallback(async () => {
-    // Guard: only apply "stopped" state if an active stream is ongoing
-    const hasActiveStream = !!streamingMessageId || socketHook.isStreaming || isSending;
-    if (!hasActiveStream) {
-      return; // Ignore stop requests after completion
-    }
-
-    // 1) Use Socket.IO to stop streaming on backend (aborts request immediately)
+    // 1) Use Socket.IO to stop streaming on backend (aborts Gemini request immediately)
     socketHook.stopStreaming();
     
     // 2) Immediately abort local controller and flip UI
@@ -1062,7 +1034,7 @@ export function useChat() {
         // ignore
       }
     }
-  }, [streamingAbortController, activeChat, socketHook, streamingMessageId, isSending]);
+  }, [streamingAbortController, activeChat, socketHook]);
 
   // Start editing a message - returns message data for populating input
   const startEditingMessage = useCallback((messageId: string) => {
