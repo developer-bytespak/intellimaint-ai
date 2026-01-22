@@ -90,6 +90,28 @@ export default function MessageItem({
   // CRITICAL: Track the last streaming text we processed to prevent duplicate animations in production
   // This prevents the effect from running multiple times and processing the same content twice
   const lastProcessedStreamingTextRef = useRef<string>('');
+  // When hydrating existing messages (page reload), immediately lock and set full text to avoid re-animating
+  useEffect(() => {
+    if (
+      !isCurrentlyStreaming &&
+      !isWaitingForFirstToken &&
+      message.role === 'assistant' &&
+      message.content &&
+      message.content.length > 0 &&
+      displayedText.length === 0 &&
+      queuedTextRef.current.length === 0 &&
+      queuedMessageContentRef.current.length === 0
+    ) {
+      setFullText(message.content);
+      queuedMessageContentRef.current = message.content;
+      queuedTextRef.current = message.content;
+      animatedContentHashRef.current = messageContentHash;
+      lastProcessedContentLengthRef.current = message.content.length;
+      contentFullySyncedRef.current = true;
+      isAnimationLockedRef.current = true;
+      isCompletionModeRef.current = false;
+    }
+  }, [displayedText.length, isCurrentlyStreaming, isWaitingForFirstToken, message.content, message.role, messageContentHash, setFullText]);
 
   // Helper function to detect duplicate content
   const hasDuplicateContent = (text: string): boolean => {
