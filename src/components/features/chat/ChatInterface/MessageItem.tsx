@@ -435,7 +435,7 @@ export default function MessageItem({
       )}
 
       {/* Message bubble - only show if there's content or images for user, or content/streaming for assistant */}
-      {((message.role === 'user' && (displayedContent || (message.images && message.images.length > 0))) ||
+      {((message.role === 'user' && (message.content || (message.images && message.images.length > 0))) ||
         (message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken))) && (
         <div
           className={`max-w-[85%] sm:max-w-[80%] min-w-0 rounded-xl overflow-hidden relative group ${
@@ -447,7 +447,7 @@ export default function MessageItem({
           {/* Top-right edit removed: inline editing will be triggered from the action row below */}
           {/* For assistant messages, only render if there's content or currently streaming to avoid empty bubbles interfering with streaming display */}
           {((message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken)) || 
-            (message.role === 'user' && displayedContent)) && (
+            (message.role === 'user' && message.content)) && (
           <div className="p-3 min-w-0">
             {message.role === 'assistant' ? (
               isWaitingForFirstToken ? (
