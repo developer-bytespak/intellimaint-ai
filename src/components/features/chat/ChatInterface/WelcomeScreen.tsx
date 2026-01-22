@@ -28,6 +28,7 @@ interface WelcomeScreenProps {
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
   onCloseSidebar?: () => void;
+  streamedContentRef?: React.MutableRefObject<Map<string, boolean>>; // Track which content was streamed
   isSidebarOpen?: boolean;
 }
 
@@ -44,6 +45,7 @@ export default function WelcomeScreen({
   editingMessageId,
   setEditingMessageId,
   onCloseSidebar,
+  streamedContentRef,
   isSidebarOpen = false,
 }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
@@ -570,6 +572,7 @@ export default function WelcomeScreen({
               streamingMessageId={streamingMessageId}
               onEditMessage={handleEditMessage}
               onInlineEditSave={handleInlineEditSave}
+              streamedContentRef={streamedContentRef}
             />
           </div>
         </div>

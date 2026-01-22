@@ -20,6 +20,7 @@ interface MessageItemProps {
   streamingMessageId?: string | null;
   onEditMessage?: (messageId: string) => void;
   onInlineEditSave?: (messageId: string, newContent: string) => void;
+  streamedContentRef?: React.MutableRefObject<Map<string, boolean>>; // Check if content was streamed (temp->real ID change)
 }
 
 export default function MessageItem({
@@ -37,7 +38,9 @@ export default function MessageItem({
   streamingMessageId,
   onEditMessage,
   onInlineEditSave,
+  streamedContentRef,
 }: MessageItemProps) {
+  const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true';
   // Use smooth streaming hook for assistant messages that are currently streaming
   const isCurrentlyStreaming = streamingText !== null && streamingText !== undefined;
   
@@ -63,11 +66,30 @@ export default function MessageItem({
   // Track what portion of message.content has been queued (for non-streaming messages)
   const queuedMessageContentRef = useRef<string>('');
   
+  // CRITICAL: Track the last content.length we processed to prevent re-processing same content
+  const lastProcessedContentLengthRef = useRef<number>(0);
+  
   // Track if we're in completion mode (streaming finished, continuing character-by-character)
   const isCompletionModeRef = useRef(false);
   
   // Lock to prevent any new addTokens calls once animation is complete for this message
   const isAnimationLockedRef = useRef(false);
+  
+  // CRITICAL FIX: Track if we've already set the full content to prevent double animation in production
+  // This is separate from isAnimationLockedRef and provides additional safety
+  const contentFullySyncedRef = useRef(false);
+  
+  // Create a stable hash of the message content to identify it across ID changes (temp->real)
+  // This allows us to preserve animation state when message.id changes but content is the same
+  const messageContentHash = message.content ? 
+    `len:${message.content.length}:first${message.content.slice(0, 20).replace(/\s/g, '')}` : '';
+  
+  // Ref to track which content hash we've animated to prevent re-animation on ID changes
+  const animatedContentHashRef = useRef<string>('');
+
+  // CRITICAL: Track the last streaming text we processed to prevent duplicate animations in production
+  // This prevents the effect from running multiple times and processing the same content twice
+  const lastProcessedStreamingTextRef = useRef<string>('');
 
   // Helper function to detect duplicate content
   const hasDuplicateContent = (text: string): boolean => {
@@ -88,15 +110,62 @@ export default function MessageItem({
 
   // Handle streaming text updates
   useEffect(() => {
-    // CRITICAL GUARD: If animation is locked for this message, skip all processing
+    if (DEBUG) {
+      // eslint-disable-next-line no-console
+      console.log(`[ANIM] id=${message.id?.slice(0,12)} streaming=${!!isCurrentlyStreaming} locked=${isAnimationLockedRef.current} synced=${contentFullySyncedRef.current} len(content)=${message.content?.length||0} len(stream)=${streamingText?.length||0} len(display)=${displayedText.length} queued=${queuedTextRef.current.length}`);
+    }
+    
+    // CRITICAL: If we have message.content and it matches streamingText (streaming completed), treat as fully synced
+    if (message.content && streamingText && message.content === streamingText && message.content.length > 0) {
+      if (DEBUG) console.log(`[Animation] content===streamingText → synced`);
+      contentFullySyncedRef.current = true;
+      isAnimationLockedRef.current = true;
+      lastProcessedContentLengthRef.current = message.content.length;
+      queuedMessageContentRef.current = message.content;
+      // Don't return yet - let the other guards catch it
+    }
+    
+    // CRITICAL FIX: Check if this content was streamed (by checking streamedContentRef Map)
+    // This prevents re-animation when temp->real ID change creates new component instance
+    if (!isCurrentlyStreaming && message.content && streamedContentRef) {
+      const contentHash = `len:${message.content.length}:first${message.content.slice(0, 20).replace(/\s/g, '')}`;
+      if (streamedContentRef.current.has(contentHash)) {
+        if (DEBUG) console.log(`[Animation] skip: content just streamed (handoff)`);
+        isAnimationLockedRef.current = true;
+        animatedContentHashRef.current = messageContentHash;
+        queuedMessageContentRef.current = message.content;
+        return;
+      }
+    }
+    
+    // CRITICAL: Check if this content was already animated (by hash) - prevents re-animation on ID changes
+    if (messageContentHash && animatedContentHashRef.current === messageContentHash && !isCurrentlyStreaming) {
+      if (DEBUG) console.log(`[Animation] skip: hash already animated`);
+      isAnimationLockedRef.current = true;
+      return;
+    }
+    
+    // CRITICAL GUARD: If animation is locked for this message AND we're not streaming new content, skip entirely
     // This prevents re-animation in production when race conditions occur
     if (isAnimationLockedRef.current && !isCurrentlyStreaming) {
+      if (DEBUG) console.log(`[Animation] locked → skip`);
       return;
     }
     
     if (isCurrentlyStreaming && streamingText !== null) {
+      // CRITICAL FIX FOR PRODUCTION: Prevent processing the same streaming text twice
+      // If we've already processed this exact streaming text, skip it entirely
+      if (streamingText === lastProcessedStreamingTextRef.current) {
+        if (DEBUG) console.log(`[Animation] skip: already processed this streaming text (len=${streamingText.length})`);
+        return;
+      }
+      // Mark this streaming text as processed to prevent duplicate processing
+      lastProcessedStreamingTextRef.current = streamingText;
+
       // Unlock animation when streaming starts (new content incoming)
-      isAnimationLockedRef.current = false;
+      if (DEBUG) console.log(`[Animation] streaming received=${streamingText.length} queued=${queuedTextRef.current.length}`);
+      isAnimationLockedRef.current = false; // Unlock for new streaming
+      contentFullySyncedRef.current = false; // Reset sync flag when new streaming starts
       
       // Use the full streaming text as the source of truth
       const currentFullText = streamingText;
@@ -155,17 +224,32 @@ export default function MessageItem({
       // If lengths are equal, don't update (prevents showing duplicate content)
     } else if (!isCurrentlyStreaming && !isWaitingForFirstToken && message.content) {
       // Not streaming anymore and not waiting - sync refs and check if content is complete
+      if (DEBUG) console.log(`[Animation] completion synced=${contentFullySyncedRef.current} queued=${queuedTextRef.current.length} content=${message.content.length} displayed=${displayedText.length} lastLen=${lastProcessedContentLengthRef.current}`);
+      
+      // CRITICAL FIX: If content length hasn't changed and we already processed it, skip
+      if (message.content.length === lastProcessedContentLengthRef.current && lastProcessedContentLengthRef.current > 0) {
+        if (DEBUG) console.log(`[Animation] skip: same content length=${message.content.length}`);
+        return;
+      }
+      
+      // CRITICAL FIX: If we've already fully synced content, prevent any further animation
+      if (contentFullySyncedRef.current) {
+        if (DEBUG) console.log(`[Animation] hard-skip: already fully synced`);
+        return;
+      }
       
       // CRITICAL FIX #1: On first entry to completion mode after streaming, lock immediately
       // This prevents the effect from re-running and trying to add content again
       if (!isCompletionModeRef.current && queuedTextRef.current.length > 0) {
         // We just transitioned from streaming to completion
         // Mark that we've queued this content to prevent re-processing
+        if (DEBUG) console.log(`[Animation] lock: exit streaming, prevent re-anim`);
         queuedMessageContentRef.current = message.content;
+        lastProcessedContentLengthRef.current = message.content.length; // Track length
         isCompletionModeRef.current = false;
         isAnimationLockedRef.current = true;
-        console.log('[MessageItem] Streaming complete, locking animation to prevent replay');
-        return; // EXIT: Content already queued during streaming, lock and stop
+        contentFullySyncedRef.current = true; // Mark as fully synced
+        return; // EXIT immediately
       }
       
       // CRITICAL FIX #2: Always sync queuedTextRef to queuedMessageContentRef to track what was streamed
@@ -183,13 +267,21 @@ export default function MessageItem({
       if (alreadyQueuedContent && message.content && 
           alreadyQueuedContent === message.content) {
         // Exact match - content was fully streamed and queued - lock animation
+        if (DEBUG) console.log(`[Animation] lock: exact content match (${alreadyQueuedContent.length})`);
+        lastProcessedContentLengthRef.current = message.content.length; // Track length
+        animatedContentHashRef.current = messageContentHash; // Store hash to prevent re-animation on ID change
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        contentFullySyncedRef.current = true; // Mark as fully synced
         return; // EXIT: Don't process further
       } else if (alreadyQueuedContent && alreadyQueuedContent.length >= message.content.length) {
         // Already queued content is same length or longer - fully processed - lock animation
+        if (DEBUG) console.log(`[Animation] lock: queued>=content (${alreadyQueuedContent.length}>=${message.content.length})`);
+        lastProcessedContentLengthRef.current = message.content.length; // Track length
+        animatedContentHashRef.current = messageContentHash; // Store hash to prevent re-animation on ID change
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        contentFullySyncedRef.current = true; // Mark as fully synced
         return; // EXIT: Don't process further
       } else if (alreadyQueuedContent && message.content.startsWith(alreadyQueuedContent)) {
         // Content extends what was already queued during streaming
@@ -228,8 +320,12 @@ export default function MessageItem({
         }
       } else if (currentDisplayed.length >= message.content.length) {
         // Display is complete - lock animation to prevent replay
+        if (DEBUG) console.log(`[Animation] lock: display complete (${currentDisplayed.length}>=${message.content.length})`);
+        lastProcessedContentLengthRef.current = message.content.length; // Track length
+        animatedContentHashRef.current = messageContentHash; // Store hash to prevent re-animation on ID change
         isAnimationLockedRef.current = true;
         isCompletionModeRef.current = false;
+        contentFullySyncedRef.current = true; // Mark as fully synced
         return; // EXIT: Animation is complete, prevent any further processing
       }
     }
@@ -264,6 +360,9 @@ export default function MessageItem({
         hasStartedStreamingRef.current = false;
         isCompletionModeRef.current = false;
         isAnimationLockedRef.current = false; // Unlock for new message
+        contentFullySyncedRef.current = false; // Reset sync flag for new message
+        animatedContentHashRef.current = ''; // Clear hash for new message
+        lastProcessedStreamingTextRef.current = ''; // Reset streaming text tracker for new message
         queuedTextRef.current = '';
         queuedMessageContentRef.current = '';
         reset();
@@ -277,11 +376,26 @@ export default function MessageItem({
     }
   }, [message.id, isCurrentlyStreaming, reset, displayedText]);
 
+  // Clear the streaming text tracker when streaming ends to allow proper completion processing
+  useEffect(() => {
+    if (!isCurrentlyStreaming && lastProcessedStreamingTextRef.current !== '') {
+      // Streaming has ended, reset the tracker for the next streaming session or completion phase
+      lastProcessedStreamingTextRef.current = '';
+    }
+  }, [isCurrentlyStreaming]);
+
   // Determine what to display
-  // Always use displayedText if available (for smooth streaming), otherwise fall back to message.content
-  // This ensures character-by-character display continues even after streaming completes
-  // CRITICAL: During handoff (temp->real ID), prefer displayedText to avoid empty render
-  const displayedContent = displayedText || message.content || (isCurrentlyStreaming ? '' : message.content);
+  // For assistant messages: use displayedText for animated streaming, then message.content when complete
+  // For user messages: always use message.content directly (no animation)
+  // This ensures user messages always display and assistant messages animate smoothly
+  const displayedContent = message.role === 'user' 
+    ? (message.content || '') 
+    : (displayedText || message.content || '');
+
+  if (DEBUG) {
+    // eslint-disable-next-line no-console
+    console.log(`[MessageItem] id=${message.id?.slice(0,12)} role=${message.role} len(display)=${displayedText.length} len(content)=${message.content?.length||0} streaming=${!!isCurrentlyStreaming}`);
+  }
 
   // Check if this is a stopped user message
   const isStoppedMessage = message.role === 'user' && message.isStopped;
@@ -321,8 +435,8 @@ export default function MessageItem({
       )}
 
       {/* Message bubble - only show if there's content or images for user, or content/streaming for assistant */}
-      {((message.role === 'user' && (displayedContent || (message.images && message.images.length > 0))) ||
-        (message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken))) && (
+      {((message.role === 'user' && (message.content?.length || (message.images && message.images.length > 0))) ||
+        (message.role === 'assistant' && (displayedContent.length || isCurrentlyStreaming || isWaitingForFirstToken))) && (
         <div
           className={`max-w-[85%] sm:max-w-[80%] min-w-0 rounded-xl overflow-hidden relative group ${
             message.role === 'user'
@@ -332,8 +446,8 @@ export default function MessageItem({
         >
           {/* Top-right edit removed: inline editing will be triggered from the action row below */}
           {/* For assistant messages, only render if there's content or currently streaming to avoid empty bubbles interfering with streaming display */}
-          {((message.role === 'assistant' && (displayedContent || isCurrentlyStreaming || isWaitingForFirstToken)) || 
-            (message.role === 'user' && displayedContent)) && (
+          {((message.role === 'assistant' && (displayedContent.length || isCurrentlyStreaming || isWaitingForFirstToken)) || 
+            (message.role === 'user' && message.content?.length)) && (
           <div className="p-3 min-w-0">
             {message.role === 'assistant' ? (
               isWaitingForFirstToken ? (

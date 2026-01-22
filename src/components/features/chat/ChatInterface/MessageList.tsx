@@ -13,6 +13,7 @@ interface MessageListProps {
   streamingMessageId?: string | null;
   onEditMessage?: (messageId: string) => void;
   onInlineEditSave?: (messageId: string, newContent: string) => void;
+  streamedContentRef?: React.MutableRefObject<Map<string, boolean>>; // Track which content was streamed
 }
 
 export default function MessageList({ 
@@ -22,7 +23,9 @@ export default function MessageList({
   streamingMessageId = null,
   onEditMessage,
   onInlineEditSave,
+  streamedContentRef,
 }: MessageListProps) {
+  const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true';
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
@@ -146,6 +149,12 @@ export default function MessageList({
     );
   }
 
+  if (DEBUG) {
+    // Reduced logging: one compact line
+    // eslint-disable-next-line no-console
+    console.log(`[MessageList] count=${activeChat.messages.length} streaming=${streamingMessageId?.slice(0,12)} sending=${isSending}`);
+  }
+
   const handleCopyText = async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -204,7 +213,7 @@ export default function MessageList({
           
           return (
             <MessageItem
-              key={message.id}
+              key={message.stableKey || message.id || `idx-${index}`}
               message={message}
               isLastMessage={isLastMessage}
               isSending={isSending}
@@ -219,6 +228,7 @@ export default function MessageList({
               streamingMessageId={streamingMessageId}
               onEditMessage={onEditMessage}
               onInlineEditSave={onInlineEditSave}
+              streamedContentRef={streamedContentRef}
             />
           );
         })}

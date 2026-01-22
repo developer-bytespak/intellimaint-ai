@@ -9,6 +9,8 @@ export interface Message {
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
+  // Stable UI key to prevent remounts across temp→real ID handoff
+  stableKey?: string;
   images?: string[]; // optional list of image URLs/data URLs attached to the message
   documents?: MessageDocument[]; // optional list of documents (PDF/DOC) attached to the message
   audioDocument?: MessageDocument; // optional audio document attached to the message

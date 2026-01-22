@@ -1,6 +1,7 @@
 'use client';
 
 import { Chat, MessageDocument } from '@/types/chat';
+import { useRef } from 'react';
 import WelcomeScreen from './WelcomeScreen';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -38,6 +39,10 @@ export default function ChatInterface({
   onCloseSidebar,
   isSidebarOpen = false,
 }: ChatInterfaceProps) {
+  // This would come from useChat, but for now we create a local one that gets passed down
+  // In production, we need to pass this from useChat through chat interface
+  const streamedContentRef = useRef<Map<string, boolean>>(new Map());
+  
   // Always show WelcomeScreen, but pass activeChat so it can show messages when chat exists
   return <WelcomeScreen 
     activeChat={activeChat} 
@@ -52,6 +57,7 @@ export default function ChatInterface({
     editingMessageId={editingMessageId}
     setEditingMessageId={setEditingMessageId}
     onCloseSidebar={onCloseSidebar}
+    streamedContentRef={streamedContentRef}
     isSidebarOpen={isSidebarOpen}
   />;
 }
