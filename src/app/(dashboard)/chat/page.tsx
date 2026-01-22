@@ -416,7 +416,8 @@ function ChatPageContent() {
               startEditingMessage={startEditingMessage}
               editingMessageId={editingMessageId}
               setEditingMessageId={setEditingMessageId}
-              onCloseSidebar={() => setIsSidebarOpen(false)}  
+              onCloseSidebar={() => setIsSidebarOpen(false)}
+              isSidebarOpen={!isMobile && isSidebarOpen}
             />
           )}
         </div>

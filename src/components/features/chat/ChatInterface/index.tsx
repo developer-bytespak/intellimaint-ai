@@ -19,6 +19,7 @@ interface ChatInterfaceProps {
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
   onCloseSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
 export default function ChatInterface({ 
@@ -35,6 +36,7 @@ export default function ChatInterface({
   editingMessageId,
   setEditingMessageId,
   onCloseSidebar,
+  isSidebarOpen = false,
 }: ChatInterfaceProps) {
   // Always show WelcomeScreen, but pass activeChat so it can show messages when chat exists
   return <WelcomeScreen 
@@ -50,6 +52,7 @@ export default function ChatInterface({
     editingMessageId={editingMessageId}
     setEditingMessageId={setEditingMessageId}
     onCloseSidebar={onCloseSidebar}
+    isSidebarOpen={isSidebarOpen}
   />;
 }
 
