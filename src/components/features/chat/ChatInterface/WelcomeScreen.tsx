@@ -624,7 +624,7 @@ export default function WelcomeScreen({
             )}
 
             {/* Input Field Wrapper - Keeps placeholder and icons aligned in sequence */}
-            <div className="flex items-end gap-2 w-full min-w-0">
+            <div className="flex items-center gap-2 w-full min-w-0">
               <textarea
                 ref={textareaRef}
                 value={inputValue || ''}
@@ -649,17 +649,23 @@ export default function WelcomeScreen({
                 }
                 disabled={audioRecorder.isRecording || !!audioRecorder.audioUrl || isSending || isSendingAudio}
                 rows={1}
-                className={`flex-1 min-w-0 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base leading-6 resize-none overflow-y-auto max-h-[120px] scrollbar-chatgpt py-2 ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
+                className={`flex-1 min-w-0 bg-transparent text-white placeholder-gray-500 outline-none text-sm sm:text-base resize-none overflow-y-auto max-h-[120px] scrollbar-chatgpt ${(audioRecorder.isRecording || audioRecorder.audioUrl || isSending || isSendingAudio)
                     ? 'opacity-50 cursor-not-allowed'
                     : ''
                   }`}
+                style={{ 
+                  paddingTop: '0.5rem', 
+                  paddingBottom: '0.5rem',
+                  lineHeight: '1.5rem',
+                  minHeight: '2.5rem'
+                }}
                   onClick={()=>{
                     onCloseSidebar && onCloseSidebar();
                   }}
               />
 
               {/* Right side icons: Plus, Send (when typing), and Voice (Microphone) - Fixed in sequence */}
-              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0 self-end pb-2">
+              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0 pb-2">
                 {/* Plus Icon Button with Dropdown */}
                 <div className="relative pin-dropdown">
                   <button
