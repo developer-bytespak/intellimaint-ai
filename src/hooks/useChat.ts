@@ -811,6 +811,46 @@ export function useChat() {
             if (sessionsResult.chats.length > 0) {
               completeChat = sessionsResult.chats[0];
               console.log('[sendMessage] Found new session:', completeChat.id);
+              
+              // CRITICAL FIX: Merge local optimistic messages with backend response
+              // listSessions might return incomplete chat (missing user's first message)
+              // Ensure user message is preserved by checking against local messages
+              if (chatWithAssistant && chatWithAssistant.messages.length > 0) {
+                const userMessages = chatWithAssistant.messages.filter(m => m.role === 'user');
+                const backendUserMessageIds = new Set(completeChat.messages.filter(m => m.role === 'user').map(m => m.id));
+                
+                // Find user messages that exist locally but not in backend response
+                const missingUserMessages = userMessages.filter(m => !backendUserMessageIds.has(m.id));
+                
+                if (missingUserMessages.length > 0) {
+                  console.warn(`[sendMessage] Found ${missingUserMessages.length} user message(s) missing from backend response - merging locally`);
+                  
+                  // Reconstruct messages maintaining order: local user messages that exist + backend messages
+                  const mergedMessages: Message[] = [];
+                  const addedIds = new Set<string>();
+                  
+                  // Add user messages from local optimistic chat (preserves original order)
+                  for (const msg of chatWithAssistant.messages) {
+                    if (msg.role === 'user' && !addedIds.has(msg.id)) {
+                      mergedMessages.push(msg);
+                      addedIds.add(msg.id);
+                    }
+                  }
+                  
+                  // Add assistant and other messages from backend (with user messages from backend if newer)
+                  for (const msg of completeChat.messages) {
+                    if (!addedIds.has(msg.id)) {
+                      mergedMessages.push(msg);
+                      addedIds.add(msg.id);
+                    }
+                  }
+                  
+                  completeChat = {
+                    ...completeChat,
+                    messages: mergedMessages,
+                  };
+                }
+              }
             } else {
               throw new Error('Failed to find newly created session');
             }
