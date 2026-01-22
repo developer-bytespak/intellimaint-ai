@@ -31,13 +31,13 @@ export default function MarkdownRenderer({ content, className = '' }: MarkdownRe
         ),
         // Lists
         ul: ({ children }: { children?: ReactNode }) => (
-          <ul className="list-disc list-inside mb-2 ml-4 space-y-1 text-white">{children}</ul>
+          <ul className="list-disc list-outside mb-2 ml-6 space-y-1 text-white">{children}</ul>
         ),
         ol: ({ children }: { children?: ReactNode }) => (
-          <ol className="list-decimal list-inside mb-2 ml-4 space-y-1 text-white">{children}</ol>
+          <ol className="list-decimal list-outside mb-2 ml-6 space-y-1 text-white">{children}</ol>
         ),
         li: ({ children }: { children?: ReactNode }) => (
-          <li className="ml-2 text-white">{children}</li>
+          <li className="ml-2 text-white leading-relaxed">{children}</li>
         ),
         // Code blocks
         code: ({ inline, children, className }: { inline?: boolean; children?: ReactNode; className?: string }) => {
