@@ -20,6 +20,7 @@ interface ChatInterfaceProps {
   editingMessageId?: string | null;
   setEditingMessageId?: (id: string | null) => void;
   onCloseSidebar?: () => void;
+  isSidebarOpen?: boolean;
 }
 
 export default function ChatInterface({ 
@@ -36,6 +37,7 @@ export default function ChatInterface({
   editingMessageId,
   setEditingMessageId,
   onCloseSidebar,
+  isSidebarOpen = false,
 }: ChatInterfaceProps) {
   // This would come from useChat, but for now we create a local one that gets passed down
   // In production, we need to pass this from useChat through chat interface
@@ -56,6 +58,7 @@ export default function ChatInterface({
     setEditingMessageId={setEditingMessageId}
     onCloseSidebar={onCloseSidebar}
     streamedContentRef={streamedContentRef}
+    isSidebarOpen={isSidebarOpen}
   />;
 }
 

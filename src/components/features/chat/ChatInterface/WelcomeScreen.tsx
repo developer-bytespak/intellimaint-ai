@@ -29,6 +29,7 @@ interface WelcomeScreenProps {
   setEditingMessageId?: (id: string | null) => void;
   onCloseSidebar?: () => void;
   streamedContentRef?: React.MutableRefObject<Map<string, boolean>>; // Track which content was streamed
+  isSidebarOpen?: boolean;
 }
 
 export default function WelcomeScreen({
@@ -45,6 +46,7 @@ export default function WelcomeScreen({
   setEditingMessageId,
   onCloseSidebar,
   streamedContentRef,
+  isSidebarOpen = false,
 }: WelcomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [imageUploadStates, setImageUploadStates] = useState<ImageUploadState[]>([]);
@@ -577,7 +579,9 @@ export default function WelcomeScreen({
       )}
 
       {/* ChatGPT-like Prompt Interface - Fixed at Bottom, above mobile nav */}
-      <div className="shrink-0 fixed bottom-[80px] sm:bottom-0 left-0 right-0 w-full max-h-[40vh] sm:max-h-none overflow-y-auto px-3 sm:px-4 md:px-6 py-2 sm:py-4 border-t border-[#2a3441] bg-[#1f2632] z-40 sm:z-10">
+      <div className={`shrink-0 fixed bottom-[80px] sm:bottom-0 right-0 max-h-[40vh] sm:max-h-none overflow-y-auto px-3 sm:px-4 md:px-6 py-2 sm:py-4 border-t border-[#2a3441] bg-[#1f2632] z-40 sm:z-10 transition-all duration-300 ease-in-out ${
+        isSidebarOpen ? 'left-80' : 'left-0'
+      }`}>
         {!showWelcomeContent && isRefreshingChatAfterCall && (
           <div className="w-full max-w-4xl mx-auto pb-2">
             <div className="flex justify-center">
