@@ -110,6 +110,8 @@ export function useSmoothStreaming(options: UseSmoothStreamingOptions = {}) {
   const addTokens = useCallback((tokens: string) => {
     if (!tokens || tokens.length === 0) return;
 
+    console.log(`[useSmoothStreaming.addTokens] Adding ${tokens.length} chars to queue. Queue size: ${queueRef.current.length}`);
+
     if (!instant) {
       // Non-instant mode: display immediately (legacy behavior)
       setDisplayedText(prev => prev + tokens);

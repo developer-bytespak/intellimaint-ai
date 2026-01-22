@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { Chat, Message, MessageDocument, TabType, Photo, Document } from '@/types/chat';
 import { mockPhotos, mockDocuments, getPhotoGroups } from '@/data/mockData';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,6 +41,9 @@ export function useChat() {
   const isStreamAbortedRef = useRef<boolean>(false);
   // Track streaming completion for smooth handoff
   const streamingCompleteRef = useRef<{ [messageId: string]: boolean }>({});
+  // Track the content that was just streamed in this session to prevent re-animation on temp->real ID change
+  // Maps message content (by length + start) to whether it was streamed
+  const streamedContentRef = useRef<Map<string, boolean>>(new Map());
   const searchParams = useSearchParams();
   const activeChatRef = useRef<Chat | null>(null);
   const chatsRef = useRef<Chat[]>([]);
@@ -59,6 +63,9 @@ export function useChat() {
 
   // Track current streaming message ID for socket callbacks
   const currentStreamingMessageIdRef = useRef<string | null>(null);
+  
+  // Track streaming promise resolve function to call when chunk.done arrives
+  const streamingResolveRef = useRef<((value: { sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }) => void) | null>(null);
 
   // Socket.IO hook for streaming - only initialize when user is loaded and valid
   const shouldInitializeSocket = !isUserLoading && !!user?.id;
@@ -66,11 +73,24 @@ export function useChat() {
   const socketHook = useChatSocket({
     userId: shouldInitializeSocket && user?.id ? user.id : '', // Only connect with valid userId when ready
     onChunk: useCallback((chunk: SocketStreamResponse) => {
+      // GUARD: Prevent updates if streaming was aborted
+      if (isStreamAbortedRef.current) return;
+      
       const tempMessageId = currentStreamingMessageIdRef.current;
       if (!tempMessageId) return;
 
       if (chunk.done) {
-        // Streaming complete - handled in sendMessage logic
+        // CRITICAL FIX: Resolve streaming promise immediately when tokens are done
+        // Don't wait for backend's stage='complete' signal which can be delayed 4-5 seconds
+        // This allows UI to update and user to send next message immediately
+        if (streamingResolveRef.current) {
+          console.log('[onChunk] 🎯 chunk.done received - resolving streamingPromise immediately');
+          streamingResolveRef.current({
+            messageId: chunk.messageId,
+            stopped: false,
+          });
+          streamingResolveRef.current = null;
+        }
         return;
       }
 
@@ -92,12 +112,18 @@ export function useChat() {
       }
     }, [hasReceivedFirstToken]),
     onError: useCallback((error: string) => {
+      // GUARD: Prevent updates if streaming was aborted
+      if (isStreamAbortedRef.current) return;
+      
       console.error('Socket streaming error:', error);
       setError(error);
       setIsSending(false);
       setStreamingMessageId(null);
     }, []),
     onStopped: useCallback((reason: string) => {
+      // GUARD: Prevent updates if streaming was aborted
+      if (isStreamAbortedRef.current) return;
+      
       console.log('Streaming stopped:', reason);
       const tempMessageId = currentStreamingMessageIdRef.current;
       if (tempMessageId) {
@@ -636,21 +662,18 @@ export function useChat() {
       // Setup promise to wait for streaming completion
       // Using pipeline-chunk events (current backend implementation)
       const streamingPromise = new Promise<{ sessionId?: string; messageId?: string; stopped?: boolean; partialContent?: string }>((resolve, reject) => {
+        // Store resolve function so onChunk can call it when chunk.done arrives
+        streamingResolveRef.current = resolve;
+        
         const cleanup = () => {
           socketHook.socket?.off('pipeline-chunk', pipelineChunkHandler);
           socketHook.socket?.off('pipeline-error', pipelineErrorHandler);
+          streamingResolveRef.current = null;
         };
 
         const pipelineChunkHandler = (data: { stage: string; messageId?: string; sessionId?: string; done?: boolean; errorMessage?: string }) => {
-          // Only resolve on completion or error stages
-          if (data.stage === 'complete' && data.done) {
-            cleanup();
-            resolve({ 
-              sessionId: data.sessionId, 
-              messageId: data.messageId,
-              stopped: false,
-            });
-          } else if (data.stage === 'error') {
+          // Handle error stage
+          if (data.stage === 'error') {
             cleanup();
             if (data.errorMessage === 'Pipeline aborted') {
               // User stopped the stream
@@ -659,6 +682,7 @@ export function useChat() {
               reject(new Error(data.errorMessage || 'Pipeline error'));
             }
           }
+          // Note: We don't need to wait for stage='complete' since onChunk.chunk.done will resolve the promise
         };
 
         const pipelineErrorHandler = (data: { error: string }) => {
@@ -686,6 +710,10 @@ export function useChat() {
         actualAssistantMessageId = result.messageId;
         console.log('[sendMessage] Using actualSessionId:', actualSessionId);
 
+        // CRITICAL: Clear isSending immediately so UI updates and user can send next message
+        // This must happen BEFORE any async operations like fetchCompleteChat
+        setIsSending(false);
+
         setStreamingAbortController(null);
         
         // Mark streaming as complete
@@ -693,6 +721,13 @@ export function useChat() {
         
         // Get final text from streaming state or use partial content from server
         const finalText = result.partialContent || streamingText[tempAssistantMessageId] || '';
+
+        // Mark this streamed content so components can skip re-animation on ID change
+        if (finalText) {
+          const contentHash = `len:${finalText.length}:first${finalText.slice(0, 20).replace(/\s/g, '')}`;
+          streamedContentRef.current.set(contentHash, true);
+          console.log(`[useChat] Marked streamed content: ${contentHash}`);
+        }
 
         // If stream was stopped, mark both user and assistant messages as stopped
         const wasStopped = result.stopped || false;
@@ -786,48 +821,63 @@ export function useChat() {
           // CRITICAL FIX: Clear streaming state SYNCHRONOUSLY BEFORE setting activeChat
           // This prevents the race condition where MessageItem sees both streamingText and message.content
           // which causes double animation in production (higher latency)
-          setStreamingText(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            if (realMessageId && realMessageId !== tempAssistantMessageId) {
-              delete updated[realMessageId];
-            }
-            return updated;
+          // Use flushSync to ensure state updates complete immediately, not batched
+          console.log(`[useChat] 🟢 Streaming complete. Clearing streamingText SYNCHRONOUSLY (with flushSync). tempMsgId=${tempAssistantMessageId}`);
+          
+          flushSync(() => {
+            setStreamingText(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              if (realMessageId && realMessageId !== tempAssistantMessageId) {
+                delete updated[realMessageId];
+              }
+              console.log(`[useChat] ✅ streamingText flushed: ${Object.keys(updated).length} remaining entries`);
+              return updated;
+            });
           });
-          setHasReceivedFirstToken(prev => {
-            const updated = { ...prev };
-            delete updated[tempAssistantMessageId];
-            return updated;
+          
+          flushSync(() => {
+            setHasReceivedFirstToken(prev => {
+              const updated = { ...prev };
+              delete updated[tempAssistantMessageId];
+              return updated;
+            });
           });
           
           // Update with complete chat AFTER streaming state is cleared
-          if (completeChat) {
-            const finalChat = completeChat;
-            setActiveChat(finalChat);
-            if (isNewChat) {
-              setChats(prev => {
-                // Filter out: 1) chats with empty IDs (optimistic new chats), 2) any existing chat with same ID
-                // This prevents duplicate entries when the completeChat arrives with LLM-generated title
-                const filtered = prev.filter(chat => 
-                  (chat.id && chat.id !== '') && chat.id !== finalChat.id
-                );
-                // Add the new chat at the beginning and sort by updatedAt descending
-                const updated = [finalChat, ...filtered];
-                return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-              });
-            } else {
-              setChats(prev => {
-                const updated = prev.map(chat => 
-                  chat.id === actualSessionId ? finalChat : chat
-                );
-                // Re-sort after update to maintain descending order by updatedAt
-                return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-              });
+          console.log(`[useChat] 🟢 Now calling setActiveChat with complete content`);
+          flushSync(() => {
+            if (completeChat) {
+              const finalChat = completeChat;
+              setActiveChat(finalChat);
+              if (isNewChat) {
+                setChats(prev => {
+                  // Filter out: 1) chats with empty IDs (optimistic new chats), 2) any existing chat with same ID
+                  // This prevents duplicate entries when the completeChat arrives with LLM-generated title
+                  const filtered = prev.filter(chat => 
+                    (chat.id && chat.id !== '') && chat.id !== finalChat.id
+                  );
+                  // Add the new chat at the beginning and sort by updatedAt descending
+                  const updated = [finalChat, ...filtered];
+                  return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                });
+              } else {
+                setChats(prev => {
+                  const updated = prev.map(chat => 
+                    chat.id === actualSessionId ? finalChat : chat
+                  );
+                  // Re-sort after update to maintain descending order by updatedAt
+                  return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                });
+              }
             }
-          }
+          });
           
           // Clear remaining streaming refs (streamingText already cleared above)
-          setStreamingMessageId(null);
+          console.log(`[useChat] ✅ Clearing streaming refs and message ID`);
+          flushSync(() => {
+            setStreamingMessageId(null);
+          });
           streamingCompleteRef.current = {};
           currentStreamingMessageIdRef.current = null;
           

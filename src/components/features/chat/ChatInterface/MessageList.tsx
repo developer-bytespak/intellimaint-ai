@@ -13,6 +13,7 @@ interface MessageListProps {
   streamingMessageId?: string | null;
   onEditMessage?: (messageId: string) => void;
   onInlineEditSave?: (messageId: string, newContent: string) => void;
+  streamedContentRef?: React.MutableRefObject<Map<string, boolean>>; // Track which content was streamed
 }
 
 export default function MessageList({ 
@@ -22,6 +23,7 @@ export default function MessageList({
   streamingMessageId = null,
   onEditMessage,
   onInlineEditSave,
+  streamedContentRef,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +221,7 @@ export default function MessageList({
               streamingMessageId={streamingMessageId}
               onEditMessage={onEditMessage}
               onInlineEditSave={onInlineEditSave}
+              streamedContentRef={streamedContentRef}
             />
           );
         })}
