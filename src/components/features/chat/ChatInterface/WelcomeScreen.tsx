@@ -85,6 +85,47 @@ export default function WelcomeScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Handle paste event for images
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    let hasImage = false;
+    const currentLength = imageUploadStates.length;
+    const newStates: ImageUploadState[] = [];
+
+    for (let i = 0; i < items.length && (currentLength + newStates.length) < 10; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        hasImage = true;
+        e.preventDefault(); // Prevent default paste behavior for images
+        
+        const file = item.getAsFile();
+        if (file) {
+          const previewUrl = URL.createObjectURL(file);
+          const newState: ImageUploadState = {
+            previewUrl,
+            status: 'uploading',
+            progress: undefined,
+          };
+          newStates.push(newState);
+        }
+      }
+    }
+
+    if (hasImage && newStates.length > 0) {
+      setImageUploadStates(prev => {
+        const updated = [...prev, ...newStates].slice(0, 10);
+        // Start uploading each new image with correct indices
+        newStates.forEach((state, offset) => {
+          const index = currentLength + offset;
+          setTimeout(() => uploadImage(state.previewUrl, index), 0);
+        });
+        return updated;
+      });
+    }
+  };
+
   // Check if any image is still uploading
   const isUploading = imageUploadStates.some(state => state.status === 'uploading');
 
@@ -640,6 +681,7 @@ export default function WelcomeScreen({
                     handleSubmit(e);
                   }
                 }}
+                onPaste={handlePaste}
                 placeholder={
                   isSendingAudio
                     ? "Transcribing audio..."

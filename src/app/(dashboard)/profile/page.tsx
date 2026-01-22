@@ -393,7 +393,8 @@ export default function ProfilePage() {
           >
             <IconChevronLeft className="h-6 w-6 text-white" />
           </button>
-          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1 pr-4">Your Profile</h1>
+          <h1 className="text-center text-pretty text-2xl md:text-3xl font-semibold flex-1">Your Profile</h1>
+          <div className="w-10 mr-4"></div>
         </div>
       </header>
 

@@ -61,7 +61,8 @@ export default function AppInfoPage() {
           >
             <IconChevronLeft className="h-6 w-6 text-white" />
           </button>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex-1 text-center pr-4">App Info</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex-1 text-center">App Info</h1>
+          <div className="w-10 mr-4"></div>
         </div>
       </header>
       
