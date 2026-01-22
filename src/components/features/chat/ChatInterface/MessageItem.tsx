@@ -385,10 +385,12 @@ export default function MessageItem({
   }, [isCurrentlyStreaming]);
 
   // Determine what to display
-  // Always use displayedText if available (for smooth streaming), otherwise fall back to message.content
-  // This ensures character-by-character display continues even after streaming completes
-  // CRITICAL: During handoff (temp->real ID), prefer displayedText to avoid empty render
-  const displayedContent = displayedText || message.content || (isCurrentlyStreaming ? '' : message.content);
+  // For assistant messages: use displayedText for animated streaming, then message.content when complete
+  // For user messages: always use message.content directly (no animation)
+  // This ensures user messages always display and assistant messages animate smoothly
+  const displayedContent = message.role === 'user' 
+    ? message.content 
+    : (displayedText || message.content);
 
   if (DEBUG) {
     // eslint-disable-next-line no-console
