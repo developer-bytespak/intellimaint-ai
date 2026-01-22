@@ -25,6 +25,7 @@ export default function MessageList({
   onInlineEditSave,
   streamedContentRef,
 }: MessageListProps) {
+  const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true';
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
@@ -148,16 +149,11 @@ export default function MessageList({
     );
   }
 
-  console.log(`
-╔════════════════════════════════════════════════════════════════╗
-║ [MessageList] RENDERING ${activeChat.messages.length} MESSAGES
-║ Streaming: ${streamingMessageId?.slice(0, 12)} | isSending: ${isSending}
-║ Messages:`, 
-    activeChat.messages.map((m, i) => `
-║   [${i}] ${m.role} | "${m.content?.slice(0, 25)}..." (${m.content?.length || 0}c) | id: ${m.id?.slice(0, 12)}`).join(''),
-    `
-╚════════════════════════════════════════════════════════════════╝
-  `);
+  if (DEBUG) {
+    // Reduced logging: one compact line
+    // eslint-disable-next-line no-console
+    console.log(`[MessageList] count=${activeChat.messages.length} streaming=${streamingMessageId?.slice(0,12)} sending=${isSending}`);
+  }
 
   const handleCopyText = async (text: string, messageId: string) => {
     try {
@@ -217,7 +213,7 @@ export default function MessageList({
           
           return (
             <MessageItem
-              key={`msg-${message.timestamp.getTime()}-${message.role}`}
+              key={message.stableKey || message.id || `idx-${index}`}
               message={message}
               isLastMessage={isLastMessage}
               isSending={isSending}

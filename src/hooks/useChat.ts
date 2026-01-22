@@ -44,6 +44,10 @@ export function useChat() {
   // Track the content that was just streamed in this session to prevent re-animation on temp->real ID change
   // Maps message content (by length + start) to whether it was streamed
   const streamedContentRef = useRef<Map<string, boolean>>(new Map());
+  // Map content hash -> stableKey to preserve React keys across temp→real handoff
+  const stableKeyByContentHashRef = useRef<Map<string, string>>(new Map());
+  // Accumulate tokens in a buffer ref to avoid stale state reads for finalText
+  const streamingBufferRef = useRef<{ [messageId: string]: string }>({});
   const searchParams = useSearchParams();
   const activeChatRef = useRef<Chat | null>(null);
   const chatsRef = useRef<Chat[]>([]);
@@ -96,15 +100,19 @@ export function useChat() {
 
       if (chunk.token) {
         // Append token to streaming text
-        console.log(`[useChat onChunk] 🔤 Received token: "${chunk.token}" | Total: ${(streamingText[tempMessageId] || '').length + chunk.token.length} chars`);
+        const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true';
+        if (DEBUG) console.log(`[useChat onChunk] token len=${chunk.token.length}`);
         setStreamingText(prev => {
           const newText = (prev[tempMessageId] || '') + chunk.token;
-          console.log(`[useChat setStreamingText] Updated ${tempMessageId}: now ${newText.length} chars`);
+          if (DEBUG) console.log(`[useChat setStreamingText] ${tempMessageId} -> ${newText.length}`);
           return {
             ...prev,
             [tempMessageId]: newText,
           };
         });
+
+        // Update streaming buffer (source of truth for finalText)
+        streamingBufferRef.current[tempMessageId] = (streamingBufferRef.current[tempMessageId] || '') + chunk.token;
 
         // Set streamingMessageId on first token
         if (!hasReceivedFirstToken[tempMessageId]) {
@@ -129,7 +137,7 @@ export function useChat() {
       // GUARD: Prevent updates if streaming was aborted
       if (isStreamAbortedRef.current) return;
       
-      console.log('Streaming stopped:', reason);
+      { const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true'; if (DEBUG) console.log('Streaming stopped:', reason); }
       const tempMessageId = currentStreamingMessageIdRef.current;
       if (tempMessageId) {
         setStreamingText(prev => {
@@ -561,13 +569,13 @@ export function useChat() {
       // Check if this is a new chat (empty ID means it hasn't been saved to backend yet)
       const isNewChat = !finalChatToUse.id || finalChatToUse.id === '';
       
-      console.log('[sendMessage] Session state:', {
+      { const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true'; if (DEBUG) console.log('[sendMessage] Session state:', {
         isNewChat,
         chatToUseId: chatToUse.id,
         finalChatToUseId: finalChatToUse.id,
         activeChatRefId: activeChatRef.current?.id,
         activeChatStateId: activeChat?.id,
-      });
+      }); }
 
       // When editing, the message was already updated above - don't add a new one
       // When sending new message, create optimistic message for immediate display
@@ -580,14 +588,20 @@ export function useChat() {
         };
       } else {
         // New message - create optimistic message and append
+        const tempUserId = `temp-msg-${Date.now()}`;
         const optimisticMessage: Message = {
-          id: `temp-msg-${Date.now()}`,
+          id: tempUserId,
           content,
           role: 'user',
           timestamp: new Date(),
+          stableKey: tempUserId,
           images: permanentImageUrls.length > 0 ? permanentImageUrls : undefined,
           isStopped: false,
         };
+
+        // Pre-register user message stable key by content hash
+        const userHash = `len:${content.length}:first${content.slice(0, 20).replace(/\s/g, '')}`;
+        stableKeyByContentHashRef.current.set(userHash, optimisticMessage.stableKey!);
 
         optimisticChat = {
           ...finalChatToUse,
@@ -605,12 +619,14 @@ export function useChat() {
       setActiveChat(optimisticChat);
 
       // Create streaming assistant message placeholder
-      const tempAssistantMessageId = `temp-assistant-${Date.now()}`;
+      const nowTs = Date.now();
+      const tempAssistantMessageId = `temp-assistant-${nowTs}`;
       const optimisticAssistantMessage: Message = {
         id: tempAssistantMessageId,
         content: '',
         role: 'assistant',
         timestamp: new Date(),
+        stableKey: tempAssistantMessageId,
       };
 
       // Add optimistic assistant message only if not editing
@@ -701,7 +717,7 @@ export function useChat() {
 
       try {
         // Start socket streaming
-        console.log('[sendMessage] Starting stream:', { isNewChat, chatId: finalChatToUse.id });
+        { const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true'; if (DEBUG) console.log('[sendMessage] Starting stream:', { isNewChat, chatId: finalChatToUse.id }); }
         if (isNewChat) {
           socketHook.sendMessageNew(content, permanentImageUrls.length > 0 ? permanentImageUrls : undefined);
         } else {
@@ -710,10 +726,11 @@ export function useChat() {
 
         // Wait for streaming to complete
         const result = await streamingPromise;
-        console.log('[sendMessage] Stream completed:', { resultSessionId: result.sessionId, fallbackId: finalChatToUse.id });
+        const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true';
+        if (DEBUG) console.log('[sendMessage] Stream completed:', { resultSessionId: result.sessionId, fallbackId: finalChatToUse.id });
         actualSessionId = result.sessionId || finalChatToUse.id;
         actualAssistantMessageId = result.messageId;
-        console.log('[sendMessage] Using actualSessionId:', actualSessionId);
+        if (DEBUG) console.log('[sendMessage] Using actualSessionId:', actualSessionId);
 
         // CRITICAL: Clear isSending immediately so UI updates and user can send next message
         // This must happen BEFORE any async operations like fetchCompleteChat
@@ -725,13 +742,14 @@ export function useChat() {
         streamingCompleteRef.current[tempAssistantMessageId] = true;
         
         // Get final text from streaming state or use partial content from server
-        const finalText = result.partialContent || streamingText[tempAssistantMessageId] || '';
+        const finalText = result.partialContent || streamingBufferRef.current[tempAssistantMessageId] || '';
 
         // Mark this streamed content so components can skip re-animation on ID change
         if (finalText) {
           const contentHash = `len:${finalText.length}:first${finalText.slice(0, 20).replace(/\s/g, '')}`;
           streamedContentRef.current.set(contentHash, true);
-          console.log(`[useChat] Marked streamed content: ${contentHash}`);
+          stableKeyByContentHashRef.current.set(contentHash, tempAssistantMessageId);
+          if (DEBUG) console.log(`[useChat] Marked streamed content + stableKey for assistant: ${contentHash} -> ${tempAssistantMessageId}`);
         }
 
         // If stream was stopped, mark both user and assistant messages as stopped
@@ -829,14 +847,9 @@ export function useChat() {
           // This prevents the race condition where MessageItem sees both streamingText and message.content
           // which causes double animation in production (higher latency)
           // Use flushSync to ensure state updates complete immediately, not batched
-          console.log(`
-╔════════════════════════════════════════════════════════════════╗
-║ [useChat] 🟢 STREAMING COMPLETE - CLEARING STATE SYNCHRONOUSLY
-║ tempMsgId: ${tempAssistantMessageId.slice(0, 12)}
-║ finalText length: ${finalText.length}
-║ Clearing streamingText for IDs: ${tempAssistantMessageId.slice(0, 12)}, ${realMessageId?.slice(0, 12)}
-╚════════════════════════════════════════════════════════════════╝
-          `);
+          if (DEBUG) {
+            console.log(`[useChat] STREAM DONE: clearing stream state (temp=${tempAssistantMessageId.slice(0,12)} finalLen=${finalText.length})`);
+          }
           
           flushSync(() => {
             setStreamingText(prev => {
@@ -845,7 +858,7 @@ export function useChat() {
               if (realMessageId && realMessageId !== tempAssistantMessageId) {
                 delete updated[realMessageId];
               }
-              console.log(`[useChat] ✅ streamingText flushed: ${Object.keys(updated).length} remaining entries`);
+              if (DEBUG) console.log(`[useChat] streamingText flushed: ${Object.keys(updated).length} remaining entries`);
               return updated;
             });
           });
@@ -859,10 +872,16 @@ export function useChat() {
           });
           
           // Update with complete chat AFTER streaming state is cleared
-          console.log(`[useChat] 🟢 Now calling setActiveChat with complete content`);
+          if (DEBUG) console.log(`[useChat] Applying completeChat with stableKey mapping`);
           flushSync(() => {
             if (completeChat) {
-              const finalChat = completeChat;
+              // Apply stableKey mapping by content hash to prevent remount
+              const mappedMessages = completeChat.messages.map(m => {
+                const hash = m.content ? `len:${m.content.length}:first${m.content.slice(0, 20).replace(/\s/g, '')}` : '';
+                const stable = hash ? stableKeyByContentHashRef.current.get(hash) : undefined;
+                return stable ? { ...m, stableKey: stable } : { ...m, stableKey: m.stableKey || m.id };
+              });
+              const finalChat = { ...completeChat, messages: mappedMessages };
               setActiveChat(finalChat);
               if (isNewChat) {
                 setChats(prev => {
@@ -886,12 +905,14 @@ export function useChat() {
           });
           
           // Clear remaining streaming refs (streamingText already cleared above)
-          console.log(`[useChat] ✅ Clearing streaming refs and message ID`);
+          if (DEBUG) console.log(`[useChat] Clearing streaming refs and message ID`);
           flushSync(() => {
             setStreamingMessageId(null);
           });
           streamingCompleteRef.current = {};
           currentStreamingMessageIdRef.current = null;
+          // Clear buffer for this temp ID
+          delete streamingBufferRef.current[tempAssistantMessageId];
           
           if (isNewChat) {
             // Use completeChat.id which now has the actual session ID from the server
