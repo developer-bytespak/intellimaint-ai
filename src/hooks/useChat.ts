@@ -96,10 +96,15 @@ export function useChat() {
 
       if (chunk.token) {
         // Append token to streaming text
-        setStreamingText(prev => ({
-          ...prev,
-          [tempMessageId]: (prev[tempMessageId] || '') + chunk.token,
-        }));
+        console.log(`[useChat onChunk] 🔤 Received token: "${chunk.token}" | Total: ${(streamingText[tempMessageId] || '').length + chunk.token.length} chars`);
+        setStreamingText(prev => {
+          const newText = (prev[tempMessageId] || '') + chunk.token;
+          console.log(`[useChat setStreamingText] Updated ${tempMessageId}: now ${newText.length} chars`);
+          return {
+            ...prev,
+            [tempMessageId]: newText,
+          };
+        });
 
         // Set streamingMessageId on first token
         if (!hasReceivedFirstToken[tempMessageId]) {
@@ -737,11 +742,13 @@ export function useChat() {
         setActiveChat(prev => {
           if (!prev) return prev;
           const lastUserIndex = Math.max(0, prev.messages.length - 2);
+          console.log(`[useChat setActiveChat] Updating message in activeChat: setting assistant msg ${tempAssistantMessageId.slice(0, 12)} to "${finalText.slice(0, 30)}..."`)
           return {
             ...prev,
             messages: prev.messages.map((msg, idx) => {
               // Mark assistant message as stopped
               if (msg.id === tempAssistantMessageId) {
+                console.log(`[useChat] ✅ Found & updating assistant message`);
                 return { ...msg, content: finalText, isStopped: wasStopped };
               }
               // Mark the last user message as stopped (for edit button)
@@ -822,7 +829,14 @@ export function useChat() {
           // This prevents the race condition where MessageItem sees both streamingText and message.content
           // which causes double animation in production (higher latency)
           // Use flushSync to ensure state updates complete immediately, not batched
-          console.log(`[useChat] 🟢 Streaming complete. Clearing streamingText SYNCHRONOUSLY (with flushSync). tempMsgId=${tempAssistantMessageId}`);
+          console.log(`
+╔════════════════════════════════════════════════════════════════╗
+║ [useChat] 🟢 STREAMING COMPLETE - CLEARING STATE SYNCHRONOUSLY
+║ tempMsgId: ${tempAssistantMessageId.slice(0, 12)}
+║ finalText length: ${finalText.length}
+║ Clearing streamingText for IDs: ${tempAssistantMessageId.slice(0, 12)}, ${realMessageId?.slice(0, 12)}
+╚════════════════════════════════════════════════════════════════╝
+          `);
           
           flushSync(() => {
             setStreamingText(prev => {
@@ -857,17 +871,15 @@ export function useChat() {
                   const filtered = prev.filter(chat => 
                     (chat.id && chat.id !== '') && chat.id !== finalChat.id
                   );
-                  // Add the new chat at the beginning and sort by updatedAt descending
-                  const updated = [finalChat, ...filtered];
-                  return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                  // Add the new chat at the beginning (no sorting to prevent message reordering issues in production)
+                  return [finalChat, ...filtered];
                 });
               } else {
                 setChats(prev => {
-                  const updated = prev.map(chat => 
+                  // Update chat without re-sorting to prevent message list reordering in production
+                  return prev.map(chat => 
                     chat.id === actualSessionId ? finalChat : chat
                   );
-                  // Re-sort after update to maintain descending order by updatedAt
-                  return updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
                 });
               }
             }

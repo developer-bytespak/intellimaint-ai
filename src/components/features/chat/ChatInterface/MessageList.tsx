@@ -148,6 +148,17 @@ export default function MessageList({
     );
   }
 
+  console.log(`
+╔════════════════════════════════════════════════════════════════╗
+║ [MessageList] RENDERING ${activeChat.messages.length} MESSAGES
+║ Streaming: ${streamingMessageId?.slice(0, 12)} | isSending: ${isSending}
+║ Messages:`, 
+    activeChat.messages.map((m, i) => `
+║   [${i}] ${m.role} | "${m.content?.slice(0, 25)}..." (${m.content?.length || 0}c) | id: ${m.id?.slice(0, 12)}`).join(''),
+    `
+╚════════════════════════════════════════════════════════════════╝
+  `);
+
   const handleCopyText = async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -206,7 +217,7 @@ export default function MessageList({
           
           return (
             <MessageItem
-              key={message.id}
+              key={`msg-${message.timestamp.getTime()}-${message.role}`}
               message={message}
               isLastMessage={isLastMessage}
               isSending={isSending}
