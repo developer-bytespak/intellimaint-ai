@@ -798,7 +798,7 @@ export default function WelcomeScreen({
         isOpen={showCallingModal}
         onClose={() => setShowCallingModal(false)}
         onEndCall={onEndCall}
-        websocketUrl={(wsConnection) as string | undefined }
+        websocketUrl={wsConnection ?? ""}
       />
 
       {/* Image Overlay */}
