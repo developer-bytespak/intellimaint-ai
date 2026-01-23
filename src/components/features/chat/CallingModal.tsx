@@ -1,310 +1,599 @@
+// // "use client";
+
+// // import { useEffect, useState, useRef } from "react";
+// // import { useWebSocket } from "@/hooks/useWebSocket";
+// // import { startSTT } from "@/hooks/useSTT";
+// // import { speak, stopAllAudio } from "@/hooks/useTTS";
+
+// // interface CallingModalProps {
+// //   isOpen: boolean;
+// //   onClose: () => void;
+// //   websocketUrl: string;
+// // }
+
+// // export default function CallingModal({
+// //   isOpen,
+// //   onClose,
+// //   websocketUrl,
+// // }: CallingModalProps) {
+// //   const [isCallActive, setIsCallActive] = useState(false);
+// //   const [callDuration, setCallDuration] = useState(0);
+// //   const [status, setStatus] = useState<"listening" | "processing" | "speaking">("listening");
+
+// //   const ws = useWebSocket(websocketUrl);
+// //   const sttRef = useRef<null | { stop: () => void }>(null);
+
+// //   // ---------------- START CALL ----------------
+// //   useEffect(() => {
+// //     if (!isOpen || !ws.isConnected) return;
+
+// //     console.log("📞 Call started");
+// //     setIsCallActive(true);
+// //     setStatus("listening");
+
+// //     console.log("🎤 Starting STT...");
+
+// //     // Start listening for user speech
+// //     startSTT((finalText) => {
+// //       console.log("✅ User finished speaking:", finalText);
+
+// //       // User done speaking, now processing
+// //       setStatus("processing");
+
+// //       if (ws.isConnected) {
+// //         ws.send(finalText);
+// //         console.log("📤 Sent to backend:", finalText);
+// //       } else {
+// //         console.log("⚠️ WS not ready");
+// //         setStatus("listening"); // Go back to listening
+// //       }
+// //     })
+// //       .then((stt) => {
+// //         sttRef.current = stt;
+// //         console.log("✅ STT Ready");
+// //       })
+// //       .catch((err) => {
+// //         console.error("❌ STT Failed:", err);
+// //       });
+
+// //     return () => {
+// //       console.log("🧹 Cleaning up...");
+// //       if (sttRef.current) {
+// //         sttRef.current.stop();
+// //       }
+// //       sttRef.current = null;
+// //       setStatus("listening");
+// //     };
+// //   }, [isOpen, ws.isConnected]);
+
+// //   // ---------------- BOT RESPONSE ----------------
+// //   useEffect(() => {
+// //     if (!ws.lastText) return;
+
+// //     console.log("🤖 Backend response:", ws.lastText);
+// //     setStatus("speaking");
+
+// //     // Convert to speech and play
+// //     speak(ws.lastText)
+// //       .then(() => {
+// //         console.log("✅ Bot finished speaking");
+// //         setStatus("listening"); // Ready for next input
+// //       })
+// //       .catch((err) => {
+// //         console.error("❌ TTS Error:", err);
+// //         setStatus("listening");
+// //       });
+// //   }, [ws.lastText]);
+
+// //   // ---------------- TIMER ----------------
+// //   useEffect(() => {
+// //     let t: NodeJS.Timeout;
+// //     if (isCallActive) {
+// //       t = setInterval(() => {
+// //         setCallDuration((p) => p + 1);
+// //       }, 1000);
+// //     }
+// //     return () => clearInterval(t);
+// //   }, [isCallActive]);
+
+// //   // ---------------- END CALL ----------------
+// //   const handleEnd = () => {
+// //     console.log("📞 Ending call...");
+
+// //     if (sttRef.current) {
+// //       sttRef.current.stop();
+// //     }
+// //     sttRef.current = null;
+
+// //     stopAllAudio();
+
+// //     setIsCallActive(false);
+// //     setStatus("listening");
+// //     setCallDuration(0);
+
+// //     onClose();
+// //   };
+
+// //   if (!isOpen) return null;
+
+// //   return (
+// //     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+// //       <div className="bg-[#1f2632] rounded-2xl p-8 max-w-md w-full border border-[#3a4a5a] shadow-2xl">
+        
+// //         {/* Header */}
+// //         <h2 className="text-xl font-bold text-white text-center mb-2">
+// //           {ws.isConnected ? "Voice Call Active" : "Connecting..."}
+// //         </h2>
+
+// //         {/* Avatar */}
+// //         <div className="flex justify-center my-8">
+// //           <div
+// //             className={`w-32 h-32 rounded-full flex items-center justify-center text-6xl transition-all duration-300
+// //             `}
+// //           >
+// //             <img src="/Intelliment LOgo.png" alt="" />
+// //           </div>
+// //         </div>
+
+// //         {/* Status Display */}
+// //         <div className="text-center mb-4">
+// //           <div className="text-gray-400 text-sm mb-1">Status</div>
+// //           <div className="text-white text-xl font-semibold">
+// //             {status === "listening" && " Listening..."}
+// //             {status === "processing" && " Processing..."}
+// //             {status === "speaking" && " AI Speaking..."}
+// //           </div>
+// //         </div>
+
+// //         {/* Timer */}
+// //         <div className="text-center mb-6">
+// //           <div className="text-gray-400 text-sm mb-1">Duration</div>
+// //           <div className="text-white font-mono text-3xl">
+// //             {new Date(callDuration * 1000).toISOString().slice(14, 19)}
+// //           </div>
+// //         </div>
+
+// //         {/* End Button */}
+// //         <button
+// //           onClick={handleEnd}
+// //           className="w-full py-4 bg-red-600 hover:bg-red-700 rounded-full text-white font-bold text-lg transition-all hover:scale-105 active:scale-95"
+// //         >
+// //           End Call
+// //         </button>
+
+// //         {/* Flow Indicator */}
+// //         {/* <div className="mt-6 pt-4 border-t border-gray-600">
+// //           <div className="flex justify-between text-xs text-gray-500">
+// //             <span className={status === "listening" ? "text-purple-400" : ""}>
+// //               👂 Listen
+// //             </span>
+// //             <span className={status === "processing" ? "text-yellow-400" : ""}>
+// //               ⚡ Process
+// //             </span>
+// //             <span className={status === "speaking" ? "text-blue-400" : ""}>
+// //               🔊 Speak
+// //             </span>
+// //           </div>
+// //         </div> */}
+// //       </div>
+// //     </div>
+// //   );
+// // }
+
+// "use client";
+
+// import { useEffect, useState, useRef } from "react";
+// import { useWebSocket } from "@/hooks/useWebSocket";
+// import { startSTT } from "@/hooks/useSTT";
+// import { speak, stopAllAudio } from "@/hooks/useTTS";
+
+// interface CallingModalProps {
+//   isOpen: boolean;
+//   onClose: () => void;
+//   websocketUrl: string;
+// }
+
+// export default function CallingModal({
+//   isOpen,
+//   onClose,
+//   websocketUrl,
+// }: CallingModalProps) {
+//   const [isCallActive, setIsCallActive] = useState(false);
+//   const [callDuration, setCallDuration] = useState(0);
+//   const [status, setStatus] = useState<"listening" | "processing" | "speaking">("listening");
+
+//   const ws = useWebSocket(websocketUrl);
+//   const sttRef = useRef<null | { stop: () => void; pause: () => void; resume: () => void }>(null);
+
+//   // ---------------- START CALL ----------------
+//   useEffect(() => {
+//     if (!isOpen || !ws.isConnected) return;
+
+//     console.log("📞 Call started");
+//     setIsCallActive(true);
+//     setStatus("listening");
+
+//     console.log("🎤 Starting STT...");
+
+//     // Start listening for user speech
+//     startSTT((finalText) => {
+//       console.log("✅ User finished speaking:", finalText);
+
+//       // 🔒 PAUSE STT - User done speaking, now processing
+//       if (sttRef.current) {
+//         sttRef.current.pause();
+//         console.log("⏸️ STT paused during processing");
+//       }
+
+//       setStatus("processing");
+
+//       if (ws.isConnected) {
+//         ws.send(finalText);
+//         console.log("📤 Sent to backend:", finalText);
+//       } else {
+//         console.log("⚠️ WS not ready");
+//         setStatus("listening");
+//         // Resume STT if send failed
+//         if (sttRef.current) {
+//           sttRef.current.resume();
+//         }
+//       }
+//     })
+//       .then((stt) => {
+//         sttRef.current = stt;
+//         console.log("✅ STT Ready");
+//       })
+//       .catch((err) => {
+//         console.error("❌ STT Failed:", err);
+//       });
+
+//     return () => {
+//       console.log("🧹 Cleaning up...");
+//       if (sttRef.current) {
+//         sttRef.current.stop();
+//       }
+//       sttRef.current = null;
+//       setStatus("listening");
+//     };
+//   }, [isOpen, ws.isConnected]);
+
+//   // ---------------- BOT RESPONSE ----------------
+//   useEffect(() => {
+//     if (!ws.lastText) return;
+
+//     console.log("🤖 Backend response:", ws.lastText);
+//     setStatus("speaking");
+
+//     // Convert to speech and play
+//     speak(ws.lastText)
+//       .then(() => {
+//         console.log("✅ Bot finished speaking");
+        
+//         // 🔓 RESUME STT - Bot done, ready for next input
+//         setStatus("listening");
+//         if (sttRef.current) {
+//           sttRef.current.resume();
+//           console.log("▶️ STT resumed - ready for input");
+//         }
+//       })
+//       .catch((err) => {
+//         console.error("❌ TTS Error:", err);
+//         setStatus("listening");
+//         // Resume STT even on error
+//         if (sttRef.current) {
+//           sttRef.current.resume();
+//         }
+//       });
+//   }, [ws.lastText]);
+
+//   // ---------------- TIMER ----------------
+//   useEffect(() => {
+//     let t: NodeJS.Timeout;
+//     if (isCallActive) {
+//       t = setInterval(() => {
+//         setCallDuration((p) => p + 1);
+//       }, 1000);
+//     }
+//     return () => clearInterval(t);
+//   }, [isCallActive]);
+
+//   // ---------------- END CALL ----------------
+//   const handleEnd = () => {
+//     console.log("📞 Ending call...");
+
+//     // Stop STT
+//     if (sttRef.current) {
+//       sttRef.current.stop();
+//       console.log("✅ STT stopped");
+//     }
+//     sttRef.current = null;
+
+//     // Stop all audio
+//     stopAllAudio();
+
+//     // 🔌 Close backend WebSocket
+//     ws.close();
+//     console.log("🔌 Backend WS closed");
+
+//     setIsCallActive(false);
+//     setStatus("listening");
+//     setCallDuration(0);
+
+//     onClose();
+//   };
+
+//   if (!isOpen) return null;
+
+//   return (
+//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+//       <div className="bg-[#1f2632] rounded-2xl p-8 max-w-md w-full border border-[#3a4a5a] shadow-2xl">
+        
+//         {/* Header */}
+//         <h2 className="text-xl font-bold text-white text-center mb-2">
+//           {ws.isConnected ? "Voice Call Active" : "Connecting..."}
+//         </h2>
+
+//         {/* Avatar */}
+//         <div className="flex justify-center my-8">
+//           <div className="w-32 h-32 rounded-full flex items-center justify-center text-6xl transition-all duration-300">
+//             <img src="/Intelliment LOgo.png" alt="Intelliment Logo" className="w-full h-full object-contain" />
+//           </div>
+//         </div>
+
+//         {/* Status Display */}
+//         <div className="text-center mb-4">
+//           <div className="text-gray-400 text-sm mb-1">Status</div>
+//           <div className="text-white text-xl font-semibold flex items-center justify-center gap-2">
+//             {status === "listening" && (
+//               <>
+//                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+//                 Listening...
+//               </>
+//             )}
+//             {status === "processing" && (
+//               <>
+//                 <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+//                 Processing...
+//               </>
+//             )}
+//             {status === "speaking" && (
+//               <>
+//                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+//                 AI Speaking...
+//               </>
+//             )}
+//           </div>
+//         </div>
+
+//         {/* Timer */}
+//         <div className="text-center mb-6">
+//           <div className="text-gray-400 text-sm mb-1">Duration</div>
+//           <div className="text-white font-mono text-3xl">
+//             {new Date(callDuration * 1000).toISOString().slice(14, 19)}
+//           </div>
+//         </div>
+
+//         {/* End Button */}
+//         <button
+//           onClick={handleEnd}
+//           className="w-full py-4 bg-red-600 hover:bg-red-700 rounded-full text-white font-bold text-lg transition-all hover:scale-105 active:scale-95"
+//         >
+//           End Call
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useVoiceStream } from "@/hooks/useVoiceStream";
-import { sessionId, useWebSocket } from "@/hooks/useWebSocket";
+import { useEffect, useState, useRef } from "react";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { startSTT } from "@/hooks/useSTT";
+import { speak, stopAllAudio, setOnQueueEmpty, isTTSPlaying } from "@/hooks/useTTS";
 
 interface CallingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  websocketUrl: string;
   onEndCall?: () => void | Promise<void>;
-  websocketUrl?: string;
 }
 
 export default function CallingModal({
   isOpen,
   onClose,
+  websocketUrl,
   onEndCall,
-  websocketUrl = "",
 }: CallingModalProps) {
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const [error, setError] = useState<any>(null);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);  // ✅ ADD
-  const router = useRouter();
+  const [status, setStatus] = useState<"listening" | "processing" | "speaking">("listening");
 
-  const effectiveUrl = isOpen && websocketUrl ? websocketUrl : "";
-  // console.log
+  const ws = useWebSocket(websocketUrl);
+  const sttRef = useRef<null | { stop: () => void; pause: () => void; resume: () => void }>(null);
+  const isFirstResponse = useRef(true); // Track if this is the first response in a conversation turn
 
-  const {
-    isConnected,
-    messages,
-    disconnect: disconnectWebSocket,
-    send: wsSend,
-    stopAudio,
-  } = useWebSocket(effectiveUrl, {
-    onError: (err) => {
-      console.error("WebSocket Error in Modal:", err);
-      setError(err);
-    },
-  });
-
-  const {
-    startStreaming,
-    stopStreaming,
-    isConnected: isVoiceConnected,
-    isProcessing,
-    setIsProcessing,
-  } = useVoiceStream(effectiveUrl, {
-    externalSend: wsSend,
-    externalIsConnected: isConnected,
-    onUserInterrupt: () => {
-      console.log("🎤 User interrupted bot - handled in modal");
-    },
-    onStopAudio: stopAudio,
-    onListeningChange: setIsListening,
-    onUserSpeaking: setIsSpeaking,
-    onError: (err) => {
-      console.error("Voice Stream Error in Modal:", err);
-      setError(err);
-    },
-  });
-
-
+  // ---------------- START CALL ----------------
   useEffect(() => {
-    if (messages.length > 0) {
-      setIsProcessing(false);
-    }
-  }, [messages, setIsProcessing]);
+    if (!isOpen || !ws.isConnected) return;
 
-  useEffect(() => {
-    if (isConnected && websocketUrl) {
-      setIsCallActive(true);
-    }
-  }, [isConnected, websocketUrl]);
+    console.log("📞 Call started");
+    setIsCallActive(true);
+    setStatus("listening");
 
-  // console.log("CallingModal Render:", isConnected)
+    console.log("🎤 Starting STT...");
 
-  useEffect(() => {
-    if (isCallActive && isConnected && websocketUrl) {
-      console.log("📞 Starting voice stream...");
-      startStreaming();
-    }
+    // Start listening for user speech
+    startSTT((finalText) => {
+      console.log("✅ User finished speaking:", finalText);
 
-    return () => {
-      if (isCallActive) {
-        console.log("📞 Stopping voice stream...");
-        stopStreaming();
+      // 🔒 PAUSE STT - User done speaking, now processing
+      if (sttRef.current) {
+        sttRef.current.pause();
+        console.log("⏸️ STT paused during processing");
       }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCallActive, isConnected, websocketUrl]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+      setStatus("processing");
 
-    if (isCallActive && isConnected) {
-      interval = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    } else {
-      setCallDuration(0);
-    }
+      if (ws.isConnected) {
+        ws.send(finalText);
+        console.log("📤 Sent to backend:", finalText);
+      } else {
+        console.log("⚠️ WS not ready");
+        setStatus("listening");
+        // Resume STT if send failed
+        if (sttRef.current) {
+          sttRef.current.resume();
+        }
+      }
+    })
+      .then((stt) => {
+        sttRef.current = stt;
+        console.log("✅ STT Ready");
+      })
+      .catch((err) => {
+        console.error("❌ STT Failed:", err);
+      });
 
     return () => {
-      if (interval) clearInterval(interval);
+      console.log("🧹 Cleaning up...");
+      if (sttRef.current) {
+        sttRef.current.stop();
+      }
+      sttRef.current = null;
+      setStatus("listening");
     };
-  }, [isCallActive, isConnected]);
+  }, [isOpen, ws.isConnected]);
 
-  const handleEndCall = () => {
+  // ---------------- BOT RESPONSE ----------------
+  useEffect(() => {
+    if (!ws.lastText) return;
+
+    console.log("🤖 Backend response:", ws.lastText);
+    
+    // Only set to speaking on first response chunk
+    if (isFirstResponse.current) {
+      setStatus("speaking");
+      isFirstResponse.current = false;
+      
+      // ✅ Register callback to resume STT when ENTIRE queue is empty
+      setOnQueueEmpty(() => {
+        console.log("✅ All TTS finished - resuming STT");
+        setStatus("listening");
+        if (sttRef.current) {
+          sttRef.current.resume();
+          console.log("▶️ STT resumed - ready for input");
+        }
+        isFirstResponse.current = true; // Reset for next conversation turn
+      });
+    }
+
+    // Add to TTS queue (non-blocking)
+    speak(ws.lastText).catch((err) => {
+      console.error("❌ TTS Error:", err);
+    });
+
+  }, [ws.lastText]);
+
+  // ---------------- TIMER ----------------
+  useEffect(() => {
+    let t: NodeJS.Timeout;
+    if (isCallActive) {
+      t = setInterval(() => {
+        setCallDuration((p) => p + 1);
+      }, 1000);
+    }
+    return () => clearInterval(t);
+  }, [isCallActive]);
+
+  // ---------------- END CALL ----------------
+  const handleEnd = () => {
     console.log("📞 Ending call...");
 
-    // Stop any currently playing bot audio immediately
-    stopAudio();
+    // Stop STT
+    if (sttRef.current) {
+      sttRef.current.stop();
+      console.log("✅ STT stopped");
+    }
+    sttRef.current = null;
 
-    stopStreaming();
-    disconnectWebSocket();
+    // Stop all audio
+    stopAllAudio();
+
+    // 🔌 Close backend WebSocket
+    ws.close();
+    console.log("🔌 Backend WS closed");
+
     setIsCallActive(false);
+    setStatus("listening");
     setCallDuration(0);
 
-
-    // ✅ Call the onEndCall callback if provided
-    void onEndCall?.();
-
-    // ✅ If sessionId exists, navigate to URL with chat param and reload
-    if (sessionId) {
-      console.log("✅ SessionId exists, navigating to chat:", sessionId);
-
-      // Build the URL with the chat parameter
-      const currentPath = window.location.pathname;
-      const newUrl = `${currentPath}?chat=${sessionId}`;
-
-      // Navigate and reload the page
-      window.location.href = newUrl;
+    // Call onEndCall callback if provided
+    if (onEndCall) {
+      onEndCall();
     }
+
     onClose();
-  };
-
-  useEffect(() => {
-    if (error) {
-      // handleEndCall();
-      setError(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [error]);
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative bg-[#1f2632] rounded-2xl p-8 sm:p-10 md:p-12 max-w-md w-full mx-4 border border-[#3a4a5a] shadow-2xl">
-        {/* Close button */}
-        <button
-          onClick={handleEndCall}
-          className="absolute top-4 right-4 p-2 hover:bg-[#3a4a5a] rounded-full transition-colors"
-          aria-label="Close"
-        >
-          <svg
-            className="w-6 h-6 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+      <div className="bg-[#1f2632] rounded-2xl p-8 max-w-md w-full border border-[#3a4a5a] shadow-2xl">
+        
+        {/* Header */}
+        <h2 className="text-xl font-bold text-white text-center mb-2">
+          {ws.isConnected ? "Voice Call Active" : "Connecting..."}
+        </h2>
 
-        <div className="flex flex-col items-center space-y-6">
-          {/* Avatar with animation */}
-          <div className="relative">
-            <div
-              className={`absolute inset-0 rounded-full border-4 ${isConnected
-                ? "border-green-500 animate-ping"
-                : "border-blue-500 animate-pulse"
-                } opacity-75`}
-            ></div>
-            <div
-              className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ${isConnected ? "ring-4 ring-green-500/50" : ""
-                }`}
-            >
-              <svg
-                className="w-12 h-12 sm:w-14 sm:h-14 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                />
-              </svg>
-            </div>
+        {/* Avatar */}
+        <div className="flex justify-center my-8">
+          <div className="w-32 h-32 rounded-full flex items-center justify-center text-6xl transition-all duration-300">
+            <img src="/Intelliment LOgo.png" alt="Intelliment Logo" className="w-full h-full object-contain" />
           </div>
-
-          {/* Status */}
-          <div className="text-center space-y-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">
-              {isConnected ? "Connected" : websocketUrl ? "Connecting..." : "Call"}
-            </h2>
-            <p className="text-gray-400 text-sm sm:text-base">
-              {isConnected
-                ? "Voice call is active"
-                : websocketUrl
-                  ? "Establishing connection..."
-                  : "WebSocket URL not configured"}
-            </p>
-
-            {/* Connection indicator */}
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <div
-                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-yellow-500"
-                  } ${isConnected ? "animate-pulse" : "animate-ping"}`}
-              ></div>
-              <span className="text-xs text-gray-500">
-                {isConnected ? "Connected" : "Connecting"}
-              </span>
-            </div>
-
-            {/* Processing Indicator */}
-            {isProcessing && (
-              <div className="flex items-center justify-center gap-2 pt-2 animate-pulse">
-                <span className="text-sm text-blue-400 font-medium">
-                  Processing
-                </span>
-                <div className="flex space-x-1">
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
-                </div>
-              </div>
-            )}
-            {/* Listening Indicator - jab user bol raha ho */}
-            {isListening && isSpeaking && !isProcessing && (
-              <div className="flex items-center justify-center gap-2 pt-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-blue-400 font-medium">
-                  Listening
-                </span>
-              </div>
-            )}
-
-            {/* Mute Indicator - jab user chup ho */}
-            {isListening && !isSpeaking && !isProcessing && (
-              <div className="flex items-center justify-center gap-2 pt-2">
-                <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                <span className="text-sm text-gray-400 font-medium">
-                  Mute
-                </span>
-              </div>
-            )}
-
-            {/* Call duration */}
-            {isCallActive && isConnected && (
-              <div className="text-gray-400 text-lg font-mono pt-2">
-                {formatDuration(callDuration)}
-              </div>
-            )}
-          </div>
-
-
-          {/* End call button */}
-          <button
-            onClick={handleEndCall}
-            className="mt-6 px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full font-semibold transition-colors duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            End Call
-          </button>
         </div>
 
-        {/* Debug info */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-6 pt-4 border-t border-[#3a4a5a] text-xs text-gray-500 space-y-1">
-            <p>WebSocket: {isConnected ? "✅ Connected" : "❌ Disconnected"}</p>
-            <p>Voice Stream: {isVoiceConnected ? "✅ Active" : "❌ Inactive"}</p>
-            <p>Messages: {messages.length}</p>
-            <p>Duration: {formatDuration(callDuration)}</p>
-            <p>SessionId: {sessionId || "None"}</p>
+        {/* Status Display */}
+        <div className="text-center mb-4">
+          <div className="text-gray-400 text-sm mb-1">Status</div>
+          <div className="text-white text-xl font-semibold flex items-center justify-center gap-2">
+            {status === "listening" && (
+              <>
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Listening...
+              </>
+            )}
+            {status === "processing" && (
+              <>
+                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                Processing...
+              </>
+            )}
+            {status === "speaking" && (
+              <>
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                AI Speaking...
+              </>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Timer */}
+        <div className="text-center mb-6">
+          <div className="text-gray-400 text-sm mb-1">Duration</div>
+          <div className="text-white font-mono text-3xl">
+            {new Date(callDuration * 1000).toISOString().slice(14, 19)}
+          </div>
+        </div>
+
+        {/* End Button */}
+        <button
+          onClick={handleEnd}
+          className="w-full py-4 bg-red-600 hover:bg-red-700 rounded-full text-white font-bold text-lg transition-all hover:scale-105 active:scale-95"
+        >
+          End Call
+        </button>
       </div>
     </div>
   );
