@@ -397,6 +397,7 @@ interface CallingModalProps {
   onClose: () => void;
   websocketUrl: string;
   onEndCall?: () => void | Promise<void>;
+  sessionId?: string; // Current chat session ID (for existing chats)
 }
 
 export default function CallingModal({
@@ -404,14 +405,18 @@ export default function CallingModal({
   onClose,
   websocketUrl,
   onEndCall,
+  sessionId = '', // Current chat session ID
 }: CallingModalProps) {
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [status, setStatus] = useState<"listening" | "processing" | "speaking">("listening");
+  const [isSttReady, setIsSttReady] = useState(false); // Track STT initialization state
+  const [isDeegramConnected, setIsDeegramConnected] = useState(false); // 🔵 Track Deepgram connection
+  const [isEndingCall, setIsEndingCall] = useState(false); // Track if call is ending
 
-  const ws = useWebSocket(websocketUrl);
+  const ws = useWebSocket(websocketUrl, sessionId); // Pass sessionId to useWebSocket
   const sttRef = useRef<null | { stop: () => void; pause: () => void; resume: () => void }>(null);
-  const isFirstResponse = useRef(true); // Track if this is the first response in a conversation turn
+  const isNewChat = !sessionId; // 🆕 Track if this is a new chat (no sessionId initially)
 
   // ---------------- START CALL ----------------
   useEffect(() => {
@@ -424,35 +429,44 @@ export default function CallingModal({
     console.log("🎤 Starting STT...");
 
     // Start listening for user speech
-    startSTT((finalText) => {
-      console.log("✅ User finished speaking:", finalText);
+    startSTT(
+      (finalText) => {
+        console.log("✅ User finished speaking:", finalText);
 
-      // 🔒 PAUSE STT - User done speaking, now processing
-      if (sttRef.current) {
-        sttRef.current.pause();
-        console.log("⏸️ STT paused during processing");
-      }
-
-      setStatus("processing");
-
-      if (ws.isConnected) {
-        ws.send(finalText);
-        console.log("📤 Sent to backend:", finalText);
-      } else {
-        console.log("⚠️ WS not ready");
-        setStatus("listening");
-        // Resume STT if send failed
+        // 🔒 PAUSE STT - User done speaking, now processing
         if (sttRef.current) {
-          sttRef.current.resume();
+          sttRef.current.pause();
+          console.log("⏸️ STT paused during processing");
         }
+
+        setStatus("processing");
+
+        if (ws.isConnected) {
+          ws.send(finalText);
+          console.log("📤 Sent to backend:", finalText);
+        } else {
+          console.log("⚠️ WS not ready");
+          setStatus("listening");
+          // Resume STT if send failed
+          if (sttRef.current) {
+            sttRef.current.resume();
+          }
+        }
+      },
+      () => {
+        // 🔵 Deepgram connected callback
+        console.log("🔵 Deepgram STT connected - updating state");
+        setIsDeegramConnected(true);
       }
-    })
+    )
       .then((stt) => {
         sttRef.current = stt;
         console.log("✅ STT Ready");
+        setIsSttReady(true); // Mark STT as ready
       })
       .catch((err) => {
         console.error("❌ STT Failed:", err);
+        setIsSttReady(false); // Mark STT as failed
       });
 
     return () => {
@@ -462,6 +476,7 @@ export default function CallingModal({
       }
       sttRef.current = null;
       setStatus("listening");
+      setIsSttReady(false); // Reset STT ready state on cleanup
     };
   }, [isOpen, ws.isConnected]);
 
@@ -471,22 +486,18 @@ export default function CallingModal({
 
     console.log("🤖 Backend response:", ws.lastText);
     
-    // Only set to speaking on first response chunk
-    if (isFirstResponse.current) {
-      setStatus("speaking");
-      isFirstResponse.current = false;
-      
-      // ✅ Register callback to resume STT when ENTIRE queue is empty
-      setOnQueueEmpty(() => {
-        console.log("✅ All TTS finished - resuming STT");
-        setStatus("listening");
-        if (sttRef.current) {
-          sttRef.current.resume();
-          console.log("▶️ STT resumed - ready for input");
-        }
-        isFirstResponse.current = true; // Reset for next conversation turn
-      });
-    }
+    // Set to speaking on every response
+    setStatus("speaking");
+    
+    // ✅ Register callback to resume STT when ENTIRE queue is empty (for EVERY response)
+    setOnQueueEmpty(() => {
+      console.log("✅ All TTS finished - resuming STT");
+      setStatus("listening");
+      if (sttRef.current) {
+        sttRef.current.resume();
+        console.log("▶️ STT resumed - ready for input");
+      }
+    });
 
     // Add to TTS queue (non-blocking)
     speak(ws.lastText).catch((err) => {
@@ -509,6 +520,7 @@ export default function CallingModal({
   // ---------------- END CALL ----------------
   const handleEnd = () => {
     console.log("📞 Ending call...");
+    setIsEndingCall(true); // Show ending animation
 
     // Stop STT
     if (sttRef.current) {
@@ -524,16 +536,28 @@ export default function CallingModal({
     ws.close();
     console.log("🔌 Backend WS closed");
 
-    setIsCallActive(false);
-    setStatus("listening");
-    setCallDuration(0);
+    // Wait a moment before closing modal
+    setTimeout(() => {
+      setIsCallActive(false);
+      setStatus("listening");
+      setCallDuration(0);
+      setIsEndingCall(false);
 
-    // Call onEndCall callback if provided
-    if (onEndCall) {
-      onEndCall();
-    }
-
-    onClose();
+      // 🔐 Only reload if this is a NEW chat and we got a fakeSessionId from backend
+      // For existing chats, just close normally
+      if (isNewChat && ws.sessionId) {
+        console.log("💾 New chat - Saving sessionId and reloading:", ws.sessionId);
+        // Reload the page with the sessionId in the URL
+        window.location.href = `/chat?chat=${encodeURIComponent(ws.sessionId)}`;
+      } else {
+        // Normal close for existing chats
+        console.log("📭 Existing chat - closing normally");
+        if (onEndCall) {
+          onEndCall();
+        }
+        onClose();
+      }
+    }, 1000); // Show "Ending call..." for 1 second
   };
 
   if (!isOpen) return null;
@@ -558,34 +582,55 @@ export default function CallingModal({
         <div className="text-center mb-4">
           <div className="text-gray-400 text-sm mb-1">Status</div>
           <div className="text-white text-xl font-semibold flex items-center justify-center gap-2">
-            {status === "listening" && (
+            {isEndingCall ? (
               <>
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Listening...
+                <span className="flex gap-1">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                </span>
+                <span className="ml-2">Ending Call...</span>
               </>
-            )}
-            {status === "processing" && (
+            ) : !isDeegramConnected ? (
+              // 🔵 Keep showing Connecting until Deepgram is ready
               <>
-                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
-                Processing...
+                <span className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></span>
+                Connecting...
               </>
-            )}
-            {status === "speaking" && (
+            ) : (
               <>
-                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                AI Speaking...
+                {status === "listening" && (
+                  <>
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    Listening...
+                  </>
+                )}
+                {status === "processing" && (
+                  <>
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                    Processing...
+                  </>
+                )}
+                {status === "speaking" && (
+                  <>
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                    AI Speaking...
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
 
-        {/* Timer */}
-        <div className="text-center mb-6">
-          <div className="text-gray-400 text-sm mb-1">Duration</div>
-          <div className="text-white font-mono text-3xl">
-            {new Date(callDuration * 1000).toISOString().slice(14, 19)}
+        {/* Timer - Only show after Deepgram is connected */}
+        {isDeegramConnected && (
+          <div className="text-center mb-6">
+            <div className="text-gray-400 text-sm mb-1">Duration</div>
+            <div className="text-white font-mono text-3xl">
+              {new Date(callDuration * 1000).toISOString().slice(14, 19)}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* End Button */}
         <button

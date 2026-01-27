@@ -854,6 +854,7 @@ export default function WelcomeScreen({
         onClose={() => setShowCallingModal(false)}
         onEndCall={onEndCall}
         websocketUrl={wsConnection ?? ""}
+        sessionId={activeChat?.id} // Pass current chat session ID
       />
 
       {/* Image Overlay */}

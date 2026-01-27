@@ -136,6 +136,8 @@ export function useChatSocket(options: UseChatSocketOptions) {
         tokenLength: data.token?.length,
         done: data.done,
         messageId: data.messageId,
+        sessionId: data.sessionId,
+        fakeSessionId: data.fakeSessionId,
         metadata: !!data.metadata,
       });
 
@@ -163,7 +165,13 @@ export function useChatSocket(options: UseChatSocketOptions) {
         }
       } else if (data.stage === 'complete') {
         // Stream completed successfully
-        console.log('✅ Pipeline completed with messageId:', data.messageId);
+        console.log('✅ Pipeline completed:', { 
+          messageId: data.messageId,
+          sessionId: data.sessionId,
+          fakeSessionId: data.fakeSessionId,
+          contentLength: data.content?.length,
+          tokenUsage: data.tokenUsage
+        });
         setIsStreaming(false);
         isStreamingRef.current = false;
         
@@ -176,7 +184,12 @@ export function useChatSocket(options: UseChatSocketOptions) {
         }
       } else if (data.stage === 'error') {
         // Error occurred in pipeline
-        console.error('❌ Pipeline error:', data.errorMessage);
+        console.error('❌ Pipeline error:', { 
+          errorMessage: data.errorMessage,
+          messageId: data.messageId,
+          sessionId: data.sessionId,
+          fakeSessionId: data.fakeSessionId
+        });
         setError(data.errorMessage || 'Pipeline error');
         setIsStreaming(false);
         isStreamingRef.current = false;
@@ -212,7 +225,14 @@ export function useChatSocket(options: UseChatSocketOptions) {
   const sendMessage = useCallback(
     (sessionId: string, content: string, images?: string[]) => {
       const currentUserId = userIdRef.current;
-      console.log('📤 sendMessage called:', { sessionId, contentLength: content?.length, imagesCount: images?.length, userId: currentUserId });
+      // Allow empty sessionId - pass it as null to backend for clarity
+      const finalSessionId = sessionId && sessionId !== '' ? sessionId : null;
+      console.log('📤 sendMessage called:', { 
+        sessionId: finalSessionId, 
+        contentLength: content?.length, 
+        imagesCount: images?.length, 
+        userId: currentUserId 
+      });
 
       if (!currentUserId || currentUserId === '') {
         const errorMsg = 'User ID required - user not loaded yet';
@@ -228,13 +248,6 @@ export function useChatSocket(options: UseChatSocketOptions) {
         return;
       }
 
-      if (!sessionId) {
-        const errorMsg = 'Session ID required';
-        console.error('❌', errorMsg);
-        setError(errorMsg);
-        return;
-      }
-
       setStreamingText('');
       streamingTextRef.current = '';
       setError(null);
@@ -242,7 +255,7 @@ export function useChatSocket(options: UseChatSocketOptions) {
       isStreamingRef.current = true;
 
       const payload = {
-        sessionId,
+        sessionId: finalSessionId, // Pass null if empty
         content,
         images: images || [],
         userId: currentUserId,
@@ -258,9 +271,14 @@ export function useChatSocket(options: UseChatSocketOptions) {
   );
 
   const sendMessageNew = useCallback(
-    (content: string, images?: string[]) => {
+    (content: string, images?: string[], fakeSessionId?: string) => {
       const currentUserId = userIdRef.current;
-      console.log('📤 sendMessageNew called:', { contentLength: content?.length, imagesCount: images?.length, userId: currentUserId });
+      console.log('📤 sendMessageNew called:', { 
+        contentLength: content?.length, 
+        imagesCount: images?.length, 
+        userId: currentUserId, 
+        fakeSessionId: fakeSessionId || null 
+      });
 
       if (!currentUserId || currentUserId === '') {
         const errorMsg = 'User ID required - user not loaded yet';
@@ -286,6 +304,7 @@ export function useChatSocket(options: UseChatSocketOptions) {
         content,
         images: images || [],
         userId: currentUserId,
+        fakeSessionId: fakeSessionId || null, // Pass null if empty
       };
 
       console.log('📤 Emitting stream-pipeline-message-new:', payload);

@@ -23,6 +23,7 @@ export interface Chat {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  fakeSessionId?: string; // Temporary session ID for new chats before backend creates real session
 }
 
 export interface Photo {
