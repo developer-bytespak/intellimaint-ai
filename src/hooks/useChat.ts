@@ -417,12 +417,14 @@ export function useChat() {
   const createNewChat = useCallback((skipRedirect: boolean = false): Chat => {
     // Create local chat state only (no API call, no ID, no URL change)
     // Session will be created when first message is sent
+    const fakeSessionId = `fake-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newChat: Chat = {
       id: '', // Empty ID - will be set when session is created
       title: 'New Chat',
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      fakeSessionId, // Temporary session ID for new chats
     };
     
     // Remove any existing empty chats (chats with no ID or no messages)
@@ -717,9 +719,9 @@ export function useChat() {
 
       try {
         // Start socket streaming
-        { const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true'; if (DEBUG) console.log('[sendMessage] Starting stream:', { isNewChat, chatId: finalChatToUse.id }); }
+        { const DEBUG = process.env.NEXT_PUBLIC_CHAT_DEBUG === 'true'; if (DEBUG) console.log('[sendMessage] Starting stream:', { isNewChat, chatId: finalChatToUse.id, fakeSessionId: finalChatToUse.fakeSessionId }); }
         if (isNewChat) {
-          socketHook.sendMessageNew(content, permanentImageUrls.length > 0 ? permanentImageUrls : undefined);
+          socketHook.sendMessageNew(content, permanentImageUrls.length > 0 ? permanentImageUrls : undefined, finalChatToUse.fakeSessionId);
         } else {
           socketHook.sendMessage(finalChatToUse.id, content, permanentImageUrls.length > 0 ? permanentImageUrls : undefined);
         }
@@ -955,8 +957,27 @@ export function useChat() {
           delete streamingBufferRef.current[tempAssistantMessageId];
           
           if (isNewChat) {
-            // Use completeChat.id which now has the actual session ID from the server
-            router.push(`/chat?chat=${completeChat.id}`);
+            // DUAL FLOW for new chats:
+            // 1. If backend provided fakeSessionId mapping, use it for immediate navigation
+            // 2. Otherwise use the real session ID from completeChat
+            const navigationSessionId = completeChat.fakeSessionId || completeChat.id;
+            if (navigationSessionId) {
+              console.log('[sendMessage] New chat redirect:', { fakeSessionId: completeChat.fakeSessionId, realSessionId: completeChat.id, navigatingTo: navigationSessionId });
+              router.push(`/chat?chat=${navigationSessionId}`);
+            }
+          } else {
+            // For existing chats, re-fetch the chat data without full page reload
+            console.log('[sendMessage] Existing chat - re-fetching session:', actualSessionId);
+            try {
+              const refreshedChat = await chatApi.getSession(actualSessionId);
+              setActiveChat(refreshedChat);
+              setChats(prev => prev.map(chat => 
+                chat.id === actualSessionId ? refreshedChat : chat
+              ));
+            } catch (refreshError) {
+              console.warn('[sendMessage] Failed to refresh existing chat after streaming:', refreshError);
+              // Chat state already updated with complete response, so continue gracefully
+            }
           }
         } catch (err) {
           console.error('Error fetching complete chat:', err);
