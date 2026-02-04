@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    if (!authHeader && !Object.keys(authHeaders).length) {
+    if (!Object.keys(authHeaders).length) {
+      console.log('[upload-repository] No auth headers found');
       return NextResponse.json(
         { error: 'Unauthorized. Please log in.' },
         { status: 401 }
