@@ -281,16 +281,19 @@ export function useWebSocket(url: string, initialSessionId: string = '') {
     };
   }, [url]);
 
-  const send = (text: string) => {
+  const send = (text: string, passedSessionId?: string) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return;
 
-    // If sessionId exists, send as JSON; otherwise send plain text
-    if (sessionId) {
-      console.log('📤 SENDING WITH SESSION ID:', { sessionId, text: text.slice(0, 50) });
+    // ✅ CRITICAL: Use passed sessionId if provided (from parent), otherwise use internal state
+    // This ensures explicit sessionId propagation without timing issues
+    const finalSessionId = passedSessionId !== undefined ? passedSessionId : sessionId;
+    
+    if (finalSessionId) {
+      console.log('📤 SENDING WITH SESSION ID:', { finalSessionId, text: text.slice(0, 50) });
       wsRef.current.send(
         JSON.stringify({
           text,
-          sessionId,
+          sessionId: finalSessionId,
         })
       );
     } else {

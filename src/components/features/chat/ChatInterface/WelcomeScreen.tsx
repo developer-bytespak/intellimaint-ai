@@ -63,10 +63,12 @@ export default function WelcomeScreen({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useUser();
   const searchParams = useSearchParams();
-   const chatId = searchParams.get('chat') || '';
-  // console.log('MessageList: current chat ID from URL params:', activeChat);
-
- 
+  const chatId = searchParams.get('chat') || ''; // ✅ Extract chat ID from URL params
+  
+  // ✅ Log for debugging
+  useEffect(() => {
+    console.log('🔗 Voice Call - SessionId from URL:', chatId || '(new chat - backend will generate)');
+  }, [chatId]);
 
   // Cleanup object URLs when component unmounts
   useEffect(() => {
@@ -854,7 +856,7 @@ export default function WelcomeScreen({
         onClose={() => setShowCallingModal(false)}
         onEndCall={onEndCall}
         websocketUrl={wsConnection ?? ""}
-        sessionId={activeChat?.id} // Pass current chat session ID
+        sessionId={chatId} // ✅ Pass URL param as sessionId (existing chat) or empty for new chat
       />
 
       {/* Image Overlay */}

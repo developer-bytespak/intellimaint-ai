@@ -413,10 +413,23 @@ export default function CallingModal({
   const [isSttReady, setIsSttReady] = useState(false); // Track STT initialization state
   const [isDeegramConnected, setIsDeegramConnected] = useState(false); // 🔵 Track Deepgram connection
   const [isEndingCall, setIsEndingCall] = useState(false); // Track if call is ending
+  const [currentSessionId, setCurrentSessionId] = useState<string>(sessionId || ''); // ✅ Track sessionId from backend
 
-  const ws = useWebSocket(websocketUrl, sessionId); // Pass sessionId to useWebSocket
+  const ws = useWebSocket(websocketUrl, currentSessionId); // ✅ PASS CURRENT SESSION ID (not original prop)
   const sttRef = useRef<null | { stop: () => void; pause: () => void; resume: () => void }>(null);
+  const currentSessionIdRef = useRef<string>(sessionId || ''); // ✅ Ref for latest sessionId
   const isNewChat = !sessionId; // 🆕 Track if this is a new chat (no sessionId initially)
+
+  // ✅ CAPTURE SESSION ID FROM BACKEND
+  // When backend responds with sessionId, store it locally for reuse in subsequent messages
+  useEffect(() => {
+    if (ws.sessionId && ws.sessionId !== currentSessionIdRef.current) {
+      console.log('🔐 SessionId captured from backend:', ws.sessionId);
+      console.log('   This will be reused for all messages in this call');
+      setCurrentSessionId(ws.sessionId);
+      currentSessionIdRef.current = ws.sessionId;
+    }
+  }, [ws.sessionId]);
 
   // ---------------- START CALL ----------------
   useEffect(() => {
@@ -442,7 +455,10 @@ export default function CallingModal({
         setStatus("processing");
 
         if (ws.isConnected) {
-          ws.send(finalText);
+          // ✅ CRITICAL FIX: Pass sessionId explicitly to send()
+          // This ensures even if useWebSocket state hasn't synced yet, we use the captured sessionId
+          console.log('📤 Sending message with sessionId:', currentSessionIdRef.current || '(new - backend will assign)');
+          ws.send(finalText, currentSessionIdRef.current || undefined);  // ✅ Pass captured sessionId
           console.log("📤 Sent to backend:", finalText);
         } else {
           console.log("⚠️ WS not ready");
@@ -543,12 +559,12 @@ export default function CallingModal({
       setCallDuration(0);
       setIsEndingCall(false);
 
-      // 🔐 Only reload if this is a NEW chat and we got a fakeSessionId from backend
-      // For existing chats, just close normally
-      if (isNewChat && ws.sessionId) {
-        console.log("💾 New chat - Saving sessionId and reloading:", ws.sessionId);
+      // ✅ Use tracked sessionId (most reliable, updates throughout call)
+      if (isNewChat && currentSessionIdRef.current) {
+        console.log("💾 New chat - Navigating with sessionId:", currentSessionIdRef.current);
+        console.log("   This ensures all messages are in same session");
         // Reload the page with the sessionId in the URL
-        window.location.href = `/chat?chat=${encodeURIComponent(ws.sessionId)}`;
+        window.location.href = `/chat?chat=${encodeURIComponent(currentSessionIdRef.current)}`;
       } else {
         // Normal close for existing chats
         console.log("📭 Existing chat - closing normally");
