@@ -61,19 +61,20 @@ export async function POST(request: NextRequest) {
     if (!Object.keys(authHeaders).length) {
       console.log('[upload-repository] No auth headers found');
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in.' },
+        { error: 'Unauthorized. Please log in   11.' },
         { status: 401 }
       );
     }
     
     const userResponse = await fetch(`${API_BASE_URL}/user/profile`, {
       method: 'GET',
-      headers: authHeaders,
+      // headers: authHeaders,
     });
+    console.log('userResponse', userResponse);
 
     if (!userResponse.ok) {
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in.' },
+        { error: 'Unauthorized. Please log in 22.' },
         { status: 401 }
       );
     }
