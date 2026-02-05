@@ -123,14 +123,14 @@ export default function RepositoryPage() {
       if (batchState.batchId && batchState.fileMetadata.length > 0 && !hasRestoredRef.current) {
         console.log("[Repository] Restoring files from IndexedDB...");
         hasRestoredRef.current = true;
-        
+
         // Get files from IndexedDB
         const storedFiles = await getAllStoredFiles();
-        
+
         if (storedFiles.length > 0) {
           // Create UploadedItem array from stored files using metadata
           const restoredItems: UploadedItem[] = [];
-          
+
           for (const metadata of batchState.fileMetadata) {
             const file = storedFiles.find(f => f.name === metadata.name);
             if (file) {
@@ -142,7 +142,7 @@ export default function RepositoryPage() {
               });
             }
           }
-          
+
           if (restoredItems.length > 0) {
             console.log(`[Repository] Restored ${restoredItems.length} files`);
             setSelectedFiles(restoredItems);
@@ -150,7 +150,7 @@ export default function RepositoryPage() {
         }
       }
     };
-    
+
     restoreFilesFromStorage();
   }, [batchState.batchId, batchState.fileMetadata]);
 
@@ -161,7 +161,7 @@ export default function RepositoryPage() {
     }
   }, [batchState.isComplete]);
 
-    const { data: documentsData, isLoading: isLoadingDocuments } = useDocuments(currentPage, 10)
+  const { data: documentsData, isLoading: isLoadingDocuments } = useDocuments(currentPage, 10)
   const uploadedItems: RepositoryDocument[] = documentsData?.documents || []
   const pagination = documentsData?.pagination
   const totalPages = pagination?.totalPages || 1
@@ -186,6 +186,12 @@ export default function RepositoryPage() {
 
       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
         toast.error(`${file.name} is not a PDF file. Only PDF files are allowed.`)
+        continue
+      }
+
+      const maxSize = 900 * 1024; // 500KB
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds 500KB size limit`)
         continue
       }
 
@@ -334,30 +340,30 @@ export default function RepositoryPage() {
   // Cancel batch processing
   const handleCancelBatch = async () => {
     if (!batchState.batchId) return;
-    
+
     try {
       // Call backend to cancel
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       fetch(`${apiUrl}/api/v1/batches/${batchState.batchId}/cancel`, {
         method: 'DELETE'
       }).catch(err => console.error("Cancel API error", err));
-      
+
       // Disconnect SSE
       disconnect();
-      
+
       // Clear ALL localStorage
       localStorage.clear();
-      
+
       // Clear IndexedDB
       cleanup();
-      
+
       toast.info("Batch cancelled. Reloading...");
-      
+
       // Reload page
       setTimeout(() => {
         // window.location.reload();
       }, 1000);
-      
+
     } catch (err) {
       console.error("Cancel failed", err);
       // Still try to reload
@@ -469,9 +475,8 @@ export default function RepositoryPage() {
                         return (
                           <div
                             key={file.id}
-                            className={`relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 ${
-                              isCompleted ? 'border-green-500/50' : hasError ? 'border-red-500/50' : 'border-white/10'
-                            }`}
+                            className={`relative aspect-square rounded-xl overflow-hidden bg-white/5 border-2 ${isCompleted ? 'border-green-500/50' : hasError ? 'border-red-500/50' : 'border-white/10'
+                              }`}
                           >
                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-red-500/20 to-orange-500/20 p-2 relative">
                               {/* Show circular progress overlay when processing */}
@@ -486,7 +491,7 @@ export default function RepositoryPage() {
                                   />
                                 </div>
                               )}
-                              
+
                               {/* Show completed checkmark overlay */}
                               {isCompleted && (
                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
@@ -524,9 +529,8 @@ export default function RepositoryPage() {
                               </p>
                               {/* Show status text */}
                               {fileStatus && (
-                                <p className={`text-[10px] mt-0.5 font-medium ${
-                                  isCompleted ? 'text-green-400' : hasError ? 'text-red-400' : 'text-blue-400'
-                                }`}>
+                                <p className={`text-[10px] mt-0.5 font-medium ${isCompleted ? 'text-green-400' : hasError ? 'text-red-400' : 'text-blue-400'
+                                  }`}>
                                   {fileStatus.status === 'pending' && 'Queued'}
                                   {fileStatus.status === 'processing' && 'Processing'}
                                   {fileStatus.status === 'uploading' && 'Saving'}
@@ -556,9 +560,8 @@ export default function RepositoryPage() {
                             key={`empty-${index}`}
                             onClick={() => fileInputRef.current?.click()}
                             disabled={batchState.batchId !== null && !batchState.isComplete}
-                            className={`aspect-square rounded-xl border-2 border-dashed border-[#6B9BD1] bg-white/5 flex flex-col items-center justify-center gap-2 hover:border-[#8BB5E8] hover:bg-white/10 transition-colors ${
-                              batchState.batchId !== null && !batchState.isComplete ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            className={`aspect-square rounded-xl border-2 border-dashed border-[#6B9BD1] bg-white/5 flex flex-col items-center justify-center gap-2 hover:border-[#8BB5E8] hover:bg-white/10 transition-colors ${batchState.batchId !== null && !batchState.isComplete ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
                           >
                             <svg className="h-10 w-10 text-[#6B9BD1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -574,8 +577,7 @@ export default function RepositoryPage() {
                 <button
                   onClick={handleSend}
                   disabled={isSubmitting || (batchState.batchId !== null && !batchState.isComplete) || selectedFiles.length === 0}
-                  className={`w-full font-medium py-4 rounded-xl transition-colors shadow-lg mt-6 ${
-                    isSubmitting || (batchState.batchId !== null && !batchState.isComplete) || selectedFiles.length === 0
+                  className={`w-full font-medium py-4 rounded-xl transition-colors shadow-lg mt-6 ${isSubmitting || (batchState.batchId !== null && !batchState.isComplete) || selectedFiles.length === 0
                       ? 'bg-blue-400 cursor-not-allowed'
                       : 'bg-blue-500 hover:bg-blue-600'
                     } text-white`}
