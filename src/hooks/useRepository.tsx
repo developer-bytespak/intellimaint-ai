@@ -83,25 +83,14 @@ export function useRepository() {
 
       const formData = new FormData();
       formData.append('file', file);
-      console.log('[useRepository] Uploading file:', file.name);
+      console.log('Uploading file:', file.name);
 
       // Get auth token from localStorage
       const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
       
-      if (!token) {
-        console.warn('[useRepository] ❌ No accessToken found in localStorage - user may not be authenticated');
-      } else {
-        console.log('[useRepository] ✅ Token found in localStorage, length:', token.length);
-      }
-      
       const headers: HeadersInit = {
         ...(token && { Authorization: `Bearer ${token}` }),
       };
-
-      console.log('[useRepository] Request headers:', {
-        hasAuth: !!token,
-        contentType: 'automatically set by FormData',
-      });
 
       const res = await fetch('/api/upload-repository-document', {
         method: 'POST',
@@ -109,8 +98,6 @@ export function useRepository() {
         headers,
         credentials: 'include',
       });
-
-      console.log('[useRepository] Response status:', res.status, res.statusText);
 
       if (!res.ok) {
         let error;
@@ -125,22 +112,7 @@ export function useRepository() {
         } catch (e) {
           error = { error: 'Failed to upload document' };
         }
-        
-        // Provide helpful error messages based on status
-        let errorMessage = error.error || 'Failed to upload document';
-        if (res.status === 401) {
-          errorMessage = 'Authentication failed. ' + (error.details || 'Please log in again.');
-        } else if (res.status === 400) {
-          errorMessage = error.error || 'Invalid file. Please check the file and try again.';
-        }
-        
-        console.error('[useRepository] ❌ Upload failed:', {
-          status: res.status,
-          hasToken: !!token,
-          error: errorMessage,
-        });
-        
-        throw new Error(errorMessage);
+        throw new Error(error.error || 'Failed to upload document');
       }
 
       const data = await res.json();
