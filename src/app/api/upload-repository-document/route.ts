@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { API_BASE } from '@/lib/api/axios';
+import axios from 'axios';
 
 const API_BASE_URL = API_BASE;
 
@@ -61,156 +62,103 @@ export async function POST(request: NextRequest) {
     if (!Object.keys(authHeaders).length) {
       console.log('[upload-repository] No auth headers found');
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in   11.' },
+        { error: 'Unauthorized. Please log in' },
         { status: 401 }
       );
     }
     
-    const userResponse = await fetch(`${API_BASE_URL}/user/profile`, {
-      method: 'GET',
-      headers: authHeaders,
-    });
-    console.log('userResponse', userResponse);
-
-    if (!userResponse.ok) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Please log in 22.' },
-        { status: 401 }
-      );
-    }
-
-    let userData;
     try {
-      const contentType = userResponse.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        userData = await userResponse.json();
-      } else {
-        console.error('User profile response is not JSON:', await userResponse.text());
+      // Verify user by fetching profile
+      const userResponse = await axios.get(`${API_BASE_URL}/user/profile`, {
+        headers: authHeaders,
+        withCredentials: true,
+      });
+      
+      console.log('[upload-repository] User profile fetched successfully');
+      
+      const userData = userResponse.data;
+      const userId = userData?.data?.id || userData?.id;
+
+      if (!userId) {
         return NextResponse.json(
-          { error: 'Invalid response from authentication service' },
+          { error: 'Unable to identify user' },
+          { status: 401 }
+        );
+      }
+
+      // Get blob token
+      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+      if (!blobToken) {
+        return NextResponse.json(
+          { error: 'Blob storage token not configured' },
           { status: 500 }
         );
       }
-    } catch (error) {
-      console.error('Error parsing user profile response:', error);
-      return NextResponse.json(
-        { error: 'Failed to parse authentication response' },
-        { status: 500 }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const fileExtension = file.name.split('.').pop() || 'pdf';
+      const filename = `repositories/${userId}/${timestamp}-${randomString}.${fileExtension}`;
+
+      // Upload to Vercel Blob
+      const { put } = await import('@vercel/blob');
+      const blob = await put(filename, file, {
+        access: 'public',
+        contentType: file.type,
+        token: blobToken,
+      });
+
+      console.log('[upload-repository] File uploaded to blob:', blob.url);
+
+      // Save document metadata to backend
+      const documentResponse = await axios.post(
+        `${API_BASE_URL}/repository/documents`,
+        {
+          documents: [{
+            fileId: `${timestamp}-${randomString}`,
+            fileName: file.name,
+            fileUrl: blob.url,
+            fileSize: file.size,
+            blobPath: filename,
+          }],
+        },
+        {
+          headers: authHeaders,
+          withCredentials: true,
+        }
       );
-    }
-    const userId = userData?.data?.id || userData?.id;
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unable to identify user' },
-        { status: 401 }
-      );
-    }
+      const documentData = documentResponse.data;
+      const document = documentData?.data?.documents?.[0] || documentData?.documents?.[0];
 
-
-    // Get blob token
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!blobToken) {
-      return NextResponse.json(
-        { error: 'Blob storage token not configured' },
-        { status: 500 }
-      );
-    }
-
-    console.log('blobToken', blobToken);
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 15);
-    const fileExtension = file.name.split('.').pop() || 'pdf';
-    const filename = `repositories/${userId}/${timestamp}-${randomString}.${fileExtension}`;
-
-    // Upload to Vercel Blob (dynamic import)
-    const { put } = await import('@vercel/blob');
-    const blob = await put(filename, file, {
-      access: 'public',
-      contentType: file.type,
-      token: blobToken,
-    });
-
-    console.log('blob', blob);
-
-    // Save document metadata to backend
-    const documentResponse = await fetch(`${API_BASE_URL}/repository/documents`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
-        documents: [{
-          fileId: `${timestamp}-${randomString}`, // Generate a simple fileId
+      return NextResponse.json({
+        document: document || {
+          id: `${timestamp}-${randomString}`,
           fileName: file.name,
           fileUrl: blob.url,
           fileSize: file.size,
-          blobPath: filename,
-        }],
-      }),
-    });
+          status: 'ready',
+        },
+      });
 
-    if (!documentResponse.ok) {
-      // If saving to DB fails, try to delete from blob (best effort)
-      try {
-        const { del } = await import('@vercel/blob');
-        await del(blob.url, { token: blobToken });
-      } catch (deleteError) {
-        console.error('Failed to delete blob after DB save failure:', deleteError);
-      }
-
-      let errorData: { message?: string; error?: string } = {};
-      try {
-        const contentType = documentResponse.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          errorData = await documentResponse.json();
-        } else {
-          const text = await documentResponse.text();
-          console.error('Document save response is not JSON:', text);
-        }
-      } catch (error) {
-        console.error('Error parsing document save error response:', error);
-      }
-      return NextResponse.json(
-        { error: errorData.message || errorData.error || 'Failed to save document metadata' },
-        { status: documentResponse.status }
-      );
-    }
-
-    let documentData;
-    try {
-      const contentType = documentResponse.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        documentData = await documentResponse.json();
-      } else {
-        const text = await documentResponse.text();
-        console.error('Document save response is not JSON:', text);
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        console.error('[upload-repository] Auth failed:', error.response?.statusText);
         return NextResponse.json(
-          { error: 'Invalid response from document service' },
+          { error: 'Unauthorized. Please log in again.' },
+          { status: 401 }
+        );
+      }
+      if (error.response?.status === 500) {
+        console.error('[upload-repository] Backend server error:', error.response?.statusText);
+        return NextResponse.json(
+          { error: 'Backend server error. Please try again later.' },
           { status: 500 }
         );
       }
-    } catch (error) {
-      console.error('Error parsing document save response:', error);
-      return NextResponse.json(
-        { error: 'Failed to parse document save response' },
-        { status: 500 }
-      );
+      throw error;
     }
-    const document = documentData?.data?.documents?.[0] || documentData?.documents?.[0];
-
-    return NextResponse.json({
-      document: document || {
-        id: `${timestamp}-${randomString}`,
-        fileName: file.name,
-        fileUrl: blob.url,
-        fileSize: file.size,
-        status: 'ready',
-      },
-    });
   } catch (error) {
     console.error('Error uploading repository document:', error);
     return NextResponse.json(
@@ -219,4 +167,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
