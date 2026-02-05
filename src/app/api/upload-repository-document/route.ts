@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     
     const userResponse = await fetch(`${API_BASE_URL}/user/profile`, {
       method: 'GET',
-      // headers: authHeaders,
+      headers: authHeaders,
     });
     console.log('userResponse', userResponse);
 
