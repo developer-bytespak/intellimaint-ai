@@ -38,12 +38,24 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     let authHeaders: HeadersInit = {};
     
+    console.log('[upload-repository] 📋 Auth debug info:', {
+      authHeaderPresent: !!authHeader,
+      authHeaderLength: authHeader?.length || 0,
+      isBearerToken: authHeader?.startsWith('Bearer ') || false,
+    });
+    
     if (authHeader?.startsWith('Bearer ')) {
       // Use Authorization header from client
       authHeaders = {
         'Authorization': authHeader,
       };
-      console.log('[upload-repository] Using Authorization header from client');
+      console.log('[upload-repository] ✅ Using Authorization header from client (Bearer token detected)');
+    } else if (authHeader) {
+      console.log('[upload-repository] ⚠️  Authorization header present but not Bearer token:', authHeader.substring(0, 50));
+      return NextResponse.json(
+        { error: 'Invalid Authorization header format. Expected Bearer token.' },
+        { status: 401 }
+      );
     } else {
       // Fallback: Try cookies (for local development)
       const cookieStore = await cookies();
@@ -54,14 +66,19 @@ export async function POST(request: NextRequest) {
         authHeaders = {
           'Cookie': cookieHeader,
         };
-        console.log('[upload-repository] Using cookies from client');
+        console.log('[upload-repository] Using cookies from client (Bearer token not found)');
       }
     }
     
     if (!Object.keys(authHeaders).length) {
-      console.log('[upload-repository] No auth headers found');
+      console.log('[upload-repository] ❌ No auth headers found - no Authorization header or cookies');
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in   11.' },
+        { 
+          error: 'Unauthorized. No authentication provided. Please ensure you are logged in.',
+          details: 'Missing Authorization header and cookies',
+          troubleshooting: 'Check browser DevTools > Application > LocalStorage for "accessToken". If missing, please log in again. If present, check that it starts with "eyJ".',
+          debugEndpoint: '/api/auth-debug'
+        },
         { status: 401 }
       );
     }
@@ -70,11 +87,42 @@ export async function POST(request: NextRequest) {
       method: 'GET',
       headers: authHeaders,
     });
-    console.log('userResponse', userResponse);
+    
+    console.log('[upload-repository] 🔐 Backend profile check response:', {
+      status: userResponse.status,
+      statusText: userResponse.statusText,
+      authHeaderUsed: Object.keys(authHeaders)[0],
+    });
 
     if (!userResponse.ok) {
+      const errorText = await userResponse.text();
+      console.error('[upload-repository] ❌ Profile verification failed:', {
+        status: userResponse.status,
+        statusText: userResponse.statusText,
+        errorResponse: errorText.substring(0, 200),
+      });
+      
+      // Provide specific error messages based on status
+      let errorMessage = 'Profile verification failed. Please log in again.';
+      let troubleshootingSteps = '';
+      
+      if (userResponse.status === 401) {
+        errorMessage = 'Your session has expired or is invalid.';
+        troubleshootingSteps = '1. Check if accessToken in localStorage is valid\n2. Try logging out and logging in again\n3. If issue persists, clear browser cache and cookies';
+      } else if (userResponse.status === 403) {
+        errorMessage = 'Access denied. Your account may not have permission to upload.';
+      } else if (userResponse.status === 500) {
+        errorMessage = 'Backend server error. Please try again in a moment.';
+      }
+      
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in 22.' },
+        { 
+          error: errorMessage,
+          details: 'Unable to verify your identity with backend',
+          backendStatus: userResponse.status,
+          debugEndpoint: '/api/auth-debug',
+          troubleshooting: troubleshootingSteps
+        },
         { status: 401 }
       );
     }
