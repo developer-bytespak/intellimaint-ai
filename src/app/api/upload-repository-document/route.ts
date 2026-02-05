@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // Verify user by fetching profile
+      console.log('[upload-repository] Fetching user profile with auth headers:', authHeaders);
       const userResponse = await axios.get(`${API_BASE_URL}/user/profile`, {
         headers: authHeaders,
         withCredentials: true,
